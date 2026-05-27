@@ -8,7 +8,7 @@ A personal collection tracker for Commander players. Track your binder's value o
 - **Wishlist** — Monitor cards you're targeting with live price deltas and one-click move to binder
 - **Brew** — Find cards by function (ramp, draw, removal, etc.), filtered by color identity, card type, CMC, and budget. Results sorted by EDHREC popularity
 - **Card Search** — Look up any card with oracle text, pricing, and synergy suggestions via EDHREC
-- **Card of the Day** — Daily highlight from your binder
+- **Card of the Hour** — Hourly highlight from your binder
 
 ## Stack
 
