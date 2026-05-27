@@ -1,11 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById } from '@/lib/scryfall'
 import { getCollectionStatus } from '@/lib/collection'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: entries, error } = await supabase
     .from('binder_cards')
@@ -14,9 +14,9 @@ export async function GET() {
 
   if (error || !entries?.length) return NextResponse.json({ error: 'No binder entries' }, { status: 404 })
 
-  const now = new Date()
-  const seed = now.getFullYear() + now.getMonth() + now.getDate() + now.getHours()
-  const index = seed % entries.length
+  const seedParam = req.nextUrl.searchParams.get('seed')
+  const seed = seedParam ? parseInt(seedParam, 10) : (() => { const now = new Date(); return now.getFullYear() + now.getMonth() + now.getDate() + now.getHours() })()
+  const index = Math.abs(seed) % entries.length
   const entry = entries[index]
 
   const card = entry.scryfall_id
