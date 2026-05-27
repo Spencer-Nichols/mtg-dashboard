@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MTG Dashboard
+
+A personal collection tracker for Commander players. Track your binder's value over time, manage a wishlist with live price tracking, and brew new decks using keyword-based card search powered by Scryfall and EDHREC.
+
+## Features
+
+- **Binder** — Track cards you own with daily price snapshots, value sparklines, and gain/loss breakdowns
+- **Wishlist** — Monitor cards you're targeting with live price deltas and one-click move to binder
+- **Brew** — Find cards by function (ramp, draw, removal, etc.), filtered by color identity, card type, CMC, and budget. Results sorted by EDHREC popularity
+- **Card Search** — Look up any card with oracle text, pricing, and synergy suggestions via EDHREC
+- **Card of the Day** — Daily highlight from your binder
+
+## Stack
+
+- [Next.js 14](https://nextjs.org) (App Router)
+- [Tailwind CSS](https://tailwindcss.com)
+- [Scryfall API](https://scryfall.com/docs/api) — card data and prices
+- [EDHREC](https://edhrec.com) — synergy and popularity data
+- Data stored locally in JSON / markdown files
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Data files
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app expects two files outside the project directory:
 
-## Learn More
+| File | Purpose |
+|---|---|
+| `~/Projects/scryfall/binder.json` | Your card collection |
+| `~/.claude/projects/.../mtg_decks_wishlist.md` | Wishlist (markdown format) |
 
-To learn more about Next.js, take a look at the following resources:
+### Seeding price history (dev)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+To generate fake price history for testing the binder chart:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run seed:history   # adds 60 days of fake history
+npm run reset:history  # removes seeded entries only
+```
 
-## Deploy on Vercel
+## Roadmap
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Migrate to Supabase + Vercel KV for hosting
+- [ ] Auth (required before public hosting)
+- [ ] Mobile brew layout improvements
+- [ ] Vercel Cron for background price refresh
