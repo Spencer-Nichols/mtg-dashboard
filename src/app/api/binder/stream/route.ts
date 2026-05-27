@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { readBinder } from '@/lib/binder'
+import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById, getPrice, sleep } from '@/lib/scryfall'
 import { getCached, setCached, cacheKey } from '@/lib/cache'
 
@@ -7,7 +7,14 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   const bust = req.nextUrl.searchParams.get('bust') === 'true'
-  const entries = readBinder()
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('binder_cards')
+    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price')
+    .order('created_at')
+
+  const entries = error ? [] : (data ?? [])
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -21,7 +28,7 @@ export async function GET(req: NextRequest) {
 
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i]
-        const key = cacheKey(entry.baseName, entry.scryfallId ?? entry.setCode)
+        const key = cacheKey(entry.base_name, entry.scryfall_id ?? entry.set_code ?? '')
         let currentPrice: number | null = null
         let imageUrl: string | null = null
 
@@ -31,9 +38,9 @@ export async function GET(req: NextRequest) {
           imageUrl = cached.imageUrl ?? null
         } else {
           if (i > 0) await sleep(1100)
-          const card = entry.scryfallId
-            ? await fetchById(entry.scryfallId)
-            : await fetchByName(entry.baseName, entry.setCode || undefined)
+          const card = entry.scryfall_id
+            ? await fetchById(entry.scryfall_id)
+            : await fetchByName(entry.base_name, entry.set_code || undefined)
           if (card) {
             const price = getPrice(card, false)
             const foilPrice = getPrice(card, true)
@@ -44,14 +51,14 @@ export async function GET(req: NextRequest) {
         }
 
         const pct = currentPrice != null
-          ? ((currentPrice - entry.snapshotPrice) / entry.snapshotPrice) * 100
+          ? ((currentPrice - (entry.snapshot_price ?? 0)) / (entry.snapshot_price ?? 1)) * 100
           : null
 
         send({
           type: 'card',
           index: i,
-          displayName: entry.displayName,
-          snapshotPrice: entry.snapshotPrice,
+          displayName: entry.display_name,
+          snapshotPrice: entry.snapshot_price ?? 0,
           currentPrice,
           pct,
           imageUrl,

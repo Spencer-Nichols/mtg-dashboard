@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readBinder, writeBinder } from '@/lib/binder'
+import { createClient } from '@/lib/supabase/server'
 
 export async function PATCH(req: NextRequest) {
   const { displayName, note } = await req.json()
   if (!displayName?.trim()) return NextResponse.json({ error: 'Missing displayName' }, { status: 400 })
 
-  const entries = readBinder()
-  let found = false
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('binder_cards')
+    .update({ note: note?.trim() || null })
+    .ilike('display_name', displayName.trim())
+    .select('id')
 
-  const updated = entries.map(e => {
-    if (e.displayName.toLowerCase() !== displayName.trim().toLowerCase()) return e
-    found = true
-    return { ...e, note: note?.trim() || null }
-  })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data?.length) return NextResponse.json({ error: 'Card not found in binder' }, { status: 404 })
 
-  if (!found) return NextResponse.json({ error: 'Card not found in binder' }, { status: 404 })
-
-  writeBinder(updated)
   return NextResponse.json({ ok: true })
 }

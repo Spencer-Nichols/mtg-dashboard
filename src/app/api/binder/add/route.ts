@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById, searchCards, getPrice, frameSuffix } from '@/lib/scryfall'
-import { readBinder, writeBinder, BinderEntry } from '@/lib/binder'
 
 export async function POST(req: NextRequest) {
   const { name, setCode: forcedSet, scryfallId, note } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Missing card name' }, { status: 400 })
 
-  const entries = readBinder()
-  const exists = scryfallId
-    ? entries.find(e => e.scryfallId === scryfallId)
-    : entries.find(e => e.baseName.toLowerCase() === name.trim().toLowerCase() && !e.scryfallId)
-  if (exists) return NextResponse.json({ error: `${exists.baseName} is already in the binder` }, { status: 409 })
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const card = scryfallId ? await fetchById(scryfallId) : await fetchByName(name.trim(), forcedSet || undefined)
+  // Check for duplicate
+  const dupQuery = scryfallId
+    ? supabase.from('binder_cards').select('base_name').eq('scryfall_id', scryfallId).limit(1)
+    : supabase.from('binder_cards').select('base_name').ilike('base_name', name.trim()).limit(1)
+  const { data: existing } = await dupQuery.maybeSingle()
+  if (existing) return NextResponse.json({ error: `${existing.base_name} is already in the binder` }, { status: 409 })
+
+  const card = scryfallId
+    ? await fetchById(scryfallId)
+    : await fetchByName(name.trim(), forcedSet || undefined)
 
   if (!card) {
     const candidates = await searchCards(name.trim())
@@ -36,20 +43,22 @@ export async function POST(req: NextRequest) {
   const price = getPrice(resolved)
   if (!price) return NextResponse.json({ error: 'No price data available' }, { status: 404 })
 
-  const newEntry: BinderEntry = {
-    displayName: resolved.name + frameSuffix(resolved),
-    baseName: resolved.name,
-    setCode: resolved.set ?? '',
-    scryfallId: resolved.id ?? null,
+  const newRow = {
+    user_id: user.id,
+    display_name: resolved.name + frameSuffix(resolved),
+    base_name: resolved.name,
+    set_code: resolved.set ?? null,
+    scryfall_id: resolved.id ?? null,
     foil: false,
     count: 1,
-    snapshotPrice: price,
+    snapshot_price: price,
     note: note?.trim() || null,
-    dateAdded: new Date().toISOString().slice(0, 10),
+    date_added: new Date().toISOString().slice(0, 10),
   }
 
-  writeBinder([...entries, newEntry])
+  const { error } = await supabase.from('binder_cards').insert(newRow)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const imageUrl = resolved.image_uris?.normal ?? resolved.card_faces?.[0]?.image_uris?.normal ?? null
-  return NextResponse.json({ name: newEntry.displayName, price, setCode: newEntry.setCode, imageUrl })
+  return NextResponse.json({ name: newRow.display_name, price, setCode: newRow.set_code, imageUrl })
 }

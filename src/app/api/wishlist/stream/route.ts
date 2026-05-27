@@ -1,22 +1,20 @@
 import { NextRequest } from 'next/server'
-import { loadWishlist } from '@/lib/wishlist'
+import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById, getPrice, sleep } from '@/lib/scryfall'
 import { getCached, setCached, cacheKey } from '@/lib/cache'
-import fs from 'fs'
-import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
-const PRICES_FILE = path.join(process.env.HOME || '', 'Projects/scryfall/wishlist_prices.json')
-
-function loadPrices(): Record<string, { price: number; addedAt: string }> {
-  try { return JSON.parse(fs.readFileSync(PRICES_FILE, 'utf-8')) } catch { return {} }
-}
-
 export async function GET(req: NextRequest) {
   const bust = req.nextUrl.searchParams.get('bust') === 'true'
-  const { singles } = loadWishlist()
-  const snapshots = loadPrices()
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('wishlist_singles')
+    .select('name, note, set_code, scryfall_id, snapshot_price')
+    .order('created_at')
+
+  const singles = error ? [] : (data ?? [])
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -27,18 +25,16 @@ export async function GET(req: NextRequest) {
       send({ type: 'total', count: singles.length })
 
       for (let i = 0; i < singles.length; i++) {
-        const { name, note, setCode, scryfallId } = singles[i]
-        const key = cacheKey(name, scryfallId ?? setCode ?? '')
+        const { name, note, set_code, scryfall_id, snapshot_price } = singles[i]
+        const key = cacheKey(name, scryfall_id ?? set_code ?? '')
         let currentPrice: number | null = null
         let imageUrl: string | null = null
-
         let setName: string | null = null
         let cardSetCode: string | null = null
         let rarity: string | null = null
         let typeLine: string | null = null
 
         const cached = bust ? null : getCached(key)
-        // Treat as miss if metadata fields are absent (old cache entries)
         if (cached && cached.setName !== undefined) {
           currentPrice = cached.price
           imageUrl = cached.imageUrl ?? null
@@ -48,9 +44,9 @@ export async function GET(req: NextRequest) {
           typeLine = cached.typeLine ?? null
         } else {
           if (i > 0) await sleep(1100)
-          const card = scryfallId
-            ? await fetchById(scryfallId)
-            : await fetchByName(name, setCode ?? undefined)
+          const card = scryfall_id
+            ? await fetchById(scryfall_id)
+            : await fetchByName(name, set_code ?? undefined)
           if (card) {
             const price = getPrice(card, false)
             const foilPrice = getPrice(card, true)
@@ -59,12 +55,17 @@ export async function GET(req: NextRequest) {
             cardSetCode = card.set ?? null
             rarity = card.rarity ?? null
             typeLine = card.type_line ?? null
-            setCached(key, price, foilPrice, imageUrl, { setName: setName ?? undefined, setCode: cardSetCode ?? undefined, rarity: rarity ?? undefined, typeLine: typeLine ?? undefined })
+            setCached(key, price, foilPrice, imageUrl, {
+              setName: setName ?? undefined,
+              setCode: cardSetCode ?? undefined,
+              rarity: rarity ?? undefined,
+              typeLine: typeLine ?? undefined,
+            })
             currentPrice = price
           }
         }
 
-        const snapshotPrice = snapshots[name]?.price ?? null
+        const snapshotPrice = snapshot_price ?? null
         const pct = currentPrice != null && snapshotPrice != null
           ? ((currentPrice - snapshotPrice) / snapshotPrice) * 100
           : null

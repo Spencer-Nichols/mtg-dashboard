@@ -1,26 +1,30 @@
 import { NextResponse } from 'next/server'
-import { readBinder } from '@/lib/binder'
+import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById } from '@/lib/scryfall'
 import { getCollectionStatus } from '@/lib/collection'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const entries = readBinder()
-  if (entries.length === 0) return NextResponse.json({ error: 'No binder entries' }, { status: 404 })
+  const supabase = await createClient()
+  const { data: entries, error } = await supabase
+    .from('binder_cards')
+    .select('display_name, base_name, set_code, scryfall_id')
+    .order('created_at')
 
-  // Seed by date + hour so it rotates every hour
+  if (error || !entries?.length) return NextResponse.json({ error: 'No binder entries' }, { status: 404 })
+
   const now = new Date()
   const seed = now.getFullYear() + now.getMonth() + now.getDate() + now.getHours()
   const index = seed % entries.length
   const entry = entries[index]
 
-  const card = entry.scryfallId
-    ? await fetchById(entry.scryfallId)
-    : await fetchByName(entry.baseName, entry.setCode || undefined)
+  const card = entry.scryfall_id
+    ? await fetchById(entry.scryfall_id)
+    : await fetchByName(entry.base_name, entry.set_code || undefined)
 
   if (!card) return NextResponse.json({ error: 'Card not found' }, { status: 404 })
 
   const status = getCollectionStatus(card.name)
-  return NextResponse.json({ card, status, displayName: entry.displayName })
+  return NextResponse.json({ card, status, displayName: entry.display_name })
 }

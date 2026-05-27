@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist } from 'next/font/google'
 import Link from 'next/link'
+import { logout } from '@/app/actions/auth'
 import './globals.css'
 
 const geist = Geist({ subsets: ['latin'] })
@@ -29,6 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/wishlist" className="text-sm text-stone-400 hover:text-amber-400 transition-colors">
               Wishlist
             </Link>
+            <form action={logout} className="ml-auto">
+              <button type="submit" className="text-sm text-stone-500 hover:text-stone-300 transition-colors">
+                Sign out
+              </button>
+            </form>
           </div>
         </nav>
         <main className="flex-1 max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8">
