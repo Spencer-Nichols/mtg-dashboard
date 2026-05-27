@@ -161,9 +161,8 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  function fetchCard(seed?: number) {
+  function fetchCard(url = '/api/card-of-the-day') {
     setLoading(true)
-    const url = seed != null ? `/api/card-of-the-day?seed=${seed}` : '/api/card-of-the-day'
     fetch(url)
       .then(r => r.json())
       .then(data => {
@@ -301,7 +300,7 @@ export default function HomePage() {
 
             <div className="flex items-center gap-3 flex-wrap">
               <button
-                onClick={() => fetchCard(Math.floor(Math.random() * 100000))}
+                onClick={() => fetchCard('/api/random-card')}
                 className="text-xs font-semibold text-amber-200 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-amber-600 transition-colors rounded-lg px-3 py-1.5"
               >
                 Random Card
