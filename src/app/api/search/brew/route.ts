@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readBinder } from '@/lib/binder'
-import { loadWishlist } from '@/lib/wishlist'
+import { createClient } from '@/lib/supabase/server'
 
 const HEADERS = { 'User-Agent': 'SpencerMTGDashboard/1.0' }
 
@@ -22,23 +21,26 @@ export async function GET(req: NextRequest) {
   if (!q) return NextResponse.json({ cards: [], total: 0, hasMore: false })
 
   try {
-    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec&unique=cards&page=${page}`
-    const res = await fetch(url, { headers: HEADERS })
+    const scryfallUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec&unique=cards&page=${page}`
+    const supabase = await createClient()
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
+    const [scryfallRes, binderData, wishlistData] = await Promise.all([
+      fetch(scryfallUrl, { headers: HEADERS }),
+      supabase.from('binder_cards').select('base_name'),
+      supabase.from('wishlist_singles').select('name'),
+    ])
+
+    if (!scryfallRes.ok) {
+      const err = await scryfallRes.json().catch(() => ({}))
       return NextResponse.json(
         { error: (err as { details?: string }).details ?? 'No cards found for this query' },
-        { status: res.status === 404 ? 404 : 400 }
+        { status: scryfallRes.status === 404 ? 404 : 400 }
       )
     }
 
-    const data = await res.json()
-
-    const binderEntries = readBinder()
-    const wishlistData = loadWishlist()
-    const binderNames = new Set(binderEntries.map(e => e.baseName.toLowerCase()))
-    const wishlistNames = new Set(wishlistData.singles.map(s => s.name.toLowerCase()))
+    const data = await scryfallRes.json()
+    const binderNames = new Set((binderData.data ?? []).map(e => e.base_name.toLowerCase()))
+    const wishlistNames = new Set((wishlistData.data ?? []).map(s => s.name.toLowerCase()))
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cards: BrewCard[] = (data.data ?? []).map((c: any) => ({

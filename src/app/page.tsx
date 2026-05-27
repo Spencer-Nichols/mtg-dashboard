@@ -86,25 +86,11 @@ function CollectionChart({ data }: { data: HistoryPoint[] }) {
   )
 }
 
-interface SynergyCard {
-  name: string
-  inclusionRate: number
-  owned: boolean
-  imageUrl: string | null
-  price: number | null
-  typeLine: string | null
-  rarity: string | null
-}
-
 export default function HomePage() {
   const router = useRouter()
   const [card, setCard] = useState<Card | null>(null)
   const [displayName, setDisplayName] = useState<string>('')
-  const [synergies, setSynergies] = useState<SynergyCard[]>([])
-  const [synergyHeader, setSynergyHeader] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  const [synergyLoading, setSynergyLoading] = useState(false)
-  const [synergyOpen, setSynergyOpen] = useState(false)
   const [topGainers, setTopGainers] = useState<HighlightCard[]>([])
   const [wishlistDrops, setWishlistDrops] = useState<HighlightCard[]>([])
   const [binderHistory, setBinderHistory] = useState<HistoryPoint[]>([])
@@ -112,6 +98,7 @@ export default function HomePage() {
   const [countdown, setCountdown] = useState('')
   const [faceIndex, setFaceIndex] = useState(0)
   const [isDesktop, setIsDesktop] = useState(true)
+  const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
   const nextRefreshRef = useRef<Date | null>(null)
 
   const INTERVAL = 60 * 60 * 1000
@@ -141,6 +128,7 @@ export default function HomePage() {
     }
 
     fetchHighlights()
+    fetch('/api/binder/recent').then(r => r.json()).then(data => { if (Array.isArray(data)) setRecentCards(data) })
 
     const tick = setInterval(() => {
       if (!nextRefreshRef.current) return
@@ -173,8 +161,10 @@ export default function HomePage() {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  useEffect(() => {
-    fetch('/api/card-of-the-day')
+  function fetchCard(seed?: number) {
+    setLoading(true)
+    const url = seed != null ? `/api/card-of-the-day?seed=${seed}` : '/api/card-of-the-day'
+    fetch(url)
       .then(r => r.json())
       .then(data => {
         if (data.card) {
@@ -182,17 +172,11 @@ export default function HomePage() {
           setDisplayName(data.displayName)
           setFaceIndex(0)
           setLoading(false)
-          setSynergyLoading(true)
-          fetch(`/api/synergy?card=${encodeURIComponent(data.displayName)}`)
-            .then(r => r.json())
-            .then(s => {
-              setSynergies(s.cards ?? [])
-              setSynergyHeader(s.header ?? 'High Synergy Cards')
-              setSynergyLoading(false)
-            })
         }
       })
-  }, [])
+  }
+
+  useEffect(() => { fetchCard() }, [])
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   const isDoubleFaced = !!(card?.card_faces && card.card_faces.length >= 2 && card.card_faces[0].image_uris && card.card_faces[1].image_uris)
@@ -315,80 +299,42 @@ export default function HomePage() {
               </div>
             </div>
 
-            {(synergyLoading || synergies.length > 0) && (
-              <div className="flex flex-col gap-3">
-                {isDesktop ? (
-                  <h3 className="text-sm font-semibold text-stone-400">
-                    {synergyHeader || 'High Synergy Cards'}
-                    <span className="text-stone-600 font-normal ml-2">via EDHREC</span>
-                  </h3>
-                ) : (
-                  <button
-                    onClick={() => setSynergyOpen(o => !o)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-stone-900 border border-stone-800 rounded-xl hover:border-stone-700 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-stone-300">{synergyHeader || 'High Synergy Cards'}</span>
-                      <span className="text-xs text-stone-600">via EDHREC</span>
-                      {!synergyLoading && synergies.length > 0 && (
-                        <span className="text-xs font-medium text-amber-600 bg-amber-950/50 border-2 border-amber-800/50 rounded-full px-2 py-0.5">{synergies.length}</span>
-                      )}
-                    </div>
-                    <span className="text-stone-500 text-xs">{synergyOpen ? '▲' : '▼'}</span>
-                  </button>
-                )}
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => fetchCard(Math.floor(Math.random() * 100000))}
+                className="text-xs font-semibold text-amber-200 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-amber-600 transition-colors rounded-lg px-3 py-1.5"
+              >
+                Random Card
+              </button>
+            </div>
 
-                {(isDesktop || synergyOpen) && (
-                  synergyLoading ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                      {Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className="flex flex-col gap-1.5">
-                          <div className="aspect-[5/7] bg-stone-800 rounded-xl animate-pulse" />
-                          <div className="h-3 bg-stone-800 rounded animate-pulse w-3/4" />
-                          <div className="h-3 bg-stone-800 rounded animate-pulse w-1/2" />
-                        </div>
-                      ))}
+            {recentCards.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-stone-600 uppercase tracking-widest font-semibold">Recently Added</p>
+                <div className="flex flex-col gap-1">
+                  {recentCards.map(c => (
+                    <div key={c.displayName} className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-lg px-3 py-2">
+                      {c.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.imageUrl} alt={c.displayName} className="w-7 rounded shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-stone-200 font-medium truncate">{c.displayName}</p>
+                        {c.setCode && <p className="text-xs text-stone-600 uppercase">{c.setCode}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-mono text-stone-300">
+                          {c.currentPrice != null ? `$${c.currentPrice.toFixed(2)}` : `$${c.snapshotPrice.toFixed(2)}`}
+                        </p>
+                        {c.currentPrice != null && c.snapshotPrice > 0 && (
+                          <p className={`text-xs font-mono ${c.currentPrice >= c.snapshotPrice ? 'text-green-500' : 'text-red-500'}`}>
+                            {c.currentPrice >= c.snapshotPrice ? '▲' : '▼'}{Math.abs(((c.currentPrice - c.snapshotPrice) / c.snapshotPrice) * 100).toFixed(1)}%
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                      {synergies.map(s => (
-                        <button
-                          key={s.name}
-                          onClick={() => router.push(`/search?q=${encodeURIComponent(s.name)}`)}
-                          className="group flex flex-col gap-1.5 text-left"
-                        >
-                          <div className="relative rounded-xl overflow-hidden shadow-lg">
-                            {s.imageUrl
-                              ? <img src={s.imageUrl} alt={s.name} className="w-full block group-hover:brightness-110 transition-all" />
-                              : <div className="aspect-[5/7] bg-stone-800 rounded-xl" />}
-                            {s.owned && (
-                              <div className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm bg-green-900/80 text-green-300">
-                                Owned
-                              </div>
-                            )}
-                          </div>
-                          <div className="px-0.5 flex flex-col gap-0.5">
-                            <div className="flex items-baseline justify-between gap-1">
-                              <p className="text-sm text-stone-200 font-semibold leading-tight">{s.name}</p>
-                              <span className="text-xs font-bold text-amber-400 whitespace-nowrap">{Math.round(s.inclusionRate * 100)}% inclusion</span>
-                            </div>
-                            {s.typeLine && <p className="text-xs text-stone-500 leading-tight">{s.typeLine}</p>}
-                            {s.rarity && (
-                              <p className={`text-xs font-medium capitalize ${
-                                s.rarity === 'mythic' ? 'text-orange-400' :
-                                s.rarity === 'rare' ? 'text-yellow-400' :
-                                s.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
-                              }`}>{s.rarity}</p>
-                            )}
-                            {s.price != null && (
-                              <p className="text-sm font-mono text-stone-300">${s.price.toFixed(2)}</p>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )
-                )}
+                  ))}
+                </div>
               </div>
             )}
           </>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readBinder } from '@/lib/binder'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
   const since = req.nextUrl.searchParams.get('since')
@@ -7,12 +7,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing or invalid ?since=YYYY-MM-DD' }, { status: 400 })
   }
 
-  const filtered = readBinder().filter(e => e.dateAdded && e.dateAdded >= since)
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('binder_cards')
+    .select('base_name, set_code, count, date_added')
+    .gte('date_added', since)
+    .order('date_added')
 
-  const lines = filtered.map(e => {
-    const qty = e.count > 1 ? `${e.count}x ` : '1x '
-    const set = e.setCode ? ` (${e.setCode.toUpperCase()})` : ''
-    return `${qty}${e.baseName}${set}`
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const lines = (data ?? []).map(e => {
+    const qty = (e.count ?? 1) > 1 ? `${e.count}x ` : '1x '
+    const set = e.set_code ? ` (${e.set_code.toUpperCase()})` : ''
+    return `${qty}${e.base_name}${set}`
   })
 
   return NextResponse.json({ lines, count: lines.length })
