@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readBinder, writeBinder } from '@/lib/binder'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   const { name } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Missing card name' }, { status: 400 })
 
-  const entries = readBinder()
-  const filtered = entries.filter(e => e.displayName.toLowerCase() !== name.trim().toLowerCase())
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('binder_cards')
+    .delete()
+    .ilike('display_name', name.trim())
+    .select('id')
 
-  if (filtered.length === entries.length) {
-    return NextResponse.json({ error: 'Card not found in binder' }, { status: 404 })
-  }
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data?.length) return NextResponse.json({ error: 'Card not found in binder' }, { status: 404 })
 
-  writeBinder(filtered)
   return NextResponse.json({ ok: true })
 }

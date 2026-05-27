@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { fetchByName, getPrice, sleep, frameSuffix } from '@/lib/scryfall'
-import { readBinder, writeBinder, BinderEntry } from '@/lib/binder'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,10 +36,19 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder()
       const send = (data: object) => controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
+
+      if (!user) {
+        send({ type: 'error', message: 'Unauthorized' })
+        controller.close()
+        return
+      }
 
       const parsed = lines.map(parseLine).filter(Boolean) as { name: string; setCode?: string; note?: string }[]
       send({ type: 'total', count: parsed.length })
@@ -47,9 +56,13 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < parsed.length; i++) {
         const { name, setCode, note } = parsed[i]
 
-        const entries = readBinder()
-        const exists = entries.find(e => e.baseName.toLowerCase() === name.toLowerCase())
-        if (exists) {
+        const { data: existing } = await supabase
+          .from('binder_cards')
+          .select('base_name')
+          .ilike('base_name', name)
+          .maybeSingle()
+
+        if (existing) {
           send({ type: 'result', name, status: 'skipped', message: 'Already in binder' })
           continue
         }
@@ -68,20 +81,26 @@ export async function POST(req: NextRequest) {
           continue
         }
 
-        const newEntry: BinderEntry = {
-          displayName: card.name + frameSuffix(card),
-          baseName: card.name,
-          setCode: card.set ?? '',
-          scryfallId: card.id ?? null,
+        const newRow = {
+          user_id: user.id,
+          display_name: card.name + frameSuffix(card),
+          base_name: card.name,
+          set_code: card.set ?? null,
+          scryfall_id: card.id ?? null,
           foil: false,
           count: 1,
-          snapshotPrice: price,
+          snapshot_price: price,
           note: note || null,
-          dateAdded: new Date().toISOString().slice(0, 10),
+          date_added: new Date().toISOString().slice(0, 10),
         }
 
-        writeBinder([...readBinder(), newEntry])
-        send({ type: 'result', name: newEntry.displayName, status: 'added', price, setCode: newEntry.setCode })
+        const { error } = await supabase.from('binder_cards').insert(newRow)
+        if (error) {
+          send({ type: 'result', name, status: 'error', message: error.message })
+          continue
+        }
+
+        send({ type: 'result', name: newRow.display_name, status: 'added', price, setCode: newRow.set_code })
       }
 
       send({ type: 'done' })

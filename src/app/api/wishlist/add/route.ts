@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
-import path from 'path'
+import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById, searchCards, getPrice, frameSuffix } from '@/lib/scryfall'
-import { loadWishlist } from '@/lib/wishlist'
-
-const WISHLIST_FILE = path.join(
-  process.env.HOME || '',
-  '.claude/projects/-Users-spencer-Projects/memory/mtg_decks_wishlist.md'
-)
-const PRICES_FILE = path.join(process.env.HOME || '', 'Projects/scryfall/wishlist_prices.json')
-
-function loadPrices() {
-  try { return JSON.parse(fs.readFileSync(PRICES_FILE, 'utf-8')) } catch { return {} }
-}
 
 export async function POST(req: NextRequest) {
   const { name, setCode, scryfallId, note } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Missing card name' }, { status: 400 })
 
-  const { singles } = loadWishlist()
-  if (singles.find(s => s.name.toLowerCase() === name.trim().toLowerCase())) {
-    return NextResponse.json({ error: `${name} is already on the wishlist` }, { status: 409 })
-  }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Use Scryfall ID if available — unambiguously fetches the exact printing selected
-  const card = scryfallId ? await fetchById(scryfallId) : await fetchByName(name.trim(), setCode || undefined)
+  const { data: existing } = await supabase
+    .from('wishlist_singles')
+    .select('name')
+    .ilike('name', name.trim())
+    .maybeSingle()
+  if (existing) return NextResponse.json({ error: `${name} is already on the wishlist` }, { status: 409 })
+
+  const card = scryfallId
+    ? await fetchById(scryfallId)
+    : await fetchByName(name.trim(), setCode || undefined)
+
   if (!card) {
     const candidates = await searchCards(name.trim())
     if (candidates.length === 0) return NextResponse.json({ error: 'Card not found' }, { status: 404 })
@@ -43,23 +39,18 @@ export async function POST(req: NextRequest) {
 
   const price = getPrice(resolved)
   const cardName = resolved.name + frameSuffix(resolved)
-  const idSuffix = resolved.id ? `:${resolved.id}` : ''
-  const setCodePart = resolved.set ? ` [${resolved.set}${idSuffix}]` : ''
-  const notePart = note?.trim() ? ` // ${note.trim()}` : ''
-  const newLine = `1 ${cardName}${setCodePart}${notePart}`
 
-  // Append to the Singles Wishlist code block
-  const content = fs.readFileSync(WISHLIST_FILE, 'utf-8')
-  const updated = content.replace(
-    /(## Singles Wishlist[\s\S]*?```[\s\S]*?)(```)/,
-    (_, block, closing) => `${block}${newLine}\n${closing}`
-  )
-  fs.writeFileSync(WISHLIST_FILE, updated)
+  const { error } = await supabase.from('wishlist_singles').insert({
+    user_id: user.id,
+    name: cardName,
+    note: note?.trim() || null,
+    set_code: resolved.set ?? null,
+    scryfall_id: resolved.id ?? null,
+    snapshot_price: price ?? null,
+    snapshot_added_at: new Date().toISOString(),
+  })
 
-  // Store snapshot price
-  const prices = loadPrices()
-  prices[cardName] = { price: price ?? 0, addedAt: new Date().toISOString().split('T')[0] }
-  fs.writeFileSync(PRICES_FILE, JSON.stringify(prices, null, 2))
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const imageUrl = resolved.image_uris?.normal ?? resolved.card_faces?.[0]?.image_uris?.normal ?? null
   return NextResponse.json({ name: cardName, price, setCode: resolved.set, imageUrl })
