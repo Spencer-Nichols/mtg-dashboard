@@ -7,7 +7,7 @@ import './globals.css'
 const geist = Geist({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'MTG Dashboard',
+  title: 'TapNTrack',
   description: "Spencer's MTG collection tracker",
 }
 
