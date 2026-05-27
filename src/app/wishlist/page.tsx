@@ -1,0 +1,526 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+
+interface CardResult {
+  displayName: string
+  snapshotPrice: number
+  currentPrice: number | null
+  pct: number | null
+  imageUrl: string | null
+  note?: string
+  setName?: string
+  setCode?: string
+  rarity?: string
+  typeLine?: string
+}
+
+type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
+
+const BUY_THRESHOLD = -10
+
+function pctColor(pct: number | null) {
+  if (pct === null) return 'text-stone-500'
+  if (pct > 0.05) return 'text-green-400'
+  if (pct < -0.05) return 'text-red-400'
+  return 'text-stone-400'
+}
+
+function pctLabel(pct: number | null) {
+  if (pct === null) return '—'
+  const arrow = pct > 0.05 ? '▲' : pct < -0.05 ? '▼' : ''
+  return `${arrow}${Math.abs(pct).toFixed(1)}%`
+}
+
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null
+  const w = 100, h = 24, pad = 1.5
+  const min = Math.min(...values), max = Math.max(...values)
+  const range = max - min || 1
+  const points = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - pad * 2)
+    const y = pad + (1 - (v - min) / range) * (h - pad * 2)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const trend = values[values.length - 1] - values[0]
+  const color = trend > 0 ? '#4ade80' : trend < 0 ? '#f87171' : '#6b7280'
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="opacity-60">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[] }) {
+  const [editingNote, setEditingNote] = useState(false)
+  const [noteVal, setNoteVal] = useState(row.note ?? '')
+  const [currentNote, setCurrentNote] = useState(row.note ?? '')
+  const cancelNoteRef = useRef(false)
+
+  function commitNote() {
+    setEditingNote(false)
+    if (cancelNoteRef.current) { cancelNoteRef.current = false; setNoteVal(currentNote); return }
+    const trimmed = noteVal.trim()
+    if (trimmed === currentNote) return
+    setCurrentNote(trimmed)
+    fetch('/api/wishlist/note', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: row.displayName, note: trimmed }),
+    })
+  }
+
+  const manapoolSlug = row.displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+  return (
+    <div className="group relative flex flex-col gap-1.5">
+      <div className="relative rounded-xl overflow-hidden shadow-lg">
+        <a
+          href={`https://manapool.com/card/${manapoolSlug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+          title="View on Manapool"
+        >
+          {row.imageUrl
+            ? <img src={row.imageUrl} alt={row.displayName} className="w-full block group-hover:brightness-110 transition-all" />
+            : <div className="aspect-[5/7] bg-stone-800 rounded-xl animate-pulse" />}
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-10 pointer-events-none">
+            <span className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/60 text-amber-400 font-medium">View on Manapool</span>
+          </div>
+        </a>
+        {row.pct != null && (
+          <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm pointer-events-none ${
+            row.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
+            row.pct < -0.05 ? 'bg-red-900/80 text-red-300' :
+            'bg-stone-800/80 text-stone-400'
+          }`}>
+            {pctLabel(row.pct)}
+          </div>
+        )}
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={e => { e.preventDefault(); onMoveToBinder(row.displayName) }}
+            className="whitespace-nowrap text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/50 text-amber-400 hover:bg-amber-900/40 transition-colors"
+          >
+            → Binder
+          </button>
+          <button
+            onClick={e => { e.preventDefault(); onDelete(row.displayName) }}
+            className="whitespace-nowrap text-xs px-3 py-1 rounded-full bg-stone-900/90 border border-red-800/50 text-red-400 hover:bg-red-900/40 transition-colors"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+      <div className="px-0.5 flex flex-col gap-0.5">
+        <p className="text-sm text-stone-200 font-semibold leading-tight" title={row.displayName}>{row.displayName}</p>
+        {row.typeLine && <p className="text-xs text-stone-500 leading-tight">{row.typeLine}</p>}
+        {(row.setName || row.setCode) && (
+          <p className="text-xs text-stone-500">
+            {row.setName ?? ''}{row.setCode ? ` (${row.setCode.toUpperCase()})` : ''}
+          </p>
+        )}
+        {row.rarity && (
+          <p className={`text-xs font-medium capitalize ${
+            row.rarity === 'mythic' ? 'text-orange-400' :
+            row.rarity === 'rare' ? 'text-yellow-400' :
+            row.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
+          }`}>{row.rarity}</p>
+        )}
+        {sparkline && sparkline.length >= 2 && (
+          <div className="mt-1">
+            <Sparkline values={sparkline} />
+          </div>
+        )}
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className={`text-sm font-mono font-semibold ${pctColor(row.pct)}`}>
+            ${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}
+          </span>
+          {row.snapshotPrice > 0 && row.currentPrice != null && row.currentPrice !== row.snapshotPrice && (
+            <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
+          )}
+        </div>
+        {editingNote ? (
+          <input
+            autoFocus
+            value={noteVal}
+            onChange={e => setNoteVal(e.target.value)}
+            onBlur={commitNote}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+              if (e.key === 'Escape') { cancelNoteRef.current = true; (e.target as HTMLInputElement).blur() }
+            }}
+            className="text-xs px-1.5 py-0.5 rounded bg-stone-800 border-2 border-amber-700 text-stone-200 placeholder-stone-600 focus:outline-none w-full"
+            placeholder="Add a note..."
+          />
+        ) : (
+          <span
+            onClick={() => { setNoteVal(currentNote); setEditingNote(true) }}
+            className={`text-xs cursor-text px-1 rounded hover:bg-stone-700 transition-colors ${currentNote ? 'text-stone-400' : 'opacity-0 group-hover:opacity-100 text-stone-600'}`}
+          >
+            {currentNote || '+ note'}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function WishlistPage() {
+  const [singles, setSingles] = useState<{ name: string; note?: string; snapshotPrice: number | null }[]>([])
+  const [results, setResults] = useState<Map<string, CardResult>>(new Map())
+  const [streaming, setStreaming] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const [addQuery, setAddQuery] = useState('')
+  const [addStatus, setAddStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [addLoading, setAddLoading] = useState(false)
+  const [addCandidates, setAddCandidates] = useState<Candidate[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
+  const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
+  const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
+  const esRef = useRef<EventSource | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    fetch('/api/wishlist')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSingles(data)
+          startStream()
+        }
+      })
+    fetch('/api/wishlist/history').then(r => r.json()).then(h => { if (h && typeof h === 'object') setWishlistHistory(h) })
+
+    const interval = setInterval(() => startStream(true), 60 * 60 * 1000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function startStream(bust = false) {
+    if (streaming) return
+    esRef.current?.close()
+    setResults(new Map())
+    setProgress(0)
+    setStreaming(true)
+
+    const es = new EventSource(`/api/wishlist/stream${bust ? '?bust=true' : ''}`)
+    esRef.current = es
+
+    es.onmessage = e => {
+      const msg = JSON.parse(e.data)
+      if (msg.type === 'total') {
+        setTotal(msg.count)
+      } else if (msg.type === 'card') {
+        setResults(prev => {
+          const next = new Map(prev)
+          next.set(msg.name, {
+            displayName: msg.name,
+            snapshotPrice: msg.snapshotPrice ?? 0,
+            currentPrice: msg.currentPrice,
+            pct: msg.pct,
+            imageUrl: msg.imageUrl,
+            note: msg.note,
+            setName: msg.setName,
+            setCode: msg.setCode,
+            rarity: msg.rarity,
+            typeLine: msg.typeLine,
+          })
+          return next
+        })
+        setProgress(p => p + 1)
+      } else if (msg.type === 'done') {
+        setStreaming(false)
+        setUpdatedAt(new Date())
+        es.close()
+        setResults(prev => {
+          const prices: Record<string, number> = {}
+          prev.forEach((r, name) => { if (r.currentPrice != null) prices[name] = r.currentPrice })
+          if (Object.keys(prices).length > 0) {
+            fetch('/api/wishlist/history', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prices }),
+            }).then(r => r.json()).then(h => { if (h && typeof h === 'object') setWishlistHistory(h) })
+          }
+          return prev
+        })
+      }
+    }
+
+    es.onerror = () => { setStreaming(false); es.close() }
+  }
+
+  function handleAddInput(value: string) {
+    setAddQuery(value)
+    setAddCandidates([])
+    setAddPrintings([])
+    setAddPrintingName(null)
+    setShowDropdown(false)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (value.trim().length < 2) return
+    debounceRef.current = setTimeout(async () => {
+      const res = await fetch(`/api/card?q=${encodeURIComponent(value)}&candidates=true`)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data) && data.length > 0) { setAddCandidates(data); setShowDropdown(true) }
+      }
+    }, 400)
+  }
+
+  async function selectNameForPrinting(name: string) {
+    setAddCandidates([])
+    setAddPrintingName(name)
+    setAddPrintings([])
+    const res = await fetch(`/api/card?q=${encodeURIComponent(name)}&prints=true`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data) && data.length > 0) { setAddPrintings(data); setShowDropdown(true) }
+    }
+  }
+
+  async function addCard(name = addQuery, setCode?: string, scryfallId?: string) {
+    if (!name.trim()) return
+    setAddLoading(true)
+    setAddStatus(null)
+    setAddCandidates([])
+    setAddPrintings([])
+    setAddPrintingName(null)
+    setShowDropdown(false)
+    const res = await fetch('/api/wishlist/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), setCode, scryfallId }),
+    })
+    const data = await res.json()
+    if (data.candidates) {
+      setAddCandidates(data.candidates)
+      setShowDropdown(true)
+    } else if (!res.ok) {
+      setAddStatus({ type: 'error', message: data.error })
+    } else {
+      setAddStatus({ type: 'success', message: `Added ${data.name} — $${data.price?.toFixed(2) ?? '?'}` })
+      setAddQuery('')
+      setResults(prev => {
+        const next = new Map(prev)
+        next.set(data.name, { displayName: data.name, snapshotPrice: data.price ?? 0, currentPrice: data.price ?? null, pct: 0, imageUrl: data.imageUrl ?? null })
+        return next
+      })
+      fetch('/api/wishlist').then(r => r.json()).then(d => { if (Array.isArray(d)) setSingles(d) })
+    }
+    setAddLoading(false)
+  }
+
+  async function deleteCard(name: string) {
+    await fetch('/api/wishlist/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    setSingles(prev => prev.filter(s => s.name !== name))
+    setResults(prev => { const next = new Map(prev); next.delete(name); return next })
+  }
+
+  async function moveToBinder(name: string) {
+    const res = await fetch('/api/wishlist/move-to-binder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    if (res.ok) {
+      setSingles(prev => prev.filter(s => s.name !== name))
+      setResults(prev => { const next = new Map(prev); next.delete(name); return next })
+    }
+  }
+
+  const rows: CardResult[] = singles.map(s =>
+    results.get(s.name) ?? { displayName: s.name, snapshotPrice: s.snapshotPrice ?? 0, currentPrice: null, pct: null, imageUrl: null, note: s.note }
+  )
+
+  const gainers = rows.filter(r => (r.pct ?? 0) > 0.05)
+  const losers = rows.filter(r => (r.pct ?? 0) < -0.05)
+  const flat = rows.filter(r => r.pct !== null && Math.abs(r.pct) <= 0.05)
+  const pending = rows.filter(r => r.pct === null)
+  const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD)
+  const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-100">Wishlist</h1>
+          <p className="text-sm text-stone-500 mt-1">{singles.length} cards on your radar</p>
+          {results.size > 0 && (
+            <p className="text-xs text-stone-600 mt-0.5">
+              {gainers.length} up · {losers.length} down · {flat.length} flat
+              {pending.length > 0 && ` · ${pending.length} pending`}
+              {updatedAt && ` · ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          {results.size > 0 && (
+            <span className="text-stone-400 font-mono text-sm">
+              ~<span className="text-stone-100 font-semibold">${totalValue.toFixed(2)}</span> to buy all
+            </span>
+          )}
+          {streaming
+            ? <span className="text-sm text-stone-500">Refreshing… {progress}/{total}</span>
+            : <button
+                onClick={() => startStream(true)}
+                className="text-xs font-semibold text-amber-200 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 transition-colors rounded-lg px-2.5 py-1.5"
+              >
+                ↻ Force Refresh
+              </button>
+          }
+        </div>
+      </div>
+
+      {/* Add card input */}
+      <div className="relative mb-6">
+        <div className="flex gap-2">
+          <input
+            value={addQuery}
+            onChange={e => handleAddInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
+            onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+            onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
+            placeholder="Add a card to wishlist..."
+            className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+          />
+          <button
+            onClick={() => addCard()}
+            disabled={addLoading}
+            className="px-4 py-2.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            {addLoading ? 'Adding...' : 'Add'}
+          </button>
+        </div>
+        {showDropdown && addCandidates.length > 0 && (
+          <div className="absolute z-40 top-full left-0 right-12 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl">
+            {addCandidates.map(c => (
+              <button
+                key={`${c.name}-${c.setCode}`}
+                onMouseDown={e => { e.preventDefault(); selectNameForPrinting(c.name) }}
+                className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
+              >
+                <div>
+                  <p className="text-stone-200 text-sm font-medium">{c.name}</p>
+                  <p className="text-stone-500 text-xs">{c.type_line}</p>
+                </div>
+                {c.price && <span className="text-green-400 font-mono text-sm ml-4">${c.price.toFixed(2)}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        {showDropdown && addPrintings.length > 0 && (
+          <div className="absolute z-40 top-full left-0 right-12 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl max-h-80 overflow-y-auto">
+            <div className="px-4 py-2 border-b border-stone-800 flex items-center gap-2 sticky top-0 bg-stone-900">
+              <button
+                onMouseDown={e => { e.preventDefault(); setAddPrintings([]); setAddPrintingName(null); setShowDropdown(false) }}
+                className="text-stone-500 hover:text-stone-300 text-xs"
+              >← Back</button>
+              <span className="text-stone-400 text-xs font-medium">{addPrintingName} — choose printing</span>
+            </div>
+            {addPrintings.map(c => (
+              <button
+                key={`${c.name}-${c.setCode}-${c.collectorNumber}`}
+                onMouseDown={e => { e.preventDefault(); addCard(c.name, c.setCode, c.scryfallId) }}
+                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
+              >
+                {c.imageUrl
+                  ? <img src={c.imageUrl} alt="" className="w-[146px] rounded-lg shrink-0" />
+                  : <div className="w-[146px] h-[204px] bg-stone-800 rounded-lg shrink-0" />}
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <p className="text-stone-100 text-sm font-semibold leading-snug">{c.setName}</p>
+                  <p className="text-stone-500 text-xs">{c.setCode.toUpperCase()} · #{c.collectorNumber}</p>
+                  {c.rarity && (
+                    <p className={`text-xs capitalize font-medium ${
+                      c.rarity === 'mythic' ? 'text-orange-400' :
+                      c.rarity === 'rare' ? 'text-yellow-400' :
+                      c.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
+                    }`}>{c.rarity}</p>
+                  )}
+                  {c.releasedAt && <p className="text-stone-600 text-xs">{c.releasedAt.slice(0, 4)}</p>}
+                  <div className="mt-auto pt-2 flex flex-col gap-0.5">
+                    {c.price != null
+                      ? <span className="text-green-400 font-mono text-sm font-semibold">${c.price.toFixed(2)}</span>
+                      : <span className="text-stone-600 font-mono text-sm">—</span>}
+                    {c.foilPrice != null && <span className="text-amber-500 font-mono text-xs">${c.foilPrice.toFixed(2)} foil</span>}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {addStatus && (
+        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm ${
+          addStatus.type === 'success'
+            ? 'bg-green-900/30 border border-green-800 text-green-300'
+            : 'bg-red-900/30 border border-red-800 text-red-300'
+        }`}>
+          {addStatus.message}
+        </div>
+      )}
+
+      {streaming && (
+        <div className="mb-6 bg-stone-800 rounded-full overflow-hidden h-1.5">
+          <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: total ? `${(progress / total) * 100}%` : '0%' }} />
+        </div>
+      )}
+
+      {buySuggestions.length > 0 && (
+        <div className="mb-6 bg-green-950/40 border border-green-800/60 rounded-xl p-4">
+          <p className="text-green-400 font-semibold text-sm mb-3">
+            Good Time to Buy — down {Math.abs(BUY_THRESHOLD)}%+ from when you started watching
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {buySuggestions.map(r => {
+              const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
+              return (
+                <div key={r.displayName} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
+                  <p className="text-stone-200 text-sm font-medium">{r.displayName}</p>
+                  <p className="text-green-400 text-xs font-mono mt-0.5">
+                    ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
+                    {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+          {[...rows]
+            .sort((a, b) => {
+              if (a.pct === null && b.pct === null) return 0
+              if (a.pct === null) return 1
+              if (b.pct === null) return -1
+              return a.pct - b.pct
+            })
+            .map(row => (
+              <WishlistCard
+                key={row.displayName}
+                row={row}
+                onDelete={deleteCard}
+                onMoveToBinder={moveToBinder}
+                sparkline={wishlistHistory[row.displayName]?.map(h => h.price)}
+              />
+            ))}
+        </div>
+      )}
+
+      {singles.length === 0 && !streaming && (
+        <p className="text-center text-stone-600 text-sm mt-16">No cards on your wishlist yet. Add one above.</p>
+      )}
+    </div>
+  )
+}
