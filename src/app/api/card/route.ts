@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchByName, fetchById, searchCards, searchPrintings } from '@/lib/scryfall'
-import { getCollectionStatus } from '@/lib/collection'
+import { createClient } from '@/lib/supabase/server'
 
 const HEADERS = { 'User-Agent': 'SpencerMTGDashboard/1.0' }
+
+async function getCollectionStatus(name: string): Promise<'owned' | 'not_owned'> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('binder_cards')
+    .select('id')
+    .ilike('base_name', name)
+    .limit(1)
+    .maybeSingle()
+  return data ? 'owned' : 'not_owned'
+}
 
 export async function GET(req: NextRequest) {
   // Random card mode
@@ -10,7 +21,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch('https://api.scryfall.com/cards/random', { headers: HEADERS })
     if (!res.ok) return NextResponse.json({ error: 'Failed to fetch random card' }, { status: 500 })
     const card = await res.json()
-    const status = getCollectionStatus(card.name)
+    const status = await getCollectionStatus(card.name)
     return NextResponse.json({ card, status, candidates: null })
   }
 
@@ -50,7 +61,7 @@ export async function GET(req: NextRequest) {
   // Try exact fuzzy match first
   const card = await fetchByName(q)
   if (card) {
-    const status = getCollectionStatus(card.name)
+    const status = await getCollectionStatus(card.name)
     return NextResponse.json({ card, status, candidates: null })
   }
 
@@ -62,7 +73,7 @@ export async function GET(req: NextRequest) {
 
   // If only one result, return it directly
   if (candidates.length === 1) {
-    const status = getCollectionStatus(candidates[0].name)
+    const status = await getCollectionStatus(candidates[0].name)
     return NextResponse.json({ card: candidates[0], status, candidates: null })
   }
 

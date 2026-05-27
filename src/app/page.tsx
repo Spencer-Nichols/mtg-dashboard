@@ -98,6 +98,7 @@ export default function HomePage() {
   const [countdown, setCountdown] = useState('')
   const [faceIndex, setFaceIndex] = useState(0)
   const [isDesktop, setIsDesktop] = useState(true)
+  const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
   const nextRefreshRef = useRef<Date | null>(null)
 
   const INTERVAL = 60 * 60 * 1000
@@ -127,6 +128,7 @@ export default function HomePage() {
     }
 
     fetchHighlights()
+    fetch('/api/binder/recent').then(r => r.json()).then(data => { if (Array.isArray(data)) setRecentCards(data) })
 
     const tick = setInterval(() => {
       if (!nextRefreshRef.current) return
@@ -297,7 +299,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div>
+            <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={() => fetchCard(Math.floor(Math.random() * 100000))}
                 className="text-xs font-semibold text-amber-200 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-amber-600 transition-colors rounded-lg px-3 py-1.5"
@@ -305,6 +307,36 @@ export default function HomePage() {
                 Random Card
               </button>
             </div>
+
+            {recentCards.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-stone-600 uppercase tracking-widest font-semibold">Recently Added</p>
+                <div className="flex flex-col gap-1">
+                  {recentCards.map(c => (
+                    <div key={c.displayName} className="flex items-center gap-3 bg-stone-900 border border-stone-800 rounded-lg px-3 py-2">
+                      {c.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.imageUrl} alt={c.displayName} className="w-7 rounded shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-stone-200 font-medium truncate">{c.displayName}</p>
+                        {c.setCode && <p className="text-xs text-stone-600 uppercase">{c.setCode}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-mono text-stone-300">
+                          {c.currentPrice != null ? `$${c.currentPrice.toFixed(2)}` : `$${c.snapshotPrice.toFixed(2)}`}
+                        </p>
+                        {c.currentPrice != null && c.snapshotPrice > 0 && (
+                          <p className={`text-xs font-mono ${c.currentPrice >= c.snapshotPrice ? 'text-green-500' : 'text-red-500'}`}>
+                            {c.currentPrice >= c.snapshotPrice ? '▲' : '▼'}{Math.abs(((c.currentPrice - c.snapshotPrice) / c.snapshotPrice) * 100).toFixed(1)}%
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

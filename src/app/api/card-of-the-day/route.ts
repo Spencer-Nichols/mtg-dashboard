@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById } from '@/lib/scryfall'
-import { getCollectionStatus } from '@/lib/collection'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +24,5 @@ export async function GET(req: NextRequest) {
 
   if (!card) return NextResponse.json({ error: 'Card not found' }, { status: 404 })
 
-  const status = getCollectionStatus(card.name)
-  return NextResponse.json({ card, status, displayName: entry.display_name })
+  return NextResponse.json({ card, status: 'owned', displayName: entry.display_name })
 }
