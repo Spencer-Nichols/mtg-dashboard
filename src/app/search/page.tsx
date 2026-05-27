@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, type ReactNode } from 'react'
 import { KEYWORDS, KEYWORD_CATEGORIES } from '@/lib/keywords'
 import type { BrewCard } from '@/app/api/search/brew/route'
 
@@ -68,18 +68,14 @@ const RARITY_COLOR: Record<string, string> = {
 }
 
 function buildBrewQuery(
-  keywords: string[], colors: Set<string>, types: Set<string>,
+  keywords: string[], colors: Set<string>, activeType: string | null,
   maxCmc: number | null, maxPrice: number | null, raw: string,
 ): string {
   const parts: string[] = []
   for (const slug of keywords) parts.push(`function:${slug}`)
   if (raw.trim()) parts.push(raw.trim())
   if (colors.size > 0) parts.push(`color<=${[...colors].join('')}`)
-  if (types.size > 0) {
-    parts.push(types.size === 1
-      ? `t:${[...types][0]}`
-      : `(${[...types].map(t => `t:${t}`).join(' OR ')})`)
-  }
+  if (activeType) parts.push(`t:${activeType}`)
   if (maxCmc !== null) parts.push(`cmc<=${maxCmc}`)
   if (maxPrice !== null) parts.push(`usd<=${maxPrice}`)
   return parts.join(' ')
@@ -170,6 +166,38 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
   )
 }
 
+function AccordionRow({ title, count, open, onToggle, children }: {
+  title: string
+  count: number
+  open: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="border-2 border-stone-800 rounded-xl overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-stone-900/50 text-sm text-stone-400 hover:text-stone-200 transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          {title}
+          {count > 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-900/60 border border-amber-700 text-amber-300">
+              {count}
+            </span>
+          )}
+        </span>
+        <span className="text-stone-600 text-xs">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="px-4 py-3 bg-stone-900/30 border-t-2 border-stone-800">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SearchPage() {
   const [mode, setMode] = useState<'card' | 'brew'>('brew')
 
@@ -190,10 +218,15 @@ export default function SearchPage() {
   const [brewRawQuery, setBrewRawQuery] = useState('')
   const [activeKeywords, setActiveKeywords] = useState<string[]>([])
   const [activeColors, setActiveColors] = useState<Set<string>>(new Set())
-  const [activeTypes, setActiveTypes] = useState<Set<string>>(new Set())
+  const [activeType, setActiveType] = useState<string | null>(null)
   const [maxCmc, setMaxCmc] = useState<number | null>(null)
   const [maxPrice, setMaxPrice] = useState<number | null>(null)
   const [priceSlider, setPriceSlider] = useState(MAX_PRICE_SLIDER)
+  const [keywordsOpen, setKeywordsOpen] = useState(false)
+  const [colorsOpen, setColorsOpen] = useState(false)
+  const [typeOpen, setTypeOpen] = useState(false)
+  const [cmcOpen, setCmcOpen] = useState(false)
+  const [priceOpen, setPriceOpen] = useState(false)
 
   const [allFetchedCards, setAllFetchedCards] = useState<BrewCard[]>([])
   const [clientPage, setClientPage] = useState(1)
@@ -202,7 +235,6 @@ export default function SearchPage() {
   const [brewTotal, setBrewTotal] = useState(0)
   const [brewLoading, setBrewLoading] = useState(false)
   const [brewError, setBrewError] = useState<string | null>(null)
-  const [legendOpen, setLegendOpen] = useState(false)
 
   const [wishlistAdded, setWishlistAdded] = useState<Set<string>>(new Set())
   const [wishlistLoading, setWishlistLoading] = useState<Set<string>>(new Set())
@@ -253,26 +285,25 @@ export default function SearchPage() {
       ? activeKeywords.filter(k => k !== slug)
       : [...activeKeywords, slug]
     setActiveKeywords(next)
-    scheduleFetch(buildBrewQuery(next, activeColors, activeTypes, maxCmc, maxPrice, brewRawQuery))
+    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery))
   }
 
   function toggleColor(symbol: string) {
     const next = new Set(activeColors)
     next.has(symbol) ? next.delete(symbol) : next.add(symbol)
     setActiveColors(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, next, activeTypes, maxCmc, maxPrice, brewRawQuery))
+    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery))
   }
 
-  function toggleType(type: string) {
-    const next = new Set(activeTypes)
-    next.has(type) ? next.delete(type) : next.add(type)
-    setActiveTypes(next)
+  function selectType(type: string) {
+    const next = activeType === type ? null : type
+    setActiveType(next)
     scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery))
   }
 
   function setCmcFilter(val: number | null) {
     setMaxCmc(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeTypes, val, maxPrice, brewRawQuery))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery))
   }
 
   function handlePriceSlider(val: number) {
@@ -284,19 +315,19 @@ export default function SearchPage() {
     setAllFetchedCards([])
     setScryfallPage(1)
     brewDebounceRef.current = setTimeout(() => {
-      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeTypes, maxCmc, price, brewRawQuery), 1, false)
+      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery), 1, false)
     }, 500)
   }
 
   function handleBrewRawInput(val: string) {
     setBrewRawQuery(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeTypes, maxCmc, maxPrice, val))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, val))
   }
 
   function clearAllFilters() {
     setActiveKeywords([])
     setActiveColors(new Set())
-    setActiveTypes(new Set())
+    setActiveType(null)
     setMaxCmc(null)
     setMaxPrice(null)
     setPriceSlider(MAX_PRICE_SLIDER)
@@ -320,7 +351,7 @@ export default function SearchPage() {
     if ((nextPage - 1) * CLIENT_PAGE_SIZE < allFetchedCards.length) {
       setClientPage(nextPage)
     } else if (hasMoreScryfall && !brewLoading) {
-      const q = buildBrewQuery(activeKeywords, activeColors, activeTypes, maxCmc, maxPrice, brewRawQuery)
+      const q = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery)
       await runBrewFetch(q, scryfallPage + 1, true)
       setClientPage(nextPage)
     }
@@ -360,10 +391,7 @@ export default function SearchPage() {
       label: c,
       onRemove: () => toggleColor(c),
     })),
-    ...[...activeTypes].map(t => ({
-      label: t,
-      onRemove: () => toggleType(t),
-    })),
+    ...(activeType ? [{ label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
     ...(maxCmc !== null ? [{ label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
     ...(maxPrice !== null ? [{ label: `≤ $${maxPrice}`, onRemove: () => { handlePriceSlider(MAX_PRICE_SLIDER) } }] : []),
   ]
@@ -381,7 +409,7 @@ export default function SearchPage() {
         const data = await res.json()
         if (Array.isArray(data) && data.length > 0) { setDropdown(data); setShowDropdown(true) }
       }
-    }, 300)
+    }, 500)
   }
 
   async function fetchSynergies(name: string) {
@@ -425,7 +453,7 @@ export default function SearchPage() {
 
   const image = card?.image_uris?.normal ?? card?.card_faces?.[0]?.image_uris?.normal
   const oracle = card?.oracle_text ?? card?.card_faces?.map(f => `${f.name}\n${f.oracle_text ?? ''}`).join('\n\n')
-  const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeTypes.size > 0 || maxCmc !== null || maxPrice !== null || brewRawQuery.trim()
+  const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim()
 
   return (
     <div>
@@ -597,12 +625,12 @@ export default function SearchPage() {
               <input
                 value={brewRawQuery}
                 onChange={e => handleBrewRawInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeTypes, maxCmc, maxPrice, brewRawQuery), 1, false)}
+                onKeyDown={e => e.key === 'Enter' && runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery), 1, false)}
                 placeholder="try: ramp draw removal · or click keywords →"
                 className="flex-1 bg-stone-900 border-2 border-stone-700 rounded-lg px-4 py-3 text-stone-100 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors font-mono text-sm"
               />
               <button
-                onClick={() => runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeTypes, maxCmc, maxPrice, brewRawQuery), 1, false)}
+                onClick={() => runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery), 1, false)}
                 disabled={brewLoading}
                 className="px-6 py-3 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg font-medium transition-colors whitespace-nowrap"
               >
@@ -610,8 +638,110 @@ export default function SearchPage() {
               </button>
             </div>
 
-            {/* Filter rows */}
-            <div className="bg-stone-900/50 border-2 border-stone-800 rounded-xl p-4 space-y-3">
+            {/* Mobile accordion — hidden on desktop */}
+            <div className="lg:hidden space-y-1">
+              <AccordionRow title="Keywords" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
+                <div className="space-y-1.5">
+                  {KEYWORD_CATEGORIES.map(cat => (
+                    <div key={cat} className="flex items-center gap-2">
+                      <span className="text-xs text-stone-600 shrink-0 w-20 text-right leading-tight">{cat}</span>
+                      <div className="flex gap-1.5 overflow-x-auto pb-0.5 flex-1 min-w-0" style={{ scrollbarWidth: 'none' }}>
+                        {KEYWORDS.filter(k => k.category === cat).map(kw => (
+                          <button key={kw.slug} onClick={() => toggleKeyword(kw.slug)}
+                            className={`text-xs px-2.5 py-1 rounded-full border-2 shrink-0 transition-colors ${
+                              activeKeywords.includes(kw.slug)
+                                ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                                : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                            }`}>
+                            {kw.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </AccordionRow>
+
+              <AccordionRow title="Colors" count={activeColors.size} open={colorsOpen} onToggle={() => setColorsOpen(o => !o)}>
+                <div className="flex gap-2.5">
+                  {COLOR_CHIPS.map(c => (
+                    <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
+                      className={`w-9 h-9 rounded-full text-sm font-bold border-2 transition-all ${
+                        activeColors.has(c.symbol)
+                          ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
+                          : `${c.bg} ${c.text} border-transparent opacity-40`
+                      }`}>
+                      {c.symbol}
+                    </button>
+                  ))}
+                </div>
+              </AccordionRow>
+
+              <AccordionRow title="Type" count={activeType ? 1 : 0} open={typeOpen} onToggle={() => setTypeOpen(o => !o)}>
+                <div className="flex flex-wrap gap-1.5">
+                  {CARD_TYPES.map(t => (
+                    <button key={t} onClick={() => selectType(t.toLowerCase())}
+                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                        activeType === t.toLowerCase()
+                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                          : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                      }`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </AccordionRow>
+
+              <AccordionRow title="CMC" count={maxCmc !== null ? 1 : 0} open={cmcOpen} onToggle={() => setCmcOpen(o => !o)}>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => setCmcFilter(null)}
+                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                      maxCmc === null
+                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                        : 'bg-stone-800 border-stone-700 text-stone-400'
+                    }`}>
+                    Any
+                  </button>
+                  {CMC_PRESETS.map(n => (
+                    <button key={n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}
+                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                        maxCmc === n
+                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                          : 'bg-stone-800 border-stone-700 text-stone-400'
+                      }`}>
+                      ≤{n}
+                    </button>
+                  ))}
+                </div>
+              </AccordionRow>
+
+              <AccordionRow title="Price" count={maxPrice !== null ? 1 : 0} open={priceOpen} onToggle={() => setPriceOpen(o => !o)}>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
+                    value={priceSlider}
+                    onChange={e => handlePriceSlider(Number(e.target.value))}
+                    className="flex-1 accent-amber-600 cursor-pointer"
+                  />
+                  <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
+                    {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
+                  </span>
+                </div>
+              </AccordionRow>
+
+              <div className="flex justify-end pt-0.5">
+                <button
+                  onClick={clearAllFilters}
+                  disabled={!anyBrewFilter}
+                  className="text-xs px-2.5 py-1 rounded-full border-2 border-stone-700 text-stone-400 hover:border-red-800/60 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop filter panel — hidden on mobile */}
+            <div className="hidden lg:block bg-stone-900/50 border-2 border-stone-800 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-stone-500 uppercase tracking-widest">Filters</p>
                 <button
@@ -622,7 +752,6 @@ export default function SearchPage() {
                   Clear All
                 </button>
               </div>
-              {/* Colors + Types */}
               <div className="flex flex-wrap gap-x-6 gap-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-stone-400 shrink-0">Color</span>
@@ -643,9 +772,9 @@ export default function SearchPage() {
                   <span className="text-xs text-stone-400 shrink-0">Type</span>
                   <div className="flex flex-wrap gap-1.5">
                     {CARD_TYPES.map(t => (
-                      <button key={t} onClick={() => toggleType(t.toLowerCase())}
+                      <button key={t} onClick={() => selectType(t.toLowerCase())}
                         className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeTypes.has(t.toLowerCase())
+                          activeType === t.toLowerCase()
                             ? 'bg-amber-900/60 border-amber-600 text-amber-300'
                             : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
                         }`}>
@@ -655,8 +784,6 @@ export default function SearchPage() {
                   </div>
                 </div>
               </div>
-
-              {/* CMC + Price */}
               <div className="flex flex-wrap gap-x-6 gap-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-stone-400 shrink-0">CMC</span>
@@ -681,7 +808,6 @@ export default function SearchPage() {
                     ))}
                   </div>
                 </div>
-
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-stone-400 shrink-0">Max Price</span>
                   <input
@@ -700,7 +826,7 @@ export default function SearchPage() {
             {/* Active filters strip */}
             {activeFilters.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-stone-600">Filters:</span>
+                <span className="text-xs text-stone-600">Active:</span>
                 {activeFilters.map(f => (
                   <button key={f.label} onClick={f.onRemove}
                     className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-900/40 border-2 border-amber-700/60 text-amber-300 hover:bg-amber-900/70 transition-colors">
@@ -709,19 +835,6 @@ export default function SearchPage() {
                 ))}
               </div>
             )}
-
-            {/* Mobile legend toggle */}
-            <div className="lg:hidden">
-              <button onClick={() => setLegendOpen(o => !o)}
-                className="text-sm text-stone-500 hover:text-stone-300 transition-colors flex items-center gap-1">
-                <span>{legendOpen ? '▾' : '▸'}</span> Keyword legend
-              </button>
-              {legendOpen && (
-                <div className="mt-3 p-4 bg-stone-900/60 border-2 border-stone-800 rounded-xl">
-                  <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
-                </div>
-              )}
-            </div>
 
             {/* Error */}
             {brewError && (

@@ -74,10 +74,12 @@ function CardRow({
   onHover,
   onDelete,
   sparkline,
+  pendingDelete,
 }: {
   row: CardResult
   onHover: (r: CardResult | null) => void
   onDelete: (name: string) => void
+  pendingDelete: string | null
   sparkline?: number[]
 }) {
   const diff = row.currentPrice != null ? row.currentPrice - row.snapshotPrice : null
@@ -135,9 +137,13 @@ function CardRow({
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(row.displayName) }}
-            className="hidden md:inline opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 hover:border-red-700 hover:text-red-400 transition-all"
+            className={`hidden md:inline opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border transition-all ${
+              pendingDelete === row.displayName
+                ? 'border-red-600 text-red-400 bg-red-900/30 opacity-100'
+                : 'border-stone-700 text-stone-500 hover:border-red-700 hover:text-red-400'
+            }`}
           >
-            Remove
+            {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
           </button>
         </span>
       </td>
@@ -166,9 +172,13 @@ function CardRow({
           <img src={row.imageUrl} alt={row.displayName} className="w-40 rounded-xl shadow-2xl" />
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(row.displayName) }}
-            className="text-xs px-3 py-1 rounded border border-red-800/50 text-red-400 hover:bg-red-900/30 transition-colors"
+            className={`text-xs px-3 py-1 rounded border transition-colors ${
+              pendingDelete === row.displayName
+                ? 'border-red-600 text-red-400 bg-red-900/30'
+                : 'border-red-800/50 text-red-400 hover:bg-red-900/30'
+            }`}
           >
-            Remove
+            {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
           </button>
         </td>
       </tr>
@@ -183,12 +193,14 @@ function CardTable({
   onDelete,
   emptyLabel,
   sparklines,
+  pendingDelete,
 }: {
   rows: CardResult[]
   onHover: (r: CardResult | null) => void
   onDelete: (name: string) => void
   emptyLabel: string
   sparklines?: Map<string, number[]>
+  pendingDelete: string | null
 }) {
   const hasSparklines = sparklines && sparklines.size > 0
   return (
@@ -217,6 +229,7 @@ function CardTable({
                 onHover={onHover}
                 onDelete={onDelete}
                 sparkline={sparklines?.get(row.displayName)}
+                pendingDelete={pendingDelete}
               />
             ))
           )}
@@ -260,8 +273,10 @@ export default function BinderPage() {
   const [gainersOpen, setGainersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [losersOpen, setLosersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [flatOpen, setFlatOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // History state
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number }[]>([])
@@ -338,6 +353,18 @@ export default function BinderPage() {
     })
     setEntries(prev => prev.filter(e => e.displayName !== name))
     setResults(prev => { const next = new Map(prev); next.delete(name); return next })
+  }
+
+  function requestDelete(name: string) {
+    if (pendingDelete === name) {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
+      setPendingDelete(null)
+      deleteCard(name)
+    } else {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
+      setPendingDelete(name)
+      deleteTimerRef.current = setTimeout(() => setPendingDelete(null), 3000)
+    }
   }
 
   async function addCard(name = addQuery, setCode?: string, scryfallId?: string) {
@@ -951,8 +978,9 @@ export default function BinderPage() {
                 <CardTable
                   rows={gainers}
                   onHover={setHoveredCard}
-                  onDelete={deleteCard}
+                  onDelete={requestDelete}
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No gainers'}
+                  pendingDelete={pendingDelete}
                 />
               )}
             </div>
@@ -972,8 +1000,9 @@ export default function BinderPage() {
                 <CardTable
                   rows={losers}
                   onHover={setHoveredCard}
-                  onDelete={deleteCard}
+                  onDelete={requestDelete}
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No losers'}
+                  pendingDelete={pendingDelete}
                 />
               )}
             </div>
@@ -1004,10 +1033,14 @@ export default function BinderPage() {
                           <span className="flex items-center gap-2">
                             {row.displayName}
                             <button
-                              onClick={() => deleteCard(row.displayName)}
-                              className="opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-600 hover:border-red-700 hover:text-red-400 transition-all"
+                              onClick={() => requestDelete(row.displayName)}
+                              className={`opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border transition-all ${
+                                pendingDelete === row.displayName
+                                  ? 'border-red-600 text-red-400 bg-red-900/30 opacity-100'
+                                  : 'border-stone-700 text-stone-600 hover:border-red-700 hover:text-red-400'
+                              }`}
                             >
-                              Remove
+                              {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
                             </button>
                           </span>
                         </td>
