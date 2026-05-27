@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
         let currentPrice: number | null = null
         let imageUrl: string | null = null
 
-        const cached = bust ? null : getCached(key)
+        const cached = bust ? null : await getCached(key)
         if (cached) {
           currentPrice = entry.foil ? (cached.foilPrice ?? cached.price) : cached.price
           imageUrl = cached.imageUrl ?? null
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
             const price = getPrice(card, false)
             const foilPrice = getPrice(card, true)
             imageUrl = card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? null
-            setCached(key, price, foilPrice, imageUrl)
+            await setCached(key, price, foilPrice, imageUrl)
             currentPrice = entry.foil ? (foilPrice ?? price) : price
           }
         }

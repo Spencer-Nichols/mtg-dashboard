@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
         let rarity: string | null = null
         let typeLine: string | null = null
 
-        const cached = bust ? null : getCached(key)
+        const cached = bust ? null : await getCached(key)
         if (cached && cached.setName !== undefined) {
           currentPrice = cached.price
           imageUrl = cached.imageUrl ?? null
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
             cardSetCode = card.set ?? null
             rarity = card.rarity ?? null
             typeLine = card.type_line ?? null
-            setCached(key, price, foilPrice, imageUrl, {
+            await setCached(key, price, foilPrice, imageUrl, {
               setName: setName ?? undefined,
               setCode: cardSetCode ?? undefined,
               rarity: rarity ?? undefined,

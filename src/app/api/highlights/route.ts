@@ -23,7 +23,7 @@ export async function GET() {
   const binderGainers: HighlightCard[] = []
   for (const entry of binderRows ?? []) {
     const key = cacheKey(entry.base_name, entry.scryfall_id ?? entry.set_code ?? '')
-    const cached = getCached(key)
+    const cached = await getCached(key)
     if (!cached) continue
     const currentPrice = entry.foil ? (cached.foilPrice ?? cached.price) : cached.price
     const snapshotPrice = entry.snapshot_price ?? 0
@@ -50,7 +50,7 @@ export async function GET() {
   const wishlistDrops: HighlightCard[] = []
   for (const single of wishlistRows ?? []) {
     const key = cacheKey(single.name, single.scryfall_id ?? single.set_code ?? '')
-    const cached = getCached(key)
+    const cached = await getCached(key)
     const snapshotPrice = single.snapshot_price ?? 0
     if (!cached || snapshotPrice <= 0) continue
     const currentPrice = cached.price
