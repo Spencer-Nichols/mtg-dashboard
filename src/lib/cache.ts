@@ -1,9 +1,13 @@
-import fs from 'fs'
-import { CACHE_FILE } from './config'
+import { Redis } from '@upstash/redis'
 
-const TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+})
 
-interface CacheEntry {
+const TTL_SECONDS = 24 * 60 * 60
+
+export interface CacheEntry {
   price: number | null
   foilPrice: number | null
   imageUrl: string | null
@@ -14,40 +18,21 @@ interface CacheEntry {
   typeLine?: string
 }
 
-type Cache = Record<string, CacheEntry>
-
-function load(): Cache {
-  try {
-    return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8'))
-  } catch {
-    return {}
-  }
+export async function getCached(key: string): Promise<CacheEntry | null> {
+  return redis.get<CacheEntry>(key)
 }
 
-function save(cache: Cache) {
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2))
-}
-
-export function getCached(key: string): CacheEntry | null {
-  const cache = load()
-  const entry = cache[key]
-  if (!entry) return null
-  if (Date.now() - entry.timestamp > TTL_MS) return null
-  return entry
-}
-
-export function setCached(
+export async function setCached(
   key: string,
   price: number | null,
   foilPrice: number | null,
   imageUrl: string | null,
   meta?: { setName?: string; setCode?: string; rarity?: string; typeLine?: string }
 ) {
-  const cache = load()
-  cache[key] = { price, foilPrice, imageUrl, timestamp: Date.now(), ...meta }
-  save(cache)
+  const entry: CacheEntry = { price, foilPrice, imageUrl, timestamp: Date.now(), ...meta }
+  await redis.set(key, entry, { ex: TTL_SECONDS })
 }
 
 export function cacheKey(name: string, setCode: string) {
-  return `${name.toLowerCase()}|${setCode.toLowerCase()}`
+  return `price:${name.toLowerCase()}|${setCode.toLowerCase()}`
 }
