@@ -65,6 +65,16 @@ export async function fetchByName(name: string, setCode?: string): Promise<Scryf
   }
 }
 
+export async function fetchBySetAndNumber(set: string, num: string): Promise<ScryfallCard | null> {
+  try {
+    const res = await fetch(`${BASE}/cards/${set}/${num}`, { headers: HEADERS })
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
 export async function fetchById(id: string): Promise<ScryfallCard | null> {
   try {
     const res = await fetch(`${BASE}/cards/${id}`, { headers: HEADERS })
