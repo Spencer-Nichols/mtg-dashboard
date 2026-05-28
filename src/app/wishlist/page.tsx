@@ -19,6 +19,10 @@ type Candidate = { scryfallId?: string; name: string; setCode: string; setName: 
 
 const BUY_THRESHOLD = -10
 
+const LS_WISHLIST_SINGLES = 'tnk:wishlist:singles'
+const LS_WISHLIST_RESULTS = 'tnk:wishlist:results'
+const LS_WISHLIST_HISTORY = 'tnk:wishlist:history'
+
 function pctColor(pct: number | null) {
   if (pct === null) return 'text-stone-500'
   if (pct > 0.05) return 'text-green-400'
@@ -186,15 +190,28 @@ export default function WishlistPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    const cachedSingles = localStorage.getItem(LS_WISHLIST_SINGLES)
+    const cachedResults = localStorage.getItem(LS_WISHLIST_RESULTS)
+    const cachedHistory = localStorage.getItem(LS_WISHLIST_HISTORY)
+    if (cachedSingles) setSingles(JSON.parse(cachedSingles))
+    if (cachedResults) setResults(new Map(JSON.parse(cachedResults)))
+    if (cachedHistory) setWishlistHistory(JSON.parse(cachedHistory))
+
     fetch('/api/wishlist')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
           setSingles(data)
+          localStorage.setItem(LS_WISHLIST_SINGLES, JSON.stringify(data))
           startStream()
         }
       })
-    fetch('/api/wishlist/history').then(r => r.json()).then(h => { if (h && typeof h === 'object') setWishlistHistory(h) })
+    fetch('/api/wishlist/history').then(r => r.json()).then(h => {
+      if (h && typeof h === 'object') {
+        setWishlistHistory(h)
+        localStorage.setItem(LS_WISHLIST_HISTORY, JSON.stringify(h))
+      }
+    })
 
     const interval = setInterval(() => startStream(true), 60 * 60 * 1000)
     return () => clearInterval(interval)
@@ -204,7 +221,7 @@ export default function WishlistPage() {
   function startStream(bust = false) {
     if (streaming) return
     esRef.current?.close()
-    setResults(new Map())
+    if (bust) setResults(new Map())
     setProgress(0)
     setStreaming(true)
 
@@ -238,6 +255,7 @@ export default function WishlistPage() {
         setUpdatedAt(new Date())
         es.close()
         setResults(prev => {
+          localStorage.setItem(LS_WISHLIST_RESULTS, JSON.stringify(Array.from(prev.entries())))
           const prices: Record<string, number> = {}
           prev.forEach((r, name) => { if (r.currentPrice != null) prices[name] = r.currentPrice })
           if (Object.keys(prices).length > 0) {
@@ -245,7 +263,12 @@ export default function WishlistPage() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ prices }),
-            }).then(r => r.json()).then(h => { if (h && typeof h === 'object') setWishlistHistory(h) })
+            }).then(r => r.json()).then(h => {
+              if (h && typeof h === 'object') {
+                setWishlistHistory(h)
+                localStorage.setItem(LS_WISHLIST_HISTORY, JSON.stringify(h))
+              }
+            })
           }
           return prev
         })

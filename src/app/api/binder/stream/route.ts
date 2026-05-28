@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById, getPrice, sleep } from '@/lib/scryfall'
-import { getCached, setCached, cacheKey } from '@/lib/cache'
+import { getCached, setCached, cacheKey, setCronTimestamp } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
           currentPrice = entry.foil ? (cached.foilPrice ?? cached.price) : cached.price
           imageUrl = cached.imageUrl ?? null
         } else {
-          if (i > 0) await sleep(1100)
+          if (i > 0) await sleep(entry.scryfall_id ? 150 : 600)
           const card = entry.scryfall_id
             ? await fetchById(entry.scryfall_id)
             : await fetchByName(entry.base_name, entry.set_code || undefined)
@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
         })
       }
 
+      if (bust) await setCronTimestamp()
       send({ type: 'done' })
       controller.close()
     },

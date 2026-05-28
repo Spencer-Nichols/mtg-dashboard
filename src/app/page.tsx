@@ -96,6 +96,10 @@ function formatRelativeTime(date: Date): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+const LS_HIGHLIGHTS = 'tnk:highlights'
+const LS_HISTORY = 'tnk:history'
+const LS_RECENT = 'tnk:recent'
+
 export default function HomePage() {
   const router = useRouter()
   const [card, setCard] = useState<Card | null>(null)
@@ -110,23 +114,44 @@ export default function HomePage() {
   const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
 
   function fetchHighlights() {
+    const cached = localStorage.getItem(LS_HIGHLIGHTS)
+    if (cached) {
+      const data = JSON.parse(cached)
+      setTopGainers(data.topGainers ?? [])
+      setWishlistDrops(data.wishlistDrops ?? [])
+      if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
+    }
     fetch('/api/highlights')
       .then(r => r.json())
       .then(data => {
         setTopGainers(data.topGainers ?? [])
         setWishlistDrops(data.wishlistDrops ?? [])
         if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
+        localStorage.setItem(LS_HIGHLIGHTS, JSON.stringify(data))
       })
   }
 
   useEffect(() => {
     fetchHighlights()
-    fetch('/api/binder/recent').then(r => r.json()).then(data => { if (Array.isArray(data)) setRecentCards(data) })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
-  useEffect(() => {
-    fetch('/api/binder/history').then(r => r.json()).then(h => { if (Array.isArray(h)) setBinderHistory(h) })
+    const cachedRecent = localStorage.getItem(LS_RECENT)
+    if (cachedRecent) setRecentCards(JSON.parse(cachedRecent))
+    fetch('/api/binder/recent').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        setRecentCards(data)
+        localStorage.setItem(LS_RECENT, JSON.stringify(data))
+      }
+    })
+
+    const cachedHistory = localStorage.getItem(LS_HISTORY)
+    if (cachedHistory) setBinderHistory(JSON.parse(cachedHistory))
+    fetch('/api/binder/history').then(r => r.json()).then(h => {
+      if (Array.isArray(h)) {
+        setBinderHistory(h)
+        localStorage.setItem(LS_HISTORY, JSON.stringify(h))
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -137,6 +162,18 @@ export default function HomePage() {
   }, [])
 
   function fetchCard(url = '/api/card-of-the-day') {
+    const todayKey = `tnk:card:${new Date().toISOString().split('T')[0]}`
+    if (url === '/api/card-of-the-day') {
+      const cached = localStorage.getItem(todayKey)
+      if (cached) {
+        const data = JSON.parse(cached)
+        setCard(data.card)
+        setDisplayName(data.displayName)
+        setFaceIndex(0)
+        setLoading(false)
+        return
+      }
+    }
     setLoading(true)
     fetch(url)
       .then(r => r.json())
@@ -146,6 +183,9 @@ export default function HomePage() {
           setDisplayName(data.displayName)
           setFaceIndex(0)
           setLoading(false)
+          if (url === '/api/card-of-the-day') {
+            localStorage.setItem(todayKey, JSON.stringify(data))
+          }
         }
       })
   }
@@ -326,7 +366,7 @@ export default function HomePage() {
           <div className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 flex flex-col gap-0.5">
             <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold">Price Data</p>
             <p className="text-xs text-stone-400">
-              {lastUpdated ? `Last updated ${formatRelativeTime(lastUpdated)}` : 'Checking prices…'}
+              {lastUpdated ? `Last updated ${formatRelativeTime(lastUpdated)}` : 'Not yet synced'}
             </p>
           </div>
 
