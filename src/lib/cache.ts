@@ -36,3 +36,13 @@ export async function setCached(
 export function cacheKey(name: string, setCode: string) {
   return `price:${name.toLowerCase()}|${setCode.toLowerCase()}`
 }
+
+const CRON_TIMESTAMP_KEY = 'cron:last_run'
+
+export async function setCronTimestamp() {
+  await redis.set(CRON_TIMESTAMP_KEY, Date.now())
+}
+
+export async function getCronTimestamp(): Promise<number | null> {
+  return redis.get<number>(CRON_TIMESTAMP_KEY)
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Card {
@@ -86,6 +86,15 @@ function CollectionChart({ data }: { data: HistoryPoint[] }) {
   )
 }
 
+function formatRelativeTime(date: Date): string {
+  const mins = Math.floor((Date.now() - date.getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 export default function HomePage() {
   const router = useRouter()
   const [card, setCard] = useState<Card | null>(null)
@@ -94,14 +103,10 @@ export default function HomePage() {
   const [topGainers, setTopGainers] = useState<HighlightCard[]>([])
   const [wishlistDrops, setWishlistDrops] = useState<HighlightCard[]>([])
   const [binderHistory, setBinderHistory] = useState<HistoryPoint[]>([])
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
-  const [countdown, setCountdown] = useState('')
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [faceIndex, setFaceIndex] = useState(0)
   const [isDesktop, setIsDesktop] = useState(true)
   const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
-  const nextRefreshRef = useRef<Date | null>(null)
-
-  const INTERVAL = 60 * 60 * 1000
 
   function fetchHighlights() {
     fetch('/api/highlights')
@@ -109,44 +114,13 @@ export default function HomePage() {
       .then(data => {
         setTopGainers(data.topGainers ?? [])
         setWishlistDrops(data.wishlistDrops ?? [])
+        if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
       })
   }
 
   useEffect(() => {
-    const stored = localStorage.getItem('highlightsLastFetch')
-    const lastFetch = stored ? parseInt(stored, 10) : 0
-    const elapsed = Date.now() - lastFetch
-
-    if (lastFetch && elapsed < INTERVAL) {
-      setUpdatedAt(new Date(lastFetch))
-      nextRefreshRef.current = new Date(lastFetch + INTERVAL)
-    } else {
-      const now = Date.now()
-      localStorage.setItem('highlightsLastFetch', String(now))
-      setUpdatedAt(new Date(now))
-      nextRefreshRef.current = new Date(now + INTERVAL)
-    }
-
     fetchHighlights()
     fetch('/api/binder/recent').then(r => r.json()).then(data => { if (Array.isArray(data)) setRecentCards(data) })
-
-    const tick = setInterval(() => {
-      if (!nextRefreshRef.current) return
-      const diff = nextRefreshRef.current.getTime() - Date.now()
-      if (diff <= 0) {
-        const now = Date.now()
-        localStorage.setItem('highlightsLastFetch', String(now))
-        setUpdatedAt(new Date(now))
-        nextRefreshRef.current = new Date(now + INTERVAL)
-        fetchHighlights()
-        return
-      }
-      const m = Math.floor(diff / 60000)
-      const s = Math.floor((diff % 60000) / 1000)
-      setCountdown(`${m}:${s.toString().padStart(2, '0')}`)
-    }, 1000)
-
-    return () => clearInterval(tick)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -345,14 +319,9 @@ export default function HomePage() {
         <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-6 order-1 lg:order-2">
           <div className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 flex flex-col gap-0.5">
             <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold">Price Data</p>
-            {updatedAt && (
-              <p className="text-xs text-stone-400">
-                Updated {updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
-            {countdown && (
-              <p className="text-sm font-mono text-amber-500 font-semibold">↻ {countdown}</p>
-            )}
+            <p className="text-xs text-stone-400">
+              {lastUpdated ? `Last updated ${formatRelativeTime(lastUpdated)}` : 'Checking prices…'}
+            </p>
           </div>
 
           {topGainers.length > 0 && (

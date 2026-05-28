@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { fetchByName, fetchById, getPrice, sleep } from '@/lib/scryfall'
-import { getCached, setCached, cacheKey, CacheEntry } from '@/lib/cache'
+import { getCached, setCached, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
 
 const STALE_MS = 6 * 60 * 60 * 1000
 
@@ -89,6 +89,8 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
       { onConflict: 'user_id,date' }
     )
   }
+
+  await setCronTimestamp()
 
   return {
     binderCount: binderRows?.length ?? 0,
