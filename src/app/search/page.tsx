@@ -145,7 +145,7 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
           </div>
         )}
         {!card.owned && !isOnWishlist && !isAdding && (
-          <div className="absolute bottom-2 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             <button
               onClick={e => { e.stopPropagation(); onAddToWishlist() }}
               className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/50 text-amber-400 hover:bg-amber-900/40 transition-colors"

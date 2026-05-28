@@ -220,12 +220,10 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
               <span className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</span>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-2 flex-1 min-w-[120px]">
-                  <span className="text-stone-500 text-sm">$</span>
-                  <input type="number" min="0" step="0.01" placeholder="Scryfall price" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)} className="flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600" />
-                </div>
-                <button onClick={() => setEditPurchasePrice('0')} className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap">Booster pull</button>
+              <div className="flex items-center gap-2">
+                <span className="text-stone-500 text-sm shrink-0">$</span>
+                <input type="number" min="0" step="0.01" placeholder="Scryfall price" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)} className="min-w-0 flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+                <button onClick={() => setEditPurchasePrice('0')} className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap shrink-0">Booster pull</button>
               </div>
               {editPurchasePrice === '0' && <p className="text-xs text-stone-600">Shows dollar gain instead of %</p>}
             </div>
@@ -255,11 +253,11 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
                     ) : (
                       <div className="w-full aspect-[63/88] bg-stone-800 flex items-center justify-center"><span className="text-stone-600 text-xs">No image</span></div>
                     )}
-                    <div className="px-2 py-1.5 bg-stone-850">
+                    <div className="px-2 py-1.5 bg-stone-800 min-w-0 overflow-hidden">
                       <p className="text-xs text-stone-300 font-medium truncate">{p.setName}</p>
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs text-stone-600 font-mono">{p.setCode.toUpperCase()}</span>
-                        <span className="text-xs font-mono text-stone-400">{editFoil && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}</span>
+                      <div className="flex items-center justify-between gap-1 min-w-0">
+                        <span className="text-xs text-stone-600 font-mono truncate">{p.setCode.toUpperCase()}</span>
+                        <span className="text-xs font-mono text-stone-400 shrink-0">{editFoil && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}</span>
                       </div>
                     </div>
                   </button>
