@@ -1369,14 +1369,14 @@ return (
             <div className="mt-8">
               <button
                 onClick={() => setFlatOpen(o => !o)}
-                className="w-full flex items-center gap-2 mb-3 text-left"
+                className={`w-full flex items-center gap-2 px-4 py-3 text-left rounded-xl border border-stone-800 bg-stone-900 hover:border-stone-700 hover:bg-stone-800/60 transition-colors ${flatOpen ? 'rounded-b-none mb-0' : 'mb-0'}`}
               >
-                <span className="text-stone-500 font-semibold">— Unchanged</span>
+                <span className="text-stone-400 font-semibold text-sm">Unchanged</span>
                 <span className="text-stone-600 font-normal text-sm">{flat.length} cards</span>
-                <span className="text-stone-400 text-sm ml-auto">{flatOpen ? '▲' : '▼'}</span>
+                <span className="text-stone-600 text-xs ml-auto">{flatOpen ? '▲' : '▼'}</span>
               </button>
               {flatOpen && (
-                <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+                <div className="bg-stone-900 border border-stone-800 border-t-0 rounded-b-xl overflow-hidden">
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {flat.map((row, i) => (
                       <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-r border-stone-800 last:border-b-0">
