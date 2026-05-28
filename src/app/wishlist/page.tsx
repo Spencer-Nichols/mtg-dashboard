@@ -106,7 +106,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardR
             {pctLabel(row.pct)}
           </div>
         )}
-        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <button
             onClick={e => { e.preventDefault(); onMoveToBinder(row.displayName) }}
             className="whitespace-nowrap text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/50 text-amber-400 hover:bg-amber-900/40 transition-colors"

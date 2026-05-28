@@ -34,17 +34,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Link href="/" className="text-amber-500 font-bold tracking-wide hover:text-amber-400 transition-colors shrink-0">
               TapNTrack
             </Link>
-            <Link href="/search" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0">
+            <Link href="/search" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0 py-1">
               Search
             </Link>
-            <Link href="/binder" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0">
+            <Link href="/binder" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0 py-1">
               Binder
             </Link>
-            <Link href="/wishlist" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0">
+            <Link href="/wishlist" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0 py-1">
               Wishlist
             </Link>
             {isAdmin && (
-              <Link href="/admin/requests" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0">
+              <Link href="/admin/requests" className="text-xs sm:text-sm text-stone-400 hover:text-amber-400 transition-colors shrink-0 py-1">
                 Admin
               </Link>
             )}
