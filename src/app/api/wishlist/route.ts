@@ -4,9 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET() {
   try {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { data, error } = await supabase
       .from('wishlist_singles')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at')
 
     if (error) throw error

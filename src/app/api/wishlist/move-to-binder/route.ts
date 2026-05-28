@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
   const { data: existing } = await supabase
     .from('binder_cards')
     .select('id')
+    .eq('user_id', user.id)
     .ilike('base_name', name.trim())
     .maybeSingle()
 
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
   const { error: deleteError } = await supabase
     .from('wishlist_singles')
     .delete()
+    .eq('user_id', user.id)
     .ilike('name', name.trim())
 
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })

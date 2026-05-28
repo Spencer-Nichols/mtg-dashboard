@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
   const { data } = await supabase
     .from('binder_history')
     .select('date, total, card_count')
+    .eq('user_id', user.id)
     .order('date')
 
   return NextResponse.json((data ?? []).map(h => ({ date: h.date, total: h.total, card_count: h.card_count ?? null })))

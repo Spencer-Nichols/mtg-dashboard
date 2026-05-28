@@ -6,9 +6,13 @@ export async function POST(req: NextRequest) {
   if (!name?.trim()) return NextResponse.json({ error: 'Missing card name' }, { status: 400 })
 
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { data, error } = await supabase
     .from('wishlist_singles')
     .delete()
+    .eq('user_id', user.id)
     .ilike('name', name.trim())
     .select('id')
 
