@@ -9,9 +9,13 @@ export async function GET(req: NextRequest) {
   const bust = req.nextUrl.searchParams.get('bust') === 'true'
 
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return new Response('Unauthorized', { status: 401 })
+
   const { data, error } = await supabase
     .from('wishlist_singles')
     .select('name, note, set_code, scryfall_id, snapshot_price')
+    .eq('user_id', user.id)
     .order('created_at')
 
   const singles = error ? [] : (data ?? [])

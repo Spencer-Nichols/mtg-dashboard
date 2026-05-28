@@ -9,9 +9,13 @@ export async function GET(req: NextRequest) {
   const bust = req.nextUrl.searchParams.get('bust') === 'true'
 
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return new Response('Unauthorized', { status: 401 })
+
   const { data, error } = await supabase
     .from('binder_cards')
     .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price, purchase_price, condition')
+    .eq('user_id', user.id)
     .order('created_at')
 
   const entries = error ? [] : (data ?? [])
