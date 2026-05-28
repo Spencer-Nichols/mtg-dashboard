@@ -16,6 +16,7 @@ export async function GET() {
     if (error) throw error
 
     const entries = (data ?? []).map(row => ({
+      id: row.id,
       displayName: row.display_name,
       baseName: row.base_name,
       setCode: row.set_code ?? '',

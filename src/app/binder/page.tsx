@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 interface BinderEntry {
+  id: string
   displayName: string
   baseName: string
   setCode: string
@@ -161,17 +162,20 @@ function CardRow({
   onDelete,
   sparkline,
   pendingDelete,
+  expanded,
+  onToggleExpand,
 }: {
   row: CardResult
   onDelete: (name: string, rowKey: string) => void
   pendingDelete: string | null
   sparkline?: number[]
+  expanded: boolean
+  onToggleExpand: () => void
 }) {
   const diff = row.currentPrice != null ? row.currentPrice - row.snapshotPrice : null
   const [editingNote, setEditingNote] = useState(false)
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
-  const [expanded, setExpanded] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [editPrints, setEditPrints] = useState<Candidate[]>([])
   const [editPrintsLoading, setEditPrintsLoading] = useState(false)
@@ -197,7 +201,7 @@ function CardRow({
   async function saveEdit(scryfallId?: string, setCode?: string) {
     setEditSaving(true)
     const purchasePrice = editPurchasePrice.trim() === '' ? null : parseFloat(editPurchasePrice)
-    await fetch('/api/binder/edit', {
+    const res = await fetch('/api/binder/edit', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -210,8 +214,12 @@ function CardRow({
       }),
     })
     setEditSaving(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(`Failed to save: ${data.error ?? res.statusText}`)
+      return
+    }
     setShowEdit(false)
-    // Reload entries to reflect changes
     window.location.reload()
   }
 
@@ -232,7 +240,7 @@ function CardRow({
     <>
     <tr
       className="group border-b border-stone-800 hover:bg-stone-800/50 transition-colors cursor-pointer"
-      onClick={() => setExpanded(e => !e)}
+      onClick={onToggleExpand}
     >
       <td className="px-4 py-3.5 text-stone-200 font-medium">
         <span className="flex items-center gap-2 flex-wrap">
@@ -352,7 +360,7 @@ function CardRow({
             onClick={() => setShowEdit(false)}
           >
             <div
-              className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+              className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
               {/* Header */}
@@ -503,6 +511,7 @@ function CardTable({
   sparklines?: Map<string, number[]>
   pendingDelete: string | null
 }) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const hasSparklines = sparklines && sparklines.size > 0
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
@@ -523,15 +532,20 @@ function CardTable({
               <td colSpan={hasSparklines ? 6 : 5} className="px-4 py-8 text-center text-stone-600 text-sm">{emptyLabel}</td>
             </tr>
           ) : (
-            rows.map((row, i) => (
-              <CardRow
-                key={`${row.displayName}-${i}`}
-                row={row}
-                onDelete={onDelete}
-                sparkline={sparklines?.get(row.displayName)}
-                pendingDelete={pendingDelete}
-              />
-            ))
+            rows.map((row, i) => {
+              const rKey = `${row.displayName}-${i}`
+              return (
+                <CardRow
+                  key={rKey}
+                  row={row}
+                  onDelete={onDelete}
+                  sparkline={sparklines?.get(row.displayName)}
+                  pendingDelete={pendingDelete}
+                  expanded={expandedKey === rKey}
+                  onToggleExpand={() => setExpandedKey(k => k === rKey ? null : rKey)}
+                />
+              )
+            })
           )}
         </tbody>
       </table>
@@ -571,7 +585,7 @@ export default function BinderPage() {
   const [importCsvProgress, setImportCsvProgress] = useState<{ current: number; total: number } | null>(null)
   const [gainersOpen, setGainersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [losersOpen, setLosersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
-  const [flatOpen, setFlatOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
+  const [flatOpen, setFlatOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [clearConfirm, setClearConfirm] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
@@ -657,10 +671,11 @@ export default function BinderPage() {
   }
 
   async function deleteCard(name: string, rKey: string) {
+    const entry = entries.find(e => makeRowKey(e.displayName, e.setCode, e.foil) === rKey)
     await fetch('/api/binder/remove', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ id: entry?.id, name }),
     })
     setEntries(prev => prev.filter(e => makeRowKey(e.displayName, e.setCode, e.foil) !== rKey))
     setResults(prev => { const next = new Map(prev); next.delete(rKey); return next })
@@ -1010,12 +1025,20 @@ return (
 
       {/* Search + Export toolbar */}
       <div className="flex flex-wrap gap-2 mb-4">
-        <input
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search binder..."
-          className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
-        />
+        <div className="relative flex-1">
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search binder..."
+            className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 transition-colors px-1"
+            >×</button>
+          )}
+        </div>
         <button
           onClick={() => { setShowExport(b => !b); setExportStatus(null); setShowImportCsv(false) }}
           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showExport ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-800'}`}
@@ -1353,12 +1376,16 @@ return (
                 <span className="text-stone-400 text-sm ml-auto">{flatOpen ? '▲' : '▼'}</span>
               </button>
               {flatOpen && (
-                <CardTable
-                  rows={flat}
-                  onDelete={requestDelete}
-                  emptyLabel="No unchanged cards"
-                  pendingDelete={pendingDelete}
-                />
+                <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    {flat.map((row, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-r border-stone-800 last:border-b-0">
+                        <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
+                        <span className="text-sm text-stone-500 shrink-0">${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}</>}
