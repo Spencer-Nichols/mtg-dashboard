@@ -161,6 +161,7 @@ function CardRow({
       </td>
       <td className="px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
+        <p className="md:hidden text-xs text-stone-600">was ${row.snapshotPrice.toFixed(2)}</p>
       </td>
       <td className={`px-4 py-3.5 text-right font-mono font-semibold ${pctColor(row.pct)}`}>
         {pctLabel(row.pct)}
