@@ -163,6 +163,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
   const [editFoil, setEditFoil] = useState(row.foil ?? false)
   const [editCondition, setEditCondition] = useState<string>(row.condition ?? 'NM')
   const [editPurchasePrice, setEditPurchasePrice] = useState(row.purchasePrice != null ? String(row.purchasePrice) : '')
+  const [editNote, setEditNote] = useState(row.note ?? '')
   const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
@@ -178,7 +179,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
     const res = await fetch('/api/binder/edit', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName: row.displayName, scryfallId, setCode, foil: editFoil, purchasePrice, condition: editCondition }),
+      body: JSON.stringify({ displayName: row.displayName, scryfallId, setCode, foil: editFoil, purchasePrice, condition: editCondition, note: editNote.trim() || null }),
     })
     setEditSaving(false)
     if (!res.ok) {
@@ -228,6 +229,16 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
             </div>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-stone-500 uppercase tracking-wider">Note</span>
+            <input
+              value={editNote}
+              onChange={e => setEditNote(e.target.value)}
+              placeholder="Optional note"
+              className="bg-stone-950 border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600 transition-colors"
+            />
+          </div>
+
           <div className="flex flex-col gap-2">
             <span className="text-xs text-stone-500 uppercase tracking-wider">Select a printing</span>
             {editPrintsLoading ? (
@@ -271,7 +282,7 @@ function CompactCardGrid({ rows, onDelete, pendingDelete }: { rows: CardResult[]
 
   return (
     <div className="bg-stone-800 rounded-xl overflow-hidden">
-      <div className="grid grid-cols-2 gap-px">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px">
         {rows.map((row, i) => {
           const rKey = `${row.displayName}-${i}`
           const isExpanded = expandedKey === rKey
@@ -573,9 +584,11 @@ export default function BinderPage() {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [clearConfirm, setClearConfirm] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
+  const [postAddRow, setPostAddRow] = useState<CardResult | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const addInputRef = useRef<HTMLInputElement>(null)
 
   // History state
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
@@ -703,7 +716,7 @@ export default function BinderPage() {
     const res = await fetch('/api/binder/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), setCode, scryfallId, note: addNote.trim() || undefined }),
+      body: JSON.stringify({ name: name.trim(), setCode, scryfallId }),
     })
     const data = await res.json()
     if (data.candidates) {
@@ -714,13 +727,13 @@ export default function BinderPage() {
     } else {
       setAddStatus({ type: 'success', message: `Added ${data.name} (${data.setCode}) — $${data.price.toFixed(2)}` })
       setAddQuery('')
-      setAddNote('')
       setResults(prev => {
         const next = new Map(prev)
         next.set(makeRowKey(data.name, data.setCode, false), { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, imageUrl: data.imageUrl ?? null, fromCache: false })
         return next
       })
       fetch('/api/binder').then(r => r.json()).then(d => setEntries(d.entries))
+      setPostAddRow({ displayName: data.name, setCode: data.setCode, foil: false, snapshotPrice: data.price, currentPrice: data.price, pct: 0, purchasePrice: null, condition: null, imageUrl: data.imageUrl ?? null, fromCache: false })
     }
     setAddLoading(false)
   }
@@ -886,6 +899,8 @@ export default function BinderPage() {
 
 return (
     <div>
+      {postAddRow && <EditModal row={postAddRow} onClose={() => setPostAddRow(null)} />}
+
       {/* Desktop header */}
       <div className="hidden lg:block mb-6">
         <div className="flex items-center justify-between mb-1">
@@ -1107,6 +1122,7 @@ return (
           <div className="relative mb-6">
             <div className="flex gap-2">
               <input
+                ref={addInputRef}
                 value={addQuery}
                 onChange={e => handleAddInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
@@ -1114,13 +1130,6 @@ return (
                 onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
                 placeholder="Add a card to binder..."
                 className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
-              />
-              <input
-                value={addNote}
-                onChange={e => setAddNote(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addCard() }}
-                placeholder="Note (optional)"
-                className="hidden sm:block w-40 bg-stone-900 border border-stone-700 rounded-lg px-3 py-2.5 text-sm text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600 transition-colors"
               />
               <button
                 onClick={() => addCard()}
@@ -1219,7 +1228,7 @@ return (
                 {addPrintings.map(c => (
                   <button
                     key={`${c.name}-${c.setCode}-${c.collectorNumber}`}
-                    onMouseDown={(e) => { e.preventDefault(); addCard(c.name, c.setCode, c.scryfallId) }}
+                    onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); addCard(c.name, c.setCode, c.scryfallId) }}
                     className="w-full flex items-center gap-3 px-4 py-2 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
                   >
                     {c.imageUrl

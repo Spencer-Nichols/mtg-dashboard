@@ -7,7 +7,7 @@ export async function PATCH(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { displayName, scryfallId, setCode, foil, purchasePrice, condition } = await req.json()
+  const { displayName, scryfallId, setCode, foil, purchasePrice, condition, note } = await req.json()
   if (!displayName) return NextResponse.json({ error: 'Missing displayName' }, { status: 400 })
 
   const updates: Record<string, unknown> = {}
@@ -34,6 +34,7 @@ export async function PATCH(req: NextRequest) {
 
   if (purchasePrice !== undefined) updates.purchase_price = purchasePrice
   if (condition !== undefined) updates.condition = condition
+  if (note !== undefined) updates.note = note
 
   const { error } = await supabase
     .from('binder_cards')
