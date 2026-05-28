@@ -72,7 +72,7 @@ function CollectionChart({ data }: { data: HistoryPoint[] }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="none">
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
       <defs>
         <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.15" />
@@ -91,6 +91,8 @@ function CollectionChart({ data }: { data: HistoryPoint[] }) {
             {data[i].date.slice(5)}
           </text>
         ))}
+      </g>
+      <g>
         {countMarkers.map(({ i, delta }) => {
           const cx = x(i)
           const isAdd = delta > 0
@@ -99,7 +101,7 @@ function CollectionChart({ data }: { data: HistoryPoint[] }) {
           return (
             <g key={i}>
               <line x1={cx} y1={padY} x2={cx} y2={height - padY} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-              <text x={cx} y={padY - 3} textAnchor="middle" fontSize="8" fontWeight="600" fill={markerColor}>{label}</text>
+              <text x={cx} y={padY - 3} textAnchor="middle" fontSize="11" fontWeight="600" fill={markerColor}>{label}</text>
             </g>
           )
         })}

@@ -126,29 +126,33 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
           </linearGradient>
         </defs>
       )}
-      {yLabels.map((v, i) => (
-        <g key={i}>
-          <line x1={padLeft} y1={y(v)} x2={width - padRight} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
-          <text x={padLeft - 4} y={y(v) + 4} textAnchor="end" fontSize="9" fill="#475569">${Math.round(v)}</text>
-        </g>
-      ))}
-      {xIndices.map(i => (
-        <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize="9" fill="#475569">
-          {dates![i].slice(5)}
-        </text>
-      ))}
-      {countMarkers.map(({ i, delta }) => {
-        const cx = x(i)
-        const isAdd = delta > 0
-        const markerColor = isAdd ? '#4ade80' : '#f87171'
-        const label = isAdd ? `+${delta}` : `${delta}`
-        return (
+      <g className="hidden sm:block">
+        {yLabels.map((v, i) => (
           <g key={i}>
-            <line x1={cx} y1={padY} x2={cx} y2={height - padBottom} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-            <text x={cx} y={padY - 3} textAnchor="middle" fontSize="8" fontWeight="600" fill={markerColor}>{label}</text>
+            <line x1={padLeft} y1={y(v)} x2={width - padRight} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
+            <text x={padLeft - 4} y={y(v) + 4} textAnchor="end" fontSize="7" fill="#475569">${Math.round(v)}</text>
           </g>
-        )
-      })}
+        ))}
+        {xIndices.map(i => (
+          <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize="7" fill="#475569">
+            {dates![i].slice(5)}
+          </text>
+        ))}
+      </g>
+      <g>
+        {countMarkers.map(({ i, delta }) => {
+          const cx = x(i)
+          const isAdd = delta > 0
+          const markerColor = isAdd ? '#4ade80' : '#f87171'
+          const label = isAdd ? `+${delta}` : `${delta}`
+          return (
+            <g key={i}>
+              <line x1={cx} y1={padY} x2={cx} y2={height - padBottom} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+              <text x={cx} y={padY - 3} textAnchor="middle" fontSize="7" fontWeight="600" fill={markerColor}>{label}</text>
+            </g>
+          )
+        })}
+      </g>
       {showLabels && <path d={area} fill={`url(#${gradId})`} />}
       {values.length > 1
         ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
@@ -246,7 +250,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {editPrints.map(p => (
-                  <button key={p.scryfallId ?? p.setCode} onClick={() => saveEdit(p.scryfallId, p.setCode)} disabled={editSaving} className="flex flex-col rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50">
+                  <button key={p.scryfallId ?? p.setCode} onClick={() => saveEdit(p.scryfallId, p.setCode)} disabled={editSaving} className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50">
                     {p.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={p.imageUrl} alt={p.name} className="w-full" />
