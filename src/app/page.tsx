@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface Card {
   name: string
@@ -158,7 +159,7 @@ export default function HomePage() {
     : (card?.image_uris?.normal ?? card?.card_faces?.[0]?.image_uris?.normal)
   const oracle = card?.oracle_text ?? card?.card_faces?.map(f => `${f.name}\n${f.oracle_text ?? ''}`).join('\n\n')
 
-  const sidebar = topGainers.length > 0 || wishlistDrops.length > 0
+  const sidebar = true
 
   const currentTotal = binderHistory.length > 0 ? binderHistory[binderHistory.length - 1].total : null
   const firstTotal = binderHistory.length > 1 ? binderHistory[0].total : null
@@ -179,7 +180,12 @@ export default function HomePage() {
       </div>
       <CollectionChart data={binderHistory} />
     </div>
-  ) : null
+  ) : (
+    <div className="bg-stone-900 border-2 border-stone-800 rounded-xl p-5 flex flex-col items-center justify-center gap-2 min-h-[140px]">
+      <p className="text-sm font-semibold text-stone-500">No collection data yet</p>
+      <p className="text-xs text-stone-600 text-center">Add cards to your <Link href="/binder" className="text-amber-600 hover:text-amber-500">binder</Link> to start tracking your collection value.</p>
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-8">
@@ -323,6 +329,10 @@ export default function HomePage() {
               {lastUpdated ? `Last updated ${formatRelativeTime(lastUpdated)}` : 'Checking prices…'}
             </p>
           </div>
+
+          {topGainers.length === 0 && wishlistDrops.length === 0 && (
+            <p className="text-xs text-stone-600">Price highlights will appear here once you have cards in your <Link href="/binder" className="text-amber-700 hover:text-amber-600">binder</Link> and <Link href="/wishlist" className="text-amber-700 hover:text-amber-600">wishlist</Link>.</p>
+          )}
 
           {topGainers.length > 0 && (
             <div>
