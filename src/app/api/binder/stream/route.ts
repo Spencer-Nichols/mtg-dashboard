@@ -31,11 +31,13 @@ export async function GET(req: NextRequest) {
         const key = cacheKey(entry.base_name, entry.scryfall_id ?? entry.set_code ?? '')
         let currentPrice: number | null = null
         let imageUrl: string | null = null
+        let backImageUrl: string | null = null
 
         const cached = bust ? null : await getCached(key)
         if (cached) {
           currentPrice = entry.foil ? (cached.foilPrice ?? cached.price) : cached.price
           imageUrl = cached.imageUrl ?? null
+          backImageUrl = cached.backImageUrl ?? null
         } else {
           if (i > 0) await sleep(entry.scryfall_id ? 150 : 600)
           const card = entry.scryfall_id
@@ -45,7 +47,8 @@ export async function GET(req: NextRequest) {
             const price = getPrice(card, false)
             const foilPrice = getPrice(card, true)
             imageUrl = card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? null
-            await setCached(key, price, foilPrice, imageUrl)
+            backImageUrl = card.card_faces?.[1]?.image_uris?.normal ?? null
+            await setCached(key, price, foilPrice, imageUrl, { backImageUrl })
             currentPrice = entry.foil ? (foilPrice ?? price) : price
           }
         }
@@ -62,6 +65,7 @@ export async function GET(req: NextRequest) {
           currentPrice,
           pct,
           imageUrl,
+          backImageUrl,
           fromCache: !!cached,
         })
       }

@@ -71,9 +71,11 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     }
   }
 
-  // Calculate per-user binder totals and record history
+  // Calculate per-user binder totals and card counts, record history
   const userTotals = new Map<string, number>()
+  const userCounts = new Map<string, number>()
   for (const row of binderRows ?? []) {
+    userCounts.set(row.user_id, (userCounts.get(row.user_id) ?? 0) + 1)
     const key = cacheKey(row.base_name, row.scryfall_id ?? row.set_code ?? '')
     const cached = await getCached(key)
     if (!cached) continue
@@ -85,7 +87,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
   const today = new Date().toISOString().split('T')[0]
   for (const [userId, total] of userTotals) {
     await supabase.from('binder_history').upsert(
-      { user_id: userId, date: today, total: parseFloat(total.toFixed(2)) },
+      { user_id: userId, date: today, total: parseFloat(total.toFixed(2)), card_count: userCounts.get(userId) ?? null },
       { onConflict: 'user_id,date' }
     )
   }

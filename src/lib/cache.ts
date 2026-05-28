@@ -11,6 +11,7 @@ export interface CacheEntry {
   price: number | null
   foilPrice: number | null
   imageUrl: string | null
+  backImageUrl?: string | null
   timestamp: number
   setName?: string
   setCode?: string
@@ -27,7 +28,7 @@ export async function setCached(
   price: number | null,
   foilPrice: number | null,
   imageUrl: string | null,
-  meta?: { setName?: string; setCode?: string; rarity?: string; typeLine?: string }
+  meta?: { setName?: string; setCode?: string; rarity?: string; typeLine?: string; backImageUrl?: string | null }
 ) {
   const entry: CacheEntry = { price, foilPrice, imageUrl, timestamp: Date.now(), ...meta }
   await redis.set(key, entry, { ex: TTL_SECONDS })

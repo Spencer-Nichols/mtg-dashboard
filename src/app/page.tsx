@@ -29,6 +29,7 @@ interface HighlightCard {
 interface HistoryPoint {
   date: string
   total: number
+  card_count?: number | null
 }
 
 function CollectionChart({ data }: { data: HistoryPoint[] }) {
@@ -60,6 +61,16 @@ function CollectionChart({ data }: { data: HistoryPoint[] }) {
     ? data.map((_, i) => i)
     : [0, Math.floor(data.length / 3), Math.floor((2 * data.length) / 3), data.length - 1]
 
+  // Event markers: vertical lines where card count changed
+  const countMarkers: { i: number; delta: number }[] = []
+  for (let k = 1; k < data.length; k++) {
+    const prev = data[k - 1].card_count
+    const curr = data[k].card_count
+    if (curr != null && prev != null && curr !== prev) {
+      countMarkers.push({ i: k, delta: curr - prev })
+    }
+  }
+
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full" preserveAspectRatio="none">
       <defs>
@@ -79,6 +90,18 @@ function CollectionChart({ data }: { data: HistoryPoint[] }) {
           {data[i].date.slice(5)}
         </text>
       ))}
+      {countMarkers.map(({ i, delta }) => {
+        const cx = x(i)
+        const isAdd = delta > 0
+        const markerColor = isAdd ? '#4ade80' : '#f87171'
+        const label = isAdd ? `+${delta}` : `${delta}`
+        return (
+          <g key={i}>
+            <line x1={cx} y1={padY} x2={cx} y2={height - padY} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+            <text x={cx} y={padY - 3} textAnchor="middle" fontSize="8" fontWeight="600" fill={markerColor}>{label}</text>
+          </g>
+        )
+      })}
       <path d={area} fill="url(#chartGrad)" />
       {data.length > 1
         ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
@@ -112,6 +135,7 @@ export default function HomePage() {
   const [faceIndex, setFaceIndex] = useState(0)
   const [isDesktop, setIsDesktop] = useState(true)
   const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
+  const [cardFetchedAt, setCardFetchedAt] = useState<Date | null>(null)
 
   function fetchHighlights() {
     const cached = localStorage.getItem(LS_HIGHLIGHTS)
@@ -162,13 +186,15 @@ export default function HomePage() {
   }, [])
 
   function fetchCard(url = '/api/card-of-the-day') {
-    const todayKey = `tnk:card:${new Date().toISOString().split('T')[0]}`
+    const now = new Date()
+    const hourKey = `tnk:card:${now.toISOString().split('T')[0]}:${now.getHours()}`
     if (url === '/api/card-of-the-day') {
-      const cached = localStorage.getItem(todayKey)
+      const cached = localStorage.getItem(hourKey)
       if (cached) {
         const data = JSON.parse(cached)
         setCard(data.card)
         setDisplayName(data.displayName)
+        setCardFetchedAt(data.fetchedAt ? new Date(data.fetchedAt) : null)
         setFaceIndex(0)
         setLoading(false)
         return
@@ -184,7 +210,11 @@ export default function HomePage() {
           setFaceIndex(0)
           setLoading(false)
           if (url === '/api/card-of-the-day') {
-            localStorage.setItem(todayKey, JSON.stringify(data))
+            const fetchedAt = new Date().toISOString()
+            setCardFetchedAt(new Date(fetchedAt))
+            localStorage.setItem(hourKey, JSON.stringify({ ...data, fetchedAt }))
+          } else {
+            setCardFetchedAt(null)
           }
         }
       })
@@ -241,9 +271,21 @@ export default function HomePage() {
         {/* On desktop: chart lives here, level with the sidebar */}
         {isDesktop && binderChart}
 
-        <div>
-          <p className="text-xs text-stone-600 uppercase tracking-widest mb-1">Card of the Hour</p>
-          <p className="text-stone-500 text-sm">{today}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-stone-600 uppercase tracking-widest mb-1">Card of the Hour</p>
+            <p className="text-stone-500 text-sm">
+              {today}{cardFetchedAt ? ` · ${cardFetchedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+            </p>
+          </div>
+          {!loading && card && (
+            <button
+              onClick={() => fetchCard('/api/random-card')}
+              className="text-xs font-semibold text-amber-200 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-amber-600 transition-colors rounded-lg px-3 py-1.5"
+            >
+              Random Card
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -257,6 +299,7 @@ export default function HomePage() {
           </div>
         ) : card && (
           <>
+
             <div className="flex flex-col sm:flex-row gap-6">
               <div className="flex flex-col items-center sm:items-start gap-2 flex-shrink-0">
                 {image && (
@@ -316,15 +359,6 @@ export default function HomePage() {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={() => fetchCard('/api/random-card')}
-                className="text-xs font-semibold text-amber-200 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-amber-600 transition-colors rounded-lg px-3 py-1.5"
-              >
-                Random Card
-              </button>
             </div>
 
             {recentCards.length > 0 && (
