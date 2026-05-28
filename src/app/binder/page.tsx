@@ -192,7 +192,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-lg md:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
           <div>
             <p className="font-semibold text-stone-100">{row.displayName}</p>
@@ -576,6 +576,7 @@ export default function BinderPage() {
   const esRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const addInputRef = useRef<HTMLInputElement>(null)
 
   // History state
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
@@ -1014,7 +1015,7 @@ return (
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search binder..."
-            className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+            className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
           />
           {searchQuery && (
             <button
@@ -1107,13 +1108,14 @@ return (
           <div className="relative mb-6">
             <div className="flex gap-2">
               <input
+                ref={addInputRef}
                 value={addQuery}
                 onChange={e => handleAddInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
                 onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
                 onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
                 placeholder="Add a card to binder..."
-                className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+                className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
               />
               <input
                 value={addNote}
@@ -1195,7 +1197,7 @@ return (
                 {addCandidates.map(c => (
                   <button
                     key={`${c.name}-${c.setCode}`}
-                    onMouseDown={(e) => { e.preventDefault(); selectNameForPrinting(c.name) }}
+                    onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); selectNameForPrinting(c.name) }}
                     className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
                   >
                     <div>
