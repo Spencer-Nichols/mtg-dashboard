@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fetchById, fetchByName, getPrice } from '@/lib/scryfall'
+import { fetchById, fetchByName, getPrice, frameSuffix } from '@/lib/scryfall'
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
 
     updates.scryfall_id = card.id
     updates.set_code = card.set
-    updates.display_name = card.name
+    updates.display_name = card.name + frameSuffix(card)
     updates.base_name = card.name.replace(/\s*\/\/.*$/, '').trim()
     updates.snapshot_price = price
     if (foil !== undefined) updates.foil = isFoil
