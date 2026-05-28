@@ -48,6 +48,8 @@ const SELL_THRESHOLD = -10 // % drop to flag as sell suggestion
 const LS_BINDER_ENTRIES = 'tnk:binder:entries'
 const LS_BINDER_RESULTS = 'tnk:binder:results'
 const LS_BINDER_HISTORY = 'tnk:binder:history'
+const LS_CACHE_VERSION = 'tnk:cache:version'
+const CACHE_VERSION = '2'
 
 function pctColor(pct: number | null, purchasePrice?: number | null) {
   if (purchasePrice === 0) return 'text-green-400'
@@ -582,6 +584,13 @@ export default function BinderPage() {
   const [binderUpdatedAt, setBinderUpdatedAt] = useState<Date | null>(null)
 
   useEffect(() => {
+    if (localStorage.getItem(LS_CACHE_VERSION) !== CACHE_VERSION) {
+      localStorage.removeItem(LS_BINDER_ENTRIES)
+      localStorage.removeItem(LS_BINDER_RESULTS)
+      localStorage.removeItem(LS_BINDER_HISTORY)
+      localStorage.setItem(LS_CACHE_VERSION, CACHE_VERSION)
+    }
+
     const cachedEntries = localStorage.getItem(LS_BINDER_ENTRIES)
     const cachedResults = localStorage.getItem(LS_BINDER_RESULTS)
     const cachedHistory = localStorage.getItem(LS_BINDER_HISTORY)
