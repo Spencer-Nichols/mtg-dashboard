@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { Geist } from 'next/font/google'
 import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
+import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import './globals.css'
 
 const geist = Geist({ subsets: ['latin'] })
@@ -12,7 +14,18 @@ export const metadata: Metadata = {
   icons: { icon: '/favicon.svg' },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  let isAdmin = false
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const service = createServiceClient()
+      const { data } = await service.from('admins').select('user_id').eq('user_id', user.id).maybeSingle()
+      isAdmin = !!data
+    }
+  } catch {}
+
   return (
     <html lang="en" className={`${geist.className} h-full`}>
       <body className="min-h-full flex flex-col bg-stone-950 text-stone-100">
@@ -33,6 +46,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/wishlist" className="text-sm text-stone-400 hover:text-amber-400 transition-colors">
               Wishlist
             </Link>
+            {isAdmin && (
+              <Link href="/admin/requests" className="text-sm text-stone-400 hover:text-amber-400 transition-colors">
+                Admin
+              </Link>
+            )}
             <form action={logout} className="ml-auto">
               <button type="submit" className="text-sm text-stone-500 hover:text-stone-300 transition-colors">
                 Sign out
