@@ -74,7 +74,11 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardR
     })
   }
 
-  const manapoolSlug = row.displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const manapoolSlug = row.displayName
+    .replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 
   return (
     <div className="group relative flex flex-col gap-1.5">
