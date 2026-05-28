@@ -372,9 +372,9 @@ export default function WishlistPage() {
             ? <span className="text-sm text-stone-500">Refreshing… {progress}/{total}</span>
             : <button
                 onClick={() => startStream(true)}
-                className="text-xs font-semibold text-amber-200 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 transition-colors rounded-lg px-2.5 py-1.5"
+                className="text-xs text-stone-500 hover:text-stone-300 transition-colors"
               >
-                ↻ Force Refresh
+                ↻ refresh
               </button>
           }
         </div>
@@ -519,7 +519,10 @@ export default function WishlistPage() {
       )}
 
       {singles.length === 0 && !streaming && (
-        <p className="text-center text-stone-600 text-sm mt-16">No cards on your wishlist yet. Add one above.</p>
+        <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+          <p className="text-stone-400 font-semibold">Your wishlist is empty</p>
+          <p className="text-sm text-stone-600">Search for a card above to add it and track price drops.</p>
+        </div>
       )}
     </div>
   )
