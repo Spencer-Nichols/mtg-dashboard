@@ -157,6 +157,167 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   )
 }
 
+function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
+  const [editPrints, setEditPrints] = useState<Candidate[]>([])
+  const [editPrintsLoading, setEditPrintsLoading] = useState(true)
+  const [editFoil, setEditFoil] = useState(row.foil ?? false)
+  const [editCondition, setEditCondition] = useState<string>(row.condition ?? 'NM')
+  const [editPurchasePrice, setEditPurchasePrice] = useState(row.purchasePrice != null ? String(row.purchasePrice) : '')
+  const [editSaving, setEditSaving] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/card?q=${encodeURIComponent(row.displayName.replace(/\s*\/\/.*$/, '').trim())}&prints=true`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (Array.isArray(data)) setEditPrints(data) })
+      .finally(() => setEditPrintsLoading(false))
+  }, [row.displayName])
+
+  async function saveEdit(scryfallId?: string, setCode?: string) {
+    setEditSaving(true)
+    const purchasePrice = editPurchasePrice.trim() === '' ? null : parseFloat(editPurchasePrice)
+    const res = await fetch('/api/binder/edit', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: row.displayName, scryfallId, setCode, foil: editFoil, purchasePrice, condition: editCondition }),
+    })
+    setEditSaving(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(`Failed to save: ${data.error ?? res.statusText}`)
+      return
+    }
+    onClose()
+    window.location.reload()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
+          <div>
+            <p className="font-semibold text-stone-100">{row.displayName}</p>
+            <p className="text-xs text-stone-500">{row.setCode?.toUpperCase()} · {row.foil ? 'Foil' : 'Non-foil'}</p>
+          </div>
+          <button onClick={onClose} className="text-stone-500 hover:text-stone-200 text-xl leading-none">×</button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-5">
+          <div className="flex flex-wrap gap-5">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-stone-500 uppercase tracking-wider">Condition</span>
+              <div className="flex gap-1">
+                {CONDITIONS.map(c => (
+                  <button key={c} onClick={() => setEditCondition(c)} className={`text-xs px-2.5 py-1 rounded border transition-colors ${editCondition === c ? 'border-amber-600 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:border-stone-500'}`}>{c}</button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-stone-500 uppercase tracking-wider">Foil</span>
+              <button onClick={() => setEditFoil(f => !f)} className={`text-xs px-3 py-1 rounded border transition-colors ${editFoil ? 'border-amber-600 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:border-stone-500'}`}>
+                {editFoil ? '★ Foil' : 'Non-foil'}
+              </button>
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+              <span className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</span>
+              <div className="flex items-center gap-2">
+                <span className="text-stone-500 text-sm">$</span>
+                <input type="number" min="0" step="0.01" placeholder="Scryfall price" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)} className="flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+                <button onClick={() => setEditPurchasePrice('0')} className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap">Booster pull</button>
+              </div>
+              {editPurchasePrice === '0' && <p className="text-xs text-stone-600">Shows dollar gain instead of %</p>}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-xs text-stone-500 uppercase tracking-wider">Select a printing</span>
+            {editPrintsLoading ? (
+              <p className="text-sm text-stone-600">Loading printings…</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {editPrints.map(p => (
+                  <button key={p.scryfallId ?? p.setCode} onClick={() => saveEdit(p.scryfallId, p.setCode)} disabled={editSaving} className="flex flex-col rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50">
+                    {p.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.imageUrl} alt={p.name} className="w-full" />
+                    ) : (
+                      <div className="w-full aspect-[63/88] bg-stone-800 flex items-center justify-center"><span className="text-stone-600 text-xs">No image</span></div>
+                    )}
+                    <div className="px-2 py-1.5 bg-stone-850">
+                      <p className="text-xs text-stone-300 font-medium truncate">{p.setName}</p>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs text-stone-600 font-mono">{p.setCode.toUpperCase()}</span>
+                        <span className="text-xs font-mono text-stone-400">{editFoil && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-end px-5 py-4 border-t border-stone-800">
+          <button onClick={onClose} className="text-sm px-4 py-1.5 rounded border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors">Cancel</button>
+          <button onClick={() => saveEdit()} disabled={editSaving} className="text-sm px-4 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50">{editSaving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompactCardGrid({ rows, onDelete, pendingDelete }: { rows: CardResult[]; onDelete: (name: string, rowKey: string) => void; pendingDelete: string | null }) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [editRow, setEditRow] = useState<CardResult | null>(null)
+
+  return (
+    <div className="bg-stone-800 rounded-xl overflow-hidden">
+      <div className="grid grid-cols-2 gap-px">
+        {rows.map((row, i) => {
+          const rKey = `${row.displayName}-${i}`
+          const isExpanded = expandedKey === rKey
+          return (
+            <div key={rKey} className="bg-stone-900 flex flex-col">
+              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-stone-800/60 transition-colors" onClick={() => setExpandedKey(k => k === rKey ? null : rKey)}>
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
+                  {row.condition && row.condition !== 'NM' && <span className="text-xs px-1 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700 shrink-0">{row.condition}</span>}
+                  {row.foil && <span className="text-xs px-1 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">foil</span>}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-sm text-stone-500 font-mono">${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}</span>
+                  <span className="text-stone-600 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                </div>
+              </div>
+              {isExpanded && (
+                <div className="px-3 pb-3 pt-2 flex flex-col items-center gap-3 border-t border-stone-800">
+                  {row.imageUrl && (
+                    <div className="flex gap-3 justify-center flex-wrap">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={row.imageUrl} alt={row.displayName} className="w-32 rounded-xl shadow-2xl" />
+                      {row.backImageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-32 rounded-xl shadow-2xl" />
+                      )}
+                    </div>
+                  )}
+                  <div className="flex gap-2 flex-wrap justify-center">
+                    <a href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors">Manapool ↗</a>
+                    <button onClick={() => setEditRow(row)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors">Edit</button>
+                    <button onClick={() => onDelete(row.displayName, row.rowKey ?? row.displayName)} className={`text-xs px-2.5 py-1 rounded border transition-colors ${pendingDelete === (row.rowKey ?? row.displayName) ? 'border-red-600 text-red-400 bg-red-900/30' : 'border-red-800/50 text-red-400 hover:bg-red-900/30'}`}>
+                      {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {editRow && <EditModal row={editRow} onClose={() => setEditRow(null)} />}
+    </div>
+  )
+}
+
 function CardRow({
   row,
   onDelete,
@@ -177,51 +338,7 @@ function CardRow({
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
   const [showEdit, setShowEdit] = useState(false)
-  const [editPrints, setEditPrints] = useState<Candidate[]>([])
-  const [editPrintsLoading, setEditPrintsLoading] = useState(false)
-  const [editFoil, setEditFoil] = useState(row.foil ?? false)
-  const [editCondition, setEditCondition] = useState<string>(row.condition ?? 'NM')
-  const [editPurchasePrice, setEditPurchasePrice] = useState(
-    row.purchasePrice != null ? String(row.purchasePrice) : ''
-  )
-  const [editSaving, setEditSaving] = useState(false)
   const cancelNoteRef = useRef(false)
-
-  async function openEdit() {
-    setShowEdit(true)
-    setEditPrintsLoading(true)
-    const res = await fetch(`/api/card?q=${encodeURIComponent(row.displayName.replace(/\s*\/\/.*$/, '').trim())}&prints=true`)
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data)) setEditPrints(data)
-    }
-    setEditPrintsLoading(false)
-  }
-
-  async function saveEdit(scryfallId?: string, setCode?: string) {
-    setEditSaving(true)
-    const purchasePrice = editPurchasePrice.trim() === '' ? null : parseFloat(editPurchasePrice)
-    const res = await fetch('/api/binder/edit', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        displayName: row.displayName,
-        scryfallId,
-        setCode,
-        foil: editFoil,
-        purchasePrice,
-        condition: editCondition,
-      }),
-    })
-    setEditSaving(false)
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      alert(`Failed to save: ${data.error ?? res.statusText}`)
-      return
-    }
-    setShowEdit(false)
-    window.location.reload()
-  }
 
   function commitNote() {
     setEditingNote(false)
@@ -329,7 +446,7 @@ function CardRow({
                 View on Manapool ↗
               </a>
               <button
-                onClick={(e) => { e.stopPropagation(); openEdit() }}
+                onClick={(e) => { e.stopPropagation(); setShowEdit(true) }}
                 className="text-xs px-3 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors"
               >
                 Edit
@@ -351,148 +468,10 @@ function CardRow({
       </tr>
     )}
 
-    {/* Edit modal */}
     {showEdit && (
-      <tr>
-        <td colSpan={6} style={{ padding: 0, border: 'none' }}>
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowEdit(false)}
-          >
-            <div
-              className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
-                <div>
-                  <p className="font-semibold text-stone-100">{row.displayName}</p>
-                  <p className="text-xs text-stone-500">{row.setCode?.toUpperCase()} · {row.foil ? 'Foil' : 'Non-foil'}</p>
-                </div>
-                <button onClick={() => setShowEdit(false)} className="text-stone-500 hover:text-stone-200 text-xl leading-none">×</button>
-              </div>
-
-              <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-5">
-
-                {/* Condition + Foil + Purchase price */}
-                <div className="flex flex-wrap gap-5">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-stone-500 uppercase tracking-wider">Condition</span>
-                    <div className="flex gap-1">
-                      {CONDITIONS.map(c => (
-                        <button
-                          key={c}
-                          onClick={() => setEditCondition(c)}
-                          className={`text-xs px-2.5 py-1 rounded border transition-colors ${
-                            editCondition === c
-                              ? 'border-amber-600 text-amber-400 bg-amber-950/40'
-                              : 'border-stone-700 text-stone-500 hover:border-stone-500'
-                          }`}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-xs text-stone-500 uppercase tracking-wider">Foil</span>
-                    <button
-                      onClick={() => setEditFoil(f => !f)}
-                      className={`text-xs px-3 py-1 rounded border transition-colors ${
-                        editFoil
-                          ? 'border-amber-600 text-amber-400 bg-amber-950/40'
-                          : 'border-stone-700 text-stone-500 hover:border-stone-500'
-                      }`}
-                    >
-                      {editFoil ? '★ Foil' : 'Non-foil'}
-                    </button>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
-                    <span className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-stone-500 text-sm">$</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Scryfall price"
-                        value={editPurchasePrice}
-                        onChange={e => setEditPurchasePrice(e.target.value)}
-                        className="flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600"
-                      />
-                      <button
-                        onClick={() => setEditPurchasePrice('0')}
-                        className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap"
-                      >
-                        Booster pull
-                      </button>
-                    </div>
-                    {editPurchasePrice === '0' && (
-                      <p className="text-xs text-stone-600">Shows dollar gain instead of %</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Printing grid */}
-                <div className="flex flex-col gap-2">
-                  <span className="text-xs text-stone-500 uppercase tracking-wider">Select a printing</span>
-                  {editPrintsLoading ? (
-                    <p className="text-sm text-stone-600">Loading printings…</p>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {editPrints.map(p => (
-                        <button
-                          key={p.scryfallId ?? p.setCode}
-                          onClick={() => saveEdit(p.scryfallId, p.setCode)}
-                          disabled={editSaving}
-                          className="flex flex-col rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50"
-                        >
-                          {p.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={p.imageUrl} alt={p.name} className="w-full" />
-                          ) : (
-                            <div className="w-full aspect-[63/88] bg-stone-800 flex items-center justify-center">
-                              <span className="text-stone-600 text-xs">No image</span>
-                            </div>
-                          )}
-                          <div className="px-2 py-1.5 bg-stone-850">
-                            <p className="text-xs text-stone-300 font-medium truncate">{p.setName}</p>
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="text-xs text-stone-600 font-mono">{p.setCode.toUpperCase()}</span>
-                              <span className="text-xs font-mono text-stone-400">
-                                {editFoil && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}
-                              </span>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="flex gap-2 justify-end px-5 py-4 border-t border-stone-800">
-                <button
-                  onClick={() => setShowEdit(false)}
-                  className="text-sm px-4 py-1.5 rounded border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => saveEdit()}
-                  disabled={editSaving}
-                  className="text-sm px-4 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
-                >
-                  {editSaving ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </td>
-      </tr>
+      <tr><td colSpan={6} style={{ padding: 0, border: 'none' }}>
+        <EditModal row={row} onClose={() => setShowEdit(false)} />
+      </td></tr>
     )}
     </>
   )
@@ -1369,23 +1348,18 @@ return (
             <div className="mt-8">
               <button
                 onClick={() => setFlatOpen(o => !o)}
-                className={`w-full flex items-center gap-2 px-4 py-3 text-left rounded-xl border border-stone-800 bg-stone-900 hover:border-stone-700 hover:bg-stone-800/60 transition-colors ${flatOpen ? 'rounded-b-none mb-0' : 'mb-0'}`}
+                className="w-full flex items-center gap-2 px-4 py-3 text-left rounded-xl border border-stone-800 bg-stone-900 hover:border-stone-700 hover:bg-stone-800/60 transition-colors mb-3"
               >
                 <span className="text-stone-400 font-semibold text-sm">Unchanged</span>
                 <span className="text-stone-600 font-normal text-sm">{flat.length} cards</span>
                 <span className="text-stone-600 text-xs ml-auto">{flatOpen ? '▲' : '▼'}</span>
               </button>
               {flatOpen && (
-                <div className="bg-stone-900 border border-stone-800 border-t-0 rounded-b-xl overflow-hidden">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                    {flat.map((row, i) => (
-                      <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-r border-stone-800 last:border-b-0">
-                        <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
-                        <span className="text-sm text-stone-500 shrink-0">${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <CompactCardGrid
+                  rows={flat}
+                  onDelete={requestDelete}
+                  pendingDelete={pendingDelete}
+                />
               )}
             </div>
           )}</>}
