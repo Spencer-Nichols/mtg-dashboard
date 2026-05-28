@@ -357,7 +357,7 @@ function CardRow({
     <>
     <tr
       className="group border-b border-stone-800 hover:bg-stone-800/50 transition-colors cursor-pointer"
-      style={row.foil ? { background: 'linear-gradient(110deg, transparent 15%, rgba(167, 139, 250, 0.07) 35%, rgba(96, 165, 250, 0.07) 52%, rgba(52, 211, 153, 0.06) 68%, transparent 85%)' } : undefined}
+      style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.10) 35%, rgba(96, 165, 250, 0.10) 52%, rgba(52, 211, 153, 0.08) 68%, #1c1917 85%)' } : undefined}
       onClick={onToggleExpand}
     >
       <td className="px-4 py-3 text-stone-200 font-medium">
@@ -427,7 +427,7 @@ function CardRow({
       </td>
     </tr>
     {expanded && (
-      <tr className="border-b border-stone-800 bg-stone-900/50">
+      <tr className="border-b border-stone-800" style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : { background: 'rgb(28 25 23 / 0.5)' }}>
         <td colSpan={6} className="px-4 py-4">
           <div className="flex flex-col items-center gap-3">
             {row.imageUrl && (
@@ -871,7 +871,7 @@ export default function BinderPage() {
 
   const gainers = filteredRows.filter(r => (r.pct ?? 0) > 0.05).sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
   const losers = filteredRows.filter(r => (r.pct ?? 0) < -0.05).sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0))
-  const flat = filteredRows.filter(r => r.pct !== null && Math.abs(r.pct) <= 0.05)
+  const flat = filteredRows.filter(r => r.pct === null || Math.abs(r.pct) <= 0.05)
   const pending = filteredRows.filter(r => r.pct === null)
   const sellSuggestions = filteredRows.filter(r => r.pct !== null && r.pct <= SELL_THRESHOLD)
 
