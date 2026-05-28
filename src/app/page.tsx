@@ -339,7 +339,11 @@ export default function HomePage() {
               <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Top Gainers</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
                 {topGainers.map(c => (
-                  <div key={c.displayName} className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2">
+                  <button
+                    key={c.displayName}
+                    onClick={() => router.push('/binder')}
+                    className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2 hover:bg-stone-800 transition-colors text-left w-full"
+                  >
                     {c.imageUrl && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={c.imageUrl} alt={c.displayName} className="w-7 rounded shrink-0" />
@@ -349,7 +353,7 @@ export default function HomePage() {
                       <p className="text-xs text-stone-600 font-mono">${c.snapshotPrice.toFixed(2)} → ${c.currentPrice.toFixed(2)}</p>
                     </div>
                     <span className="text-xs font-bold text-green-400 font-mono shrink-0">▲{c.pct.toFixed(1)}%</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -362,7 +366,7 @@ export default function HomePage() {
                 {wishlistDrops.map(c => (
                   <button
                     key={c.displayName}
-                    onClick={() => router.push('/binder?tab=wishlist')}
+                    onClick={() => router.push('/wishlist')}
                     className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2 hover:bg-stone-800 transition-colors text-left w-full"
                   >
                     {c.imageUrl && (
