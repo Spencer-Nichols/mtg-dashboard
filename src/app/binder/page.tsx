@@ -10,6 +10,8 @@ interface BinderEntry {
   foil: boolean
   count: number
   snapshotPrice: number
+  purchasePrice: number | null
+  condition: string | null
   note: string | null
   dateAdded: string | null
 }
@@ -17,6 +19,8 @@ interface BinderEntry {
 interface CardResult {
   displayName: string
   snapshotPrice: number
+  purchasePrice?: number | null
+  condition?: string | null
   currentPrice: number | null
   pct: number | null
   imageUrl: string | null
@@ -31,6 +35,10 @@ interface CardResult {
   rowKey?: string
 }
 
+const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'Damaged'] as const
+type Condition = typeof CONDITIONS[number]
+type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
+
 function makeRowKey(displayName: string, setCode: string | null | undefined, foil: boolean): string {
   return `${displayName}||${setCode ?? ''}||${foil ? '1' : '0'}`
 }
@@ -41,14 +49,19 @@ const LS_BINDER_ENTRIES = 'tnk:binder:entries'
 const LS_BINDER_RESULTS = 'tnk:binder:results'
 const LS_BINDER_HISTORY = 'tnk:binder:history'
 
-function pctColor(pct: number | null) {
+function pctColor(pct: number | null, purchasePrice?: number | null) {
+  if (purchasePrice === 0) return 'text-green-400'
   if (pct === null) return 'text-stone-500'
   if (pct > 0.05) return 'text-green-400'
   if (pct < -0.05) return 'text-red-400'
   return 'text-stone-400'
 }
 
-function pctLabel(pct: number | null) {
+function pctLabel(pct: number | null, currentPrice?: number | null, purchasePrice?: number | null) {
+  if (purchasePrice === 0) {
+    if (currentPrice == null) return '—'
+    return `+$${currentPrice.toFixed(2)}`
+  }
   if (pct === null) return '—'
   const arrow = pct > 0.05 ? '▲' : pct < -0.05 ? '▼' : ''
   return `${arrow}${Math.abs(pct).toFixed(1)}%`
@@ -157,7 +170,48 @@ function CardRow({
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
   const [expanded, setExpanded] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [editPrints, setEditPrints] = useState<Candidate[]>([])
+  const [editPrintsLoading, setEditPrintsLoading] = useState(false)
+  const [editFoil, setEditFoil] = useState(row.foil ?? false)
+  const [editCondition, setEditCondition] = useState<string>(row.condition ?? 'NM')
+  const [editPurchasePrice, setEditPurchasePrice] = useState(
+    row.purchasePrice != null ? String(row.purchasePrice) : ''
+  )
+  const [editSaving, setEditSaving] = useState(false)
   const cancelNoteRef = useRef(false)
+
+  async function openEdit() {
+    setShowEdit(true)
+    setEditPrintsLoading(true)
+    const res = await fetch(`/api/card?q=${encodeURIComponent(row.displayName.replace(/\s*\/\/.*$/, '').trim())}&prints=true`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) setEditPrints(data)
+    }
+    setEditPrintsLoading(false)
+  }
+
+  async function saveEdit(scryfallId?: string, setCode?: string) {
+    setEditSaving(true)
+    const purchasePrice = editPurchasePrice.trim() === '' ? null : parseFloat(editPurchasePrice)
+    await fetch('/api/binder/edit', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        displayName: row.displayName,
+        scryfallId,
+        setCode,
+        foil: editFoil,
+        purchasePrice,
+        condition: editCondition,
+      }),
+    })
+    setEditSaving(false)
+    setShowEdit(false)
+    // Reload entries to reflect changes
+    window.location.reload()
+  }
 
   function commitNote() {
     setEditingNote(false)
@@ -181,6 +235,12 @@ function CardRow({
       <td className="px-4 py-3.5 text-stone-200 font-medium">
         <span className="flex items-center gap-2 flex-wrap">
           <span>{row.displayName}</span>
+          {row.condition && row.condition !== 'NM' && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700">{row.condition}</span>
+          )}
+          {row.foil && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">foil</span>
+          )}
           {editingNote ? (
             <input
               autoFocus
@@ -227,25 +287,27 @@ function CardRow({
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
         <p className="md:hidden text-xs text-stone-600">was ${row.snapshotPrice.toFixed(2)}</p>
       </td>
-      <td className={`px-4 py-3.5 text-right font-mono font-semibold ${pctColor(row.pct)}`}>
-        {pctLabel(row.pct)}
+      <td className={`px-4 py-3.5 text-right font-mono font-semibold ${pctColor(row.pct, row.purchasePrice)}`}>
+        {pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
       </td>
       <td className={`hidden md:table-cell px-4 py-3.5 text-right font-mono ${diff != null && diff < 0 ? 'text-red-400' : diff != null && diff > 0 ? 'text-green-400' : 'text-stone-500'}`}>
         {diff != null ? `${diff >= 0 ? '+' : ''}$${diff.toFixed(2)}` : '—'}
       </td>
     </tr>
-    {expanded && row.imageUrl && (
+    {expanded && (
       <tr className="border-b border-stone-800 bg-stone-900/50">
         <td colSpan={6} className="px-4 py-4">
           <div className="flex flex-col items-center gap-3">
-            <div className="flex gap-3 justify-center flex-wrap">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={row.imageUrl} alt={row.displayName} className="w-40 rounded-xl shadow-2xl" />
-              {row.backImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-40 rounded-xl shadow-2xl" />
-              )}
-            </div>
+            {row.imageUrl && (
+              <div className="flex gap-3 justify-center flex-wrap">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={row.imageUrl} alt={row.displayName} className="w-40 rounded-xl shadow-2xl" />
+                {row.backImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-40 rounded-xl shadow-2xl" />
+                )}
+              </div>
+            )}
             <div className="flex gap-2 flex-wrap justify-center">
               <a
                 href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`}
@@ -257,6 +319,12 @@ function CardRow({
                 View on Manapool ↗
               </a>
               <button
+                onClick={(e) => { e.stopPropagation(); openEdit() }}
+                className="text-xs px-3 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors"
+              >
+                Edit
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); onDelete(row.displayName, row.rowKey ?? row.displayName) }}
                 className={`text-xs px-3 py-1 rounded border transition-colors ${
                   pendingDelete === (row.rowKey ?? row.displayName)
@@ -266,6 +334,151 @@ function CardRow({
               >
                 {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
               </button>
+            </div>
+
+          </div>
+        </td>
+      </tr>
+    )}
+
+    {/* Edit modal */}
+    {showEdit && (
+      <tr>
+        <td colSpan={6} style={{ padding: 0, border: 'none' }}>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowEdit(false)}
+          >
+            <div
+              className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
+                <div>
+                  <p className="font-semibold text-stone-100">{row.displayName}</p>
+                  <p className="text-xs text-stone-500">{row.setCode?.toUpperCase()} · {row.foil ? 'Foil' : 'Non-foil'}</p>
+                </div>
+                <button onClick={() => setShowEdit(false)} className="text-stone-500 hover:text-stone-200 text-xl leading-none">×</button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-5">
+
+                {/* Condition + Foil + Purchase price */}
+                <div className="flex flex-wrap gap-5">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-stone-500 uppercase tracking-wider">Condition</span>
+                    <div className="flex gap-1">
+                      {CONDITIONS.map(c => (
+                        <button
+                          key={c}
+                          onClick={() => setEditCondition(c)}
+                          className={`text-xs px-2.5 py-1 rounded border transition-colors ${
+                            editCondition === c
+                              ? 'border-amber-600 text-amber-400 bg-amber-950/40'
+                              : 'border-stone-700 text-stone-500 hover:border-stone-500'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-stone-500 uppercase tracking-wider">Foil</span>
+                    <button
+                      onClick={() => setEditFoil(f => !f)}
+                      className={`text-xs px-3 py-1 rounded border transition-colors ${
+                        editFoil
+                          ? 'border-amber-600 text-amber-400 bg-amber-950/40'
+                          : 'border-stone-700 text-stone-500 hover:border-stone-500'
+                      }`}
+                    >
+                      {editFoil ? '★ Foil' : 'Non-foil'}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+                    <span className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-stone-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Scryfall price"
+                        value={editPurchasePrice}
+                        onChange={e => setEditPurchasePrice(e.target.value)}
+                        className="flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600"
+                      />
+                      <button
+                        onClick={() => setEditPurchasePrice('0')}
+                        className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap"
+                      >
+                        Booster pull
+                      </button>
+                    </div>
+                    {editPurchasePrice === '0' && (
+                      <p className="text-xs text-stone-600">Shows dollar gain instead of %</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Printing grid */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs text-stone-500 uppercase tracking-wider">Select a printing</span>
+                  {editPrintsLoading ? (
+                    <p className="text-sm text-stone-600">Loading printings…</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {editPrints.map(p => (
+                        <button
+                          key={p.scryfallId ?? p.setCode}
+                          onClick={() => saveEdit(p.scryfallId, p.setCode)}
+                          disabled={editSaving}
+                          className="flex flex-col rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50"
+                        >
+                          {p.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={p.imageUrl} alt={p.name} className="w-full" />
+                          ) : (
+                            <div className="w-full aspect-[63/88] bg-stone-800 flex items-center justify-center">
+                              <span className="text-stone-600 text-xs">No image</span>
+                            </div>
+                          )}
+                          <div className="px-2 py-1.5 bg-stone-850">
+                            <p className="text-xs text-stone-300 font-medium truncate">{p.setName}</p>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-xs text-stone-600 font-mono">{p.setCode.toUpperCase()}</span>
+                              <span className="text-xs font-mono text-stone-400">
+                                {editFoil && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-2 justify-end px-5 py-4 border-t border-stone-800">
+                <button
+                  onClick={() => setShowEdit(false)}
+                  className="text-sm px-4 py-1.5 rounded border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => saveEdit()}
+                  disabled={editSaving}
+                  className="text-sm px-4 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
+                >
+                  {editSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
           </div>
         </td>
@@ -324,7 +537,6 @@ function CardTable({
   )
 }
 
-type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
 
 export default function BinderPage() {
   // Binder state
@@ -641,8 +853,8 @@ export default function BinderPage() {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foil)
     const result = results.get(rKey)
     return result
-      ? { ...result, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
-      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, currentPrice: null, pct: null, imageUrl: null, fromCache: false, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
+      ? { ...result, rowKey: rKey, foil: e.foil, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
+      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, imageUrl: null, fromCache: false, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
   })
 
   const filteredRows = searchQuery.trim()
@@ -917,7 +1129,7 @@ return (
                   value={bulkText}
                   onChange={e => setBulkText(e.target.value)}
                   rows={6}
-                  placeholder={"Sol Ring\n1x Arcane Signet\nCommand Tower (cmd)\nAncestral Recall // grail"}
+                  placeholder={"Format: Card Name (set) collector# // foil\nArcane Signet (cmm) 273\nSheoldred, the Apocalypse (dmu) 107 // foil\nSol Ring"}
                   className="w-full bg-stone-950 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 font-mono placeholder-stone-700 focus:outline-none focus:border-amber-600 resize-none overflow-y-scroll transition-colors"
                 />
                 {bulkProgress && (

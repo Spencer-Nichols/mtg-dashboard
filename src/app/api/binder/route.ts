@@ -19,6 +19,8 @@ export async function GET() {
       foil: row.foil,
       count: row.count,
       snapshotPrice: row.snapshot_price ?? 0,
+      purchasePrice: row.purchase_price ?? null,
+      condition: row.condition ?? null,
       note: row.note,
       dateAdded: row.date_added,
     }))

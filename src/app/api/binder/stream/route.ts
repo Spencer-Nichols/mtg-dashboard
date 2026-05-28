@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('binder_cards')
-    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price')
+    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price, purchase_price, condition')
     .order('created_at')
 
   const entries = error ? [] : (data ?? [])
@@ -53,8 +53,9 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const pct = currentPrice != null
-          ? ((currentPrice - (entry.snapshot_price ?? 0)) / (entry.snapshot_price ?? 1)) * 100
+        const costBasis = entry.purchase_price ?? entry.snapshot_price ?? 0
+        const pct = currentPrice != null && costBasis > 0
+          ? ((currentPrice - costBasis) / costBasis) * 100
           : null
 
         send({
@@ -64,6 +65,8 @@ export async function GET(req: NextRequest) {
           setCode: entry.set_code,
           foil: entry.foil,
           snapshotPrice: entry.snapshot_price ?? 0,
+          purchasePrice: entry.purchase_price ?? null,
+          condition: entry.condition ?? null,
           currentPrice,
           pct,
           imageUrl,
