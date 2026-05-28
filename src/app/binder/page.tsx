@@ -70,7 +70,7 @@ function pctLabel(pct: number | null, currentPrice?: number | null, purchasePric
   return `${arrow}${Math.abs(pct).toFixed(1)}%`
 }
 
-function CardImage({ src, alt, className }: { src: string | null; alt: string; className: string }) {
+function CardImage({ src, alt, className }: { src: string | null | undefined; alt: string; className: string }) {
   const [failed, setFailed] = useState(false)
   if (!src || failed) {
     return (
