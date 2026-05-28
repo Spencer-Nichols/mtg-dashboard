@@ -276,7 +276,7 @@ function CompactCardGrid({ rows, onDelete, pendingDelete }: { rows: CardResult[]
           const rKey = `${row.displayName}-${i}`
           const isExpanded = expandedKey === rKey
           return (
-            <div key={rKey} className="bg-stone-900 flex flex-col">
+            <div key={rKey} className="bg-stone-900 flex flex-col" style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : undefined}>
               <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-stone-800/60 transition-colors" onClick={() => setExpandedKey(k => k === rKey ? null : rKey)}>
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
@@ -357,50 +357,55 @@ function CardRow({
     <>
     <tr
       className="group border-b border-stone-800 hover:bg-stone-800/50 transition-colors cursor-pointer"
+      style={row.foil ? { background: 'linear-gradient(110deg, transparent 15%, rgba(167, 139, 250, 0.07) 35%, rgba(96, 165, 250, 0.07) 52%, rgba(52, 211, 153, 0.06) 68%, transparent 85%)' } : undefined}
       onClick={onToggleExpand}
     >
-      <td className="px-4 py-3.5 text-stone-200 font-medium">
-        <span className="flex items-center gap-2 flex-wrap">
-          <span>{row.displayName}</span>
-          {row.condition && row.condition !== 'NM' && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700">{row.condition}</span>
-          )}
-          {row.foil && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">foil</span>
-          )}
-          {editingNote ? (
-            <input
-              autoFocus
-              value={noteVal}
-              onChange={e => setNoteVal(e.target.value)}
-              onBlur={commitNote}
-              onKeyDown={e => {
-                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-                if (e.key === 'Escape') { cancelNoteRef.current = true; (e.target as HTMLInputElement).blur() }
-              }}
-              onClick={e => e.stopPropagation()}
-              className="text-xs px-2 py-0.5 rounded bg-stone-800 border-2 border-amber-700 text-stone-200 placeholder-stone-600 focus:outline-none w-40"
-              placeholder="Add a note..."
-            />
-          ) : (
-            <span
-              onClick={e => { e.stopPropagation(); setNoteVal(currentNote); setEditingNote(true) }}
-              className={`text-xs cursor-text px-1 rounded hover:bg-stone-700 transition-colors ${currentNote ? 'text-stone-600' : 'opacity-0 group-hover:opacity-100 text-stone-700'}`}
+      <td className="px-4 py-3 text-stone-200 font-medium">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span>{row.displayName}</span>
+            {row.condition && row.condition !== 'NM' && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700">{row.condition}</span>
+            )}
+            {row.foil && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">foil</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {editingNote ? (
+              <input
+                autoFocus
+                value={noteVal}
+                onChange={e => setNoteVal(e.target.value)}
+                onBlur={commitNote}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+                  if (e.key === 'Escape') { cancelNoteRef.current = true; (e.target as HTMLInputElement).blur() }
+                }}
+                onClick={e => e.stopPropagation()}
+                className="text-xs px-2 py-0.5 rounded bg-stone-800 border-2 border-amber-700 text-stone-200 placeholder-stone-600 focus:outline-none w-40"
+                placeholder="Add a note..."
+              />
+            ) : (
+              <span
+                onClick={e => { e.stopPropagation(); setNoteVal(currentNote); setEditingNote(true) }}
+                className={`text-xs cursor-text px-1 rounded hover:bg-stone-700 transition-colors ${currentNote ? 'text-stone-500' : 'opacity-0 group-hover:opacity-100 text-stone-600'}`}
+              >
+                {currentNote || '+ note'}
+              </span>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(row.displayName, row.rowKey ?? row.displayName) }}
+              className={`hidden md:inline opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border transition-all ${
+                pendingDelete === (row.rowKey ?? row.displayName)
+                  ? 'border-red-600 text-red-400 bg-red-900/30 opacity-100'
+                  : 'border-stone-700 text-stone-500 hover:border-red-700 hover:text-red-400'
+              }`}
             >
-              {currentNote || '+ note'}
-            </span>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(row.displayName, row.rowKey ?? row.displayName) }}
-            className={`hidden md:inline opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border transition-all ${
-              pendingDelete === (row.rowKey ?? row.displayName)
-                ? 'border-red-600 text-red-400 bg-red-900/30 opacity-100'
-                : 'border-stone-700 text-stone-500 hover:border-red-700 hover:text-red-400'
-            }`}
-          >
-            {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
-          </button>
-        </span>
+              {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
+            </button>
+          </div>
+        </div>
       </td>
       {sparkline && (
         <td className="hidden md:table-cell px-2 py-3.5">
