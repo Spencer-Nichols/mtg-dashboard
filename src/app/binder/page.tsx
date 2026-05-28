@@ -70,6 +70,18 @@ function pctLabel(pct: number | null, currentPrice?: number | null, purchasePric
   return `${arrow}${Math.abs(pct).toFixed(1)}%`
 }
 
+function CardImage({ src, alt, className }: { src: string | null | undefined; alt: string; className: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) {
+    return (
+      <div className={`${className} aspect-[63/88] bg-stone-800 flex items-center justify-center`}>
+        <span className="text-stone-600 text-xs">No image</span>
+      </div>
+    )
+  }
+  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+}
+
 function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts }: {
   values: number[]
   width?: number
@@ -171,7 +183,11 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
   const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/card?q=${encodeURIComponent(row.displayName.replace(/\s*\/\/.*$/, '').trim())}&prints=true`)
+    const baseName = row.displayName
+      .replace(/\s*\/\/.*$/, '')
+      .replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '')
+      .trim()
+    fetch(`/api/card?q=${encodeURIComponent(baseName)}&prints=true`)
       .then(r => r.ok ? r.json() : [])
       .then(data => { if (Array.isArray(data)) setEditPrints(data) })
       .finally(() => setEditPrintsLoading(false))
@@ -251,16 +267,11 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {editPrints.map(p => (
                   <button key={p.scryfallId ?? p.setCode} onClick={() => saveEdit(p.scryfallId, p.setCode)} disabled={editSaving} className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50">
-                    {p.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.imageUrl} alt={p.name} className="w-full" />
-                    ) : (
-                      <div className="w-full aspect-[63/88] bg-stone-800 flex items-center justify-center"><span className="text-stone-600 text-xs">No image</span></div>
-                    )}
-                    <div className="px-2 py-1.5 bg-stone-800 min-w-0 overflow-hidden">
-                      <p className="text-xs text-stone-300 font-medium truncate">{p.setName}</p>
-                      <div className="flex items-center justify-between gap-1 min-w-0">
-                        <span className="text-xs text-stone-600 font-mono truncate">{p.setCode.toUpperCase()}</span>
+                    <CardImage src={p.imageUrl} alt={p.name} className="w-full" />
+                    <div className="px-2 py-1.5 bg-stone-800 w-full flex-1">
+                      <p className="text-xs text-stone-300 font-medium">{p.setName}</p>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs text-stone-600 font-mono">{p.setCode.toUpperCase()}</span>
                         <span className="text-xs font-mono text-stone-400 shrink-0">{editFoil && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}</span>
                       </div>
                     </div>
@@ -1240,9 +1251,7 @@ return (
                     onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); addCard(c.name, c.setCode, c.scryfallId) }}
                     className="w-full flex items-center gap-3 px-4 py-2 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
                   >
-                    {c.imageUrl
-                      ? <img src={c.imageUrl} alt="" className="w-[146px] rounded-lg shrink-0" />
-                      : <div className="w-[146px] h-[204px] bg-stone-800 rounded-lg shrink-0" />}
+                    <CardImage src={c.imageUrl} alt={c.name} className="w-[146px] rounded-lg shrink-0" />
                     <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                       <p className="text-stone-100 text-sm font-semibold leading-snug">{c.setName}</p>
                       <p className="text-stone-500 text-xs">{c.setCode.toUpperCase()} · #{c.collectorNumber}</p>
