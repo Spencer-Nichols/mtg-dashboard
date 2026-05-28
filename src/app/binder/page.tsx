@@ -20,6 +20,7 @@ interface CardResult {
   currentPrice: number | null
   pct: number | null
   imageUrl: string | null
+  backImageUrl?: string | null
   fromCache?: boolean
   note?: string
   setName?: string
@@ -47,27 +48,86 @@ function pctLabel(pct: number | null) {
   return `${arrow}${Math.abs(pct).toFixed(1)}%`
 }
 
-function Sparkline({ values, width = 72, height = 22, fullWidth = false }: { values: number[]; width?: number; height?: number; fullWidth?: boolean }) {
+function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts }: {
+  values: number[]
+  width?: number
+  height?: number
+  fullWidth?: boolean
+  dates?: string[]
+  showLabels?: boolean
+  counts?: (number | null)[]
+}) {
   if (values.length < 2) return null
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min || 1
-  const pad = 1.5
-  const points = values.map((v, i) => {
-    const x = pad + (i / (values.length - 1)) * (width - pad * 2)
-    const y = pad + (1 - (v - min) / range) * (height - pad * 2)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  }).join(' ')
+  const padLeft = showLabels ? 48 : 1.5
+  const padRight = showLabels ? 48 : 1.5
+  const padY = showLabels ? 16 : 1.5
+  const padBottom = showLabels ? 16 : 1.5
+  const x = (i: number) => padLeft + (i / (values.length - 1)) * (width - padLeft - padRight)
+  const y = (v: number) => padY + (1 - (v - min) / range) * (height - padY - padBottom)
+  const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
   const trend = values[values.length - 1] - values[0]
   const color = trend > 0 ? '#4ade80' : trend < 0 ? '#f87171' : '#6b7280'
+  const gradId = `binderGrad-${width}-${height}`
+  const area = `M${x(0).toFixed(1)},${height - padBottom} ` +
+    values.map((v, i) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ') +
+    ` L${x(values.length - 1).toFixed(1)},${height - padBottom} Z`
+  const yLabels = showLabels ? [min, (min + max) / 2, max] : []
+  const xIndices = (showLabels && dates)
+    ? (values.length <= 5 ? values.map((_, i) => i) : [0, Math.floor(values.length / 3), Math.floor(2 * values.length / 3), values.length - 1])
+    : []
+
+  // Event markers: vertical lines where card count changed
+  const countMarkers: { i: number; delta: number }[] = []
+  if (counts) {
+    for (let k = 1; k < counts.length; k++) {
+      if (counts[k] != null && counts[k - 1] != null && counts[k] !== counts[k - 1]) {
+        countMarkers.push({ i: k, delta: (counts[k] as number) - (counts[k - 1] as number) })
+      }
+    }
+  }
+
   return (
     <svg
       width={fullWidth ? '100%' : width}
-      height={height}
-      viewBox={fullWidth ? `0 0 ${width} ${height}` : undefined}
-      preserveAspectRatio={fullWidth ? 'none' : undefined}
-      className="opacity-70 shrink-0"
+      height={fullWidth ? undefined : height}
+      viewBox={`0 0 ${width} ${height}`}
+      className={fullWidth ? 'w-full' : 'opacity-70 shrink-0'}
     >
+      {showLabels && (
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.15" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+      )}
+      {yLabels.map((v, i) => (
+        <g key={i}>
+          <line x1={padLeft} y1={y(v)} x2={width - padRight} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
+          <text x={padLeft - 4} y={y(v) + 4} textAnchor="end" fontSize="9" fill="#475569">${Math.round(v)}</text>
+        </g>
+      ))}
+      {xIndices.map(i => (
+        <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize="9" fill="#475569">
+          {dates![i].slice(5)}
+        </text>
+      ))}
+      {countMarkers.map(({ i, delta }) => {
+        const cx = x(i)
+        const isAdd = delta > 0
+        const markerColor = isAdd ? '#4ade80' : '#f87171'
+        const label = isAdd ? `+${delta}` : `${delta}`
+        return (
+          <g key={i}>
+            <line x1={cx} y1={padY} x2={cx} y2={height - padBottom} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+            <text x={cx} y={padY - 3} textAnchor="middle" fontSize="8" fontWeight="600" fill={markerColor}>{label}</text>
+          </g>
+        )
+      })}
+      {showLabels && <path d={area} fill={`url(#${gradId})`} />}
       <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
@@ -75,13 +135,11 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false }: { val
 
 function CardRow({
   row,
-  onHover,
   onDelete,
   sparkline,
   pendingDelete,
 }: {
   row: CardResult
-  onHover: (r: CardResult | null) => void
   onDelete: (name: string) => void
   pendingDelete: string | null
   sparkline?: number[]
@@ -109,10 +167,8 @@ function CardRow({
   return (
     <>
     <tr
-      className="group border-b border-stone-800 hover:bg-stone-800/50 transition-colors cursor-pointer md:cursor-default"
+      className="group border-b border-stone-800 hover:bg-stone-800/50 transition-colors cursor-pointer"
       onClick={() => setExpanded(e => !e)}
-      onMouseEnter={() => onHover(row)}
-      onMouseLeave={() => onHover(null)}
     >
       <td className="px-4 py-3.5 text-stone-200 font-medium">
         <span className="flex items-center gap-2 flex-wrap">
@@ -171,20 +227,39 @@ function CardRow({
       </td>
     </tr>
     {expanded && row.imageUrl && (
-      <tr className="md:hidden border-b border-stone-800 bg-stone-900/50">
-        <td colSpan={6} className="px-4 py-4 flex flex-col items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={row.imageUrl} alt={row.displayName} className="w-40 rounded-xl shadow-2xl" />
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(row.displayName) }}
-            className={`text-xs px-3 py-1 rounded border transition-colors ${
-              pendingDelete === row.displayName
-                ? 'border-red-600 text-red-400 bg-red-900/30'
-                : 'border-red-800/50 text-red-400 hover:bg-red-900/30'
-            }`}
-          >
-            {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
-          </button>
+      <tr className="border-b border-stone-800 bg-stone-900/50">
+        <td colSpan={6} className="px-4 py-4">
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex gap-3 justify-center flex-wrap">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={row.imageUrl} alt={row.displayName} className="w-40 rounded-xl shadow-2xl" />
+              {row.backImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-40 rounded-xl shadow-2xl" />
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap justify-center">
+              <a
+                href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="text-xs px-3 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors"
+              >
+                View on Manapool ↗
+              </a>
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(row.displayName) }}
+                className={`text-xs px-3 py-1 rounded border transition-colors ${
+                  pendingDelete === row.displayName
+                    ? 'border-red-600 text-red-400 bg-red-900/30'
+                    : 'border-red-800/50 text-red-400 hover:bg-red-900/30'
+                }`}
+              >
+                {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
+              </button>
+            </div>
+          </div>
         </td>
       </tr>
     )}
@@ -194,14 +269,12 @@ function CardRow({
 
 function CardTable({
   rows,
-  onHover,
   onDelete,
   emptyLabel,
   sparklines,
   pendingDelete,
 }: {
   rows: CardResult[]
-  onHover: (r: CardResult | null) => void
   onDelete: (name: string) => void
   emptyLabel: string
   sparklines?: Map<string, number[]>
@@ -231,7 +304,6 @@ function CardTable({
               <CardRow
                 key={row.displayName}
                 row={row}
-                onHover={onHover}
                 onDelete={onDelete}
                 sparkline={sparklines?.get(row.displayName)}
                 pendingDelete={pendingDelete}
@@ -284,12 +356,8 @@ export default function BinderPage() {
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // History state
-  const [binderHistory, setBinderHistory] = useState<{ date: string; total: number }[]>([])
+  const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
   const [binderUpdatedAt, setBinderUpdatedAt] = useState<Date | null>(null)
-
-  // Shared hover state
-  const [hoveredCard, setHoveredCard] = useState<CardResult | null>(null)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
     const cachedEntries = localStorage.getItem(LS_BINDER_ENTRIES)
@@ -319,11 +387,6 @@ export default function BinderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY })
-    window.addEventListener('mousemove', handler)
-    return () => window.removeEventListener('mousemove', handler)
-  }, [])
 
 
   // --- Binder functions ---
@@ -488,7 +551,7 @@ export default function BinderPage() {
           fetch('/api/binder/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total }),
+            body: JSON.stringify({ total, card_count: entries.length }),
           }).then(r => r.json()).then(h => {
             if (Array.isArray(h)) {
               setBinderHistory(h)
@@ -575,16 +638,7 @@ export default function BinderPage() {
   const gainersDelta = gainers.reduce((sum, r) => sum + ((r.currentPrice ?? r.snapshotPrice) - r.snapshotPrice), 0)
   const losersDelta = losers.reduce((sum, r) => sum + ((r.currentPrice ?? r.snapshotPrice) - r.snapshotPrice), 0)
 
-  // Tooltip positioning
-  const imgW = 200
-  const imgH = 280
-  const pad = 16
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
-  const tipX = mousePos.x + pad + imgW > vw ? mousePos.x - imgW - pad : mousePos.x + pad
-  const tipY = Math.min(mousePos.y - imgH / 2, vh - imgH - pad)
-
-  return (
+return (
     <div>
       {/* Desktop header */}
       <div className="hidden lg:block mb-6">
@@ -636,7 +690,7 @@ export default function BinderPage() {
         </div>
         {binderSparkValues.length >= 2 && (
           <div className="mt-3 bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <Sparkline values={binderSparkValues} width={400} height={180} fullWidth />
+            <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={120} fullWidth showLabels />
           </div>
         )}
       </div>
@@ -670,7 +724,7 @@ export default function BinderPage() {
         </div>
         {binderSparkValues.length >= 2 && (
           <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <Sparkline values={binderSparkValues} width={400} height={80} fullWidth />
+            <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={80} fullWidth showLabels />
           </div>
         )}
         {results.size > 0 && (
@@ -1007,7 +1061,7 @@ export default function BinderPage() {
               {gainersOpen && (
                 <CardTable
                   rows={gainers}
-                  onHover={setHoveredCard}
+
                   onDelete={requestDelete}
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No gainers'}
                   pendingDelete={pendingDelete}
@@ -1029,7 +1083,7 @@ export default function BinderPage() {
               {losersOpen && (
                 <CardTable
                   rows={losers}
-                  onHover={setHoveredCard}
+
                   onDelete={requestDelete}
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No losers'}
                   pendingDelete={pendingDelete}
@@ -1056,8 +1110,6 @@ export default function BinderPage() {
                       <tr
                         key={row.displayName}
                         className="group hover:bg-stone-800/50 transition-colors cursor-default"
-                        onMouseEnter={() => setHoveredCard(row)}
-                        onMouseLeave={() => setHoveredCard(null)}
                       >
                         <td className="px-4 py-3.5 text-stone-500">
                           <span className="flex items-center gap-2">
@@ -1083,16 +1135,6 @@ export default function BinderPage() {
             </div>
           )}</>}
 
-      {/* Floating card image tooltip */}
-      {hoveredCard?.imageUrl && (
-        <div
-          className="hidden md:block fixed z-50 pointer-events-none rounded-xl overflow-hidden shadow-2xl border border-stone-700"
-          style={{ left: tipX, top: Math.max(pad, tipY), width: imgW }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={hoveredCard.imageUrl} alt={hoveredCard.displayName} className="w-full block" />
-        </div>
-      )}
     </div>
   )
 }
