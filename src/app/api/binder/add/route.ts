@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
 
   // Check for duplicate
   const dupQuery = scryfallId
-    ? supabase.from('binder_cards').select('base_name').eq('scryfall_id', scryfallId).limit(1)
-    : supabase.from('binder_cards').select('base_name').ilike('base_name', name.trim()).limit(1)
+    ? supabase.from('binder_cards').select('base_name').eq('user_id', user.id).eq('scryfall_id', scryfallId).limit(1)
+    : supabase.from('binder_cards').select('base_name').eq('user_id', user.id).ilike('base_name', name.trim()).limit(1)
   const { data: existing } = await dupQuery.maybeSingle()
   if (existing) return NextResponse.json({ error: `${existing.base_name} is already in the binder` }, { status: 409 })
 

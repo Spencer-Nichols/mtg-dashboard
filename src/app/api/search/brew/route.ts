@@ -24,10 +24,12 @@ export async function GET(req: NextRequest) {
     const scryfallUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec&unique=cards&page=${page}`
     const supabase = await createClient()
 
+    const { data: { user } } = await supabase.auth.getUser()
+
     const [scryfallRes, binderData, wishlistData] = await Promise.all([
       fetch(scryfallUrl, { headers: HEADERS }),
-      supabase.from('binder_cards').select('base_name'),
-      supabase.from('wishlist_singles').select('name'),
+      user ? supabase.from('binder_cards').select('base_name').eq('user_id', user.id) : Promise.resolve({ data: [] }),
+      user ? supabase.from('wishlist_singles').select('name').eq('user_id', user.id) : Promise.resolve({ data: [] }),
     ])
 
     if (!scryfallRes.ok) {

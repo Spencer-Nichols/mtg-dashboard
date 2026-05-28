@@ -6,9 +6,13 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json([], { status: 401 })
+
   const { data, error } = await supabase
     .from('binder_cards')
     .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price, date_added')
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(5)
 

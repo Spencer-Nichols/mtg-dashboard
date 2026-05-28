@@ -8,9 +8,13 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { data, error } = await supabase
     .from('binder_cards')
     .select('base_name, set_code, count, date_added')
+    .eq('user_id', user.id)
     .gte('date_added', since)
     .order('date_added')
 

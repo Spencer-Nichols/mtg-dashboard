@@ -14,11 +14,14 @@ export interface HighlightCard {
 
 export async function GET() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ topGainers: [], wishlistDrops: [], lastUpdated: null }, { status: 401 })
 
   // --- Binder gainers ---
   const { data: binderRows } = await supabase
     .from('binder_cards')
     .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price')
+    .eq('user_id', user.id)
 
   const binderGainers: HighlightCard[] = []
   for (const entry of binderRows ?? []) {
@@ -46,6 +49,7 @@ export async function GET() {
   const { data: wishlistRows } = await supabase
     .from('wishlist_singles')
     .select('name, set_code, scryfall_id, snapshot_price')
+    .eq('user_id', user.id)
 
   const wishlistDrops: HighlightCard[] = []
   for (const single of wishlistRows ?? []) {
