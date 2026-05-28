@@ -27,6 +27,12 @@ interface CardResult {
   setCode?: string
   rarity?: string
   typeLine?: string
+  foil?: boolean
+  rowKey?: string
+}
+
+function makeRowKey(displayName: string, setCode: string | null | undefined, foil: boolean): string {
+  return `${displayName}||${setCode ?? ''}||${foil ? '1' : '0'}`
 }
 
 const SELL_THRESHOLD = -10 // % drop to flag as sell suggestion
@@ -57,7 +63,7 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   showLabels?: boolean
   counts?: (number | null)[]
 }) {
-  if (values.length < 2) return null
+  if (values.length === 0) return null
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min || 1
@@ -65,7 +71,7 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   const padRight = showLabels ? 48 : 1.5
   const padY = showLabels ? 16 : 1.5
   const padBottom = showLabels ? 16 : 1.5
-  const x = (i: number) => padLeft + (i / (values.length - 1)) * (width - padLeft - padRight)
+  const x = (i: number) => padLeft + (values.length > 1 ? (i / (values.length - 1)) : 0) * (width - padLeft - padRight)
   const y = (v: number) => padY + (1 - (v - min) / range) * (height - padY - padBottom)
   const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
   const trend = values[values.length - 1] - values[0]
@@ -128,7 +134,9 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
         )
       })}
       {showLabels && <path d={area} fill={`url(#${gradId})`} />}
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      {values.length > 1
+        ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+        : <circle cx={x(0)} cy={y(values[0])} r="3" fill={color} />}
     </svg>
   )
 }
@@ -140,7 +148,7 @@ function CardRow({
   pendingDelete,
 }: {
   row: CardResult
-  onDelete: (name: string) => void
+  onDelete: (name: string, rowKey: string) => void
   pendingDelete: string | null
   sparkline?: number[]
 }) {
@@ -196,14 +204,14 @@ function CardRow({
             </span>
           )}
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(row.displayName) }}
+            onClick={(e) => { e.stopPropagation(); onDelete(row.displayName, row.rowKey ?? row.displayName) }}
             className={`hidden md:inline opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border transition-all ${
-              pendingDelete === row.displayName
+              pendingDelete === (row.rowKey ?? row.displayName)
                 ? 'border-red-600 text-red-400 bg-red-900/30 opacity-100'
                 : 'border-stone-700 text-stone-500 hover:border-red-700 hover:text-red-400'
             }`}
           >
-            {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
+            {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
           </button>
         </span>
       </td>
@@ -249,14 +257,14 @@ function CardRow({
                 View on Manapool ↗
               </a>
               <button
-                onClick={(e) => { e.stopPropagation(); onDelete(row.displayName) }}
+                onClick={(e) => { e.stopPropagation(); onDelete(row.displayName, row.rowKey ?? row.displayName) }}
                 className={`text-xs px-3 py-1 rounded border transition-colors ${
-                  pendingDelete === row.displayName
+                  pendingDelete === (row.rowKey ?? row.displayName)
                     ? 'border-red-600 text-red-400 bg-red-900/30'
                     : 'border-red-800/50 text-red-400 hover:bg-red-900/30'
                 }`}
               >
-                {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
+                {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
               </button>
             </div>
           </div>
@@ -275,7 +283,7 @@ function CardTable({
   pendingDelete,
 }: {
   rows: CardResult[]
-  onDelete: (name: string) => void
+  onDelete: (name: string, rowKey: string) => void
   emptyLabel: string
   sparklines?: Map<string, number[]>
   pendingDelete: string | null
@@ -300,9 +308,9 @@ function CardTable({
               <td colSpan={hasSparklines ? 6 : 5} className="px-4 py-8 text-center text-stone-600 text-sm">{emptyLabel}</td>
             </tr>
           ) : (
-            rows.map(row => (
+            rows.map((row, i) => (
               <CardRow
-                key={row.displayName}
+                key={`${row.displayName}-${i}`}
                 row={row}
                 onDelete={onDelete}
                 sparkline={sparklines?.get(row.displayName)}
@@ -351,6 +359,8 @@ export default function BinderPage() {
   const [losersOpen, setLosersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [flatOpen, setFlatOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const [clearConfirm, setClearConfirm] = useState(false)
+  const [clearLoading, setClearLoading] = useState(false)
   const esRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -425,26 +435,41 @@ export default function BinderPage() {
     }
   }
 
-  async function deleteCard(name: string) {
+  async function deleteCard(name: string, rKey: string) {
     await fetch('/api/binder/remove', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     })
-    setEntries(prev => prev.filter(e => e.displayName !== name))
-    setResults(prev => { const next = new Map(prev); next.delete(name); return next })
+    setEntries(prev => prev.filter(e => makeRowKey(e.displayName, e.setCode, e.foil) !== rKey))
+    setResults(prev => { const next = new Map(prev); next.delete(rKey); return next })
   }
 
-  function requestDelete(name: string) {
-    if (pendingDelete === name) {
+  function requestDelete(name: string, rKey: string) {
+    if (pendingDelete === rKey) {
       if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
       setPendingDelete(null)
-      deleteCard(name)
+      deleteCard(name, rKey)
     } else {
       if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
-      setPendingDelete(name)
+      setPendingDelete(rKey)
       deleteTimerRef.current = setTimeout(() => setPendingDelete(null), 3000)
     }
+  }
+
+  async function clearBinder() {
+    setClearLoading(true)
+    const res = await fetch('/api/binder/clear', { method: 'DELETE' })
+    if (res.ok) {
+      setEntries([])
+      setResults(new Map())
+      setBinderHistory([])
+      localStorage.removeItem(LS_BINDER_ENTRIES)
+      localStorage.removeItem(LS_BINDER_RESULTS)
+      localStorage.removeItem(LS_BINDER_HISTORY)
+    }
+    setClearLoading(false)
+    setClearConfirm(false)
   }
 
   async function addCard(name = addQuery, setCode?: string, scryfallId?: string) {
@@ -472,7 +497,7 @@ export default function BinderPage() {
       setAddNote('')
       setResults(prev => {
         const next = new Map(prev)
-        next.set(data.name, { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, imageUrl: data.imageUrl ?? null, fromCache: false })
+        next.set(makeRowKey(data.name, data.setCode, false), { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, imageUrl: data.imageUrl ?? null, fromCache: false })
         return next
       })
       fetch('/api/binder').then(r => r.json()).then(d => setEntries(d.entries))
@@ -512,7 +537,7 @@ export default function BinderPage() {
           setBulkResults(prev => [...prev, msg])
           setBulkProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null)
         } else if (msg.type === 'done') {
-          fetch('/api/binder').then(r => r.json()).then(d => setEntries(d.entries))
+          fetch('/api/binder').then(r => r.json()).then(d => { setEntries(d.entries); startStream() })
         }
       }
     }
@@ -537,7 +562,7 @@ export default function BinderPage() {
       } else if (msg.type === 'card') {
         setResults(prev => {
           const next = new Map(prev)
-          next.set(msg.displayName, msg)
+          next.set(makeRowKey(msg.displayName, msg.setCode, msg.foil), msg)
           return next
         })
         setProgress(p => p + 1)
@@ -551,7 +576,7 @@ export default function BinderPage() {
           fetch('/api/binder/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total, card_count: entries.length }),
+            body: JSON.stringify({ total, card_count: prev.size }),
           }).then(r => r.json()).then(h => {
             if (Array.isArray(h)) {
               setBinderHistory(h)
@@ -594,7 +619,7 @@ export default function BinderPage() {
           setImportCsvResults(prev => [...prev, msg])
           setImportCsvProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null)
         } else if (msg.type === 'done') {
-          fetch('/api/binder').then(r => r.json()).then(d => setEntries(d.entries))
+          fetch('/api/binder').then(r => r.json()).then(d => { setEntries(d.entries); startStream() })
         }
       }
     }
@@ -613,10 +638,11 @@ export default function BinderPage() {
 
   // --- Binder derived data ---
   const rows: CardResult[] = entries.map(e => {
-    const result = results.get(e.displayName)
+    const rKey = makeRowKey(e.displayName, e.setCode, e.foil)
+    const result = results.get(rKey)
     return result
-      ? { ...result, note: e.note ?? undefined }
-      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, currentPrice: null, pct: null, imageUrl: null, fromCache: false, note: e.note ?? undefined }
+      ? { ...result, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
+      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, currentPrice: null, pct: null, imageUrl: null, fromCache: false, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
   })
 
   const filteredRows = searchQuery.trim()
@@ -677,6 +703,8 @@ return (
                   </button>
                 </>
               )}
+              <span className="text-stone-700">·</span>
+              <span className="text-xs text-stone-500">{entries.length} cards</span>
               {binderUpdatedAt && (
                 <>
                   <span className="text-stone-700">·</span>
@@ -688,7 +716,7 @@ return (
             <span className="text-sm text-stone-600">{entries.length} cards</span>
           )}
         </div>
-        {binderSparkValues.length >= 2 && (
+        {binderSparkValues.length >= 1 && (
           <div className="mt-3 bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
             <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={120} fullWidth showLabels />
           </div>
@@ -722,7 +750,7 @@ return (
               </button>
           }
         </div>
-        {binderSparkValues.length >= 2 && (
+        {binderSparkValues.length >= 1 && (
           <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
             <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={80} fullWidth showLabels />
           </div>
@@ -890,7 +918,7 @@ return (
                   onChange={e => setBulkText(e.target.value)}
                   rows={6}
                   placeholder={"Sol Ring\n1x Arcane Signet\nCommand Tower (cmd)\nAncestral Recall // grail"}
-                  className="w-full bg-stone-950 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 font-mono placeholder-stone-700 focus:outline-none focus:border-amber-600 resize-none transition-colors"
+                  className="w-full bg-stone-950 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 font-mono placeholder-stone-700 focus:outline-none focus:border-amber-600 resize-none overflow-y-scroll transition-colors"
                 />
                 {bulkProgress && (
                   <div className="flex items-center gap-3">
@@ -1103,37 +1131,45 @@ return (
                 <span className="text-stone-600 font-normal text-sm">{flat.length} cards</span>
                 <span className="text-stone-400 text-sm ml-auto">{flatOpen ? '▲' : '▼'}</span>
               </button>
-              {flatOpen && <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
-                <table className="w-full">
-                  <tbody className="divide-y divide-stone-800">
-                    {flat.map(row => (
-                      <tr
-                        key={row.displayName}
-                        className="group hover:bg-stone-800/50 transition-colors cursor-default"
-                      >
-                        <td className="px-4 py-3.5 text-stone-500">
-                          <span className="flex items-center gap-2">
-                            {row.displayName}
-                            <button
-                              onClick={() => requestDelete(row.displayName)}
-                              className={`opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border transition-all ${
-                                pendingDelete === row.displayName
-                                  ? 'border-red-600 text-red-400 bg-red-900/30 opacity-100'
-                                  : 'border-stone-700 text-stone-600 hover:border-red-700 hover:text-red-400'
-                              }`}
-                            >
-                              {pendingDelete === row.displayName ? 'Sure?' : 'Remove'}
-                            </button>
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-right text-stone-600 font-mono">${row.snapshotPrice.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>}
+              {flatOpen && (
+                <CardTable
+                  rows={flat}
+                  onDelete={requestDelete}
+                  emptyLabel="No unchanged cards"
+                  pendingDelete={pendingDelete}
+                />
+              )}
             </div>
           )}</>}
+
+        {/* Clear binder */}
+        <div className="mt-16 pt-8 border-t border-stone-800 flex justify-end">
+          {clearConfirm ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-stone-400">Remove all cards from your binder?</span>
+              <button
+                onClick={() => setClearConfirm(false)}
+                className="text-sm px-3 py-1.5 rounded border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={clearBinder}
+                disabled={clearLoading}
+                className="text-sm px-3 py-1.5 rounded border border-red-800 text-red-400 hover:bg-red-900/30 transition-colors disabled:opacity-50"
+              >
+                {clearLoading ? 'Clearing…' : 'Yes, clear it'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setClearConfirm(true)}
+              className="text-sm text-stone-600 hover:text-red-400 transition-colors"
+            >
+              Clear binder
+            </button>
+          )}
+        </div>
 
     </div>
   )

@@ -61,6 +61,8 @@ export async function GET(req: NextRequest) {
           type: 'card',
           index: i,
           displayName: entry.display_name,
+          setCode: entry.set_code,
+          foil: entry.foil,
           snapshotPrice: entry.snapshot_price ?? 0,
           currentPrice,
           pct,
