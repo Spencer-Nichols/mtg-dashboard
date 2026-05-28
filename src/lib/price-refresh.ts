@@ -50,7 +50,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
       continue
     }
 
-    if (!firstFetch) await sleep(1100)
+    if (!firstFetch) await sleep(card.scryfallId ? 150 : 600)
     firstFetch = false
 
     const scryfallCard = card.scryfallId

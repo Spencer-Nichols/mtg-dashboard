@@ -30,6 +30,10 @@ interface CardResult {
 
 const SELL_THRESHOLD = -10 // % drop to flag as sell suggestion
 
+const LS_BINDER_ENTRIES = 'tnk:binder:entries'
+const LS_BINDER_RESULTS = 'tnk:binder:results'
+const LS_BINDER_HISTORY = 'tnk:binder:history'
+
 function pctColor(pct: number | null) {
   if (pct === null) return 'text-stone-500'
   if (pct > 0.05) return 'text-green-400'
@@ -287,17 +291,29 @@ export default function BinderPage() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
+    const cachedEntries = localStorage.getItem(LS_BINDER_ENTRIES)
+    const cachedResults = localStorage.getItem(LS_BINDER_RESULTS)
+    const cachedHistory = localStorage.getItem(LS_BINDER_HISTORY)
+    if (cachedEntries) setEntries(JSON.parse(cachedEntries))
+    if (cachedResults) setResults(new Map(JSON.parse(cachedResults)))
+    if (cachedHistory) setBinderHistory(JSON.parse(cachedHistory))
+
     fetch('/api/binder')
       .then(r => r.json())
       .then(data => {
         setEntries(data.entries)
+        localStorage.setItem(LS_BINDER_ENTRIES, JSON.stringify(data.entries))
         startStream()
       })
-    fetch('/api/binder/history').then(r => r.json()).then(h => { if (Array.isArray(h)) setBinderHistory(h) })
+    fetch('/api/binder/history').then(r => r.json()).then(h => {
+      if (Array.isArray(h)) {
+        setBinderHistory(h)
+        localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h))
+      }
+    })
 
-    const INTERVAL = 60 * 60 * 1000 // 1 hour
+    const INTERVAL = 60 * 60 * 1000
     const interval = setInterval(() => startStream(true), INTERVAL)
-
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -443,7 +459,7 @@ export default function BinderPage() {
   function startStream(bust = false) {
     if (streaming) return
     esRef.current?.close()
-    setResults(new Map())
+    if (bust) setResults(new Map())
     setProgress(0)
     setStreaming(true)
 
@@ -465,14 +481,19 @@ export default function BinderPage() {
         setStreaming(false)
         setBinderUpdatedAt(new Date())
         es.close()
-        // Record today's total binder value
         setResults(prev => {
+          localStorage.setItem(LS_BINDER_RESULTS, JSON.stringify(Array.from(prev.entries())))
           const total = Array.from(prev.values()).reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
           fetch('/api/binder/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ total }),
-          }).then(r => r.json()).then(h => { if (Array.isArray(h)) setBinderHistory(h) })
+          }).then(r => r.json()).then(h => {
+            if (Array.isArray(h)) {
+              setBinderHistory(h)
+              localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h))
+            }
+          })
           return prev
         })
       }
