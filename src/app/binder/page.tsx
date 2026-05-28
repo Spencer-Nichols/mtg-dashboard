@@ -206,7 +206,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
           <div className="flex flex-wrap gap-5">
             <div className="flex flex-col gap-1.5">
               <span className="text-xs text-stone-500 uppercase tracking-wider">Condition</span>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1">
                 {CONDITIONS.map(c => (
                   <button key={c} onClick={() => setEditCondition(c)} className={`text-xs px-2.5 py-1 rounded border transition-colors ${editCondition === c ? 'border-amber-600 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:border-stone-500'}`}>{c}</button>
                 ))}
@@ -220,9 +220,11 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
               <span className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</span>
-              <div className="flex items-center gap-2">
-                <span className="text-stone-500 text-sm">$</span>
-                <input type="number" min="0" step="0.01" placeholder="Scryfall price" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)} className="flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-[120px]">
+                  <span className="text-stone-500 text-sm">$</span>
+                  <input type="number" min="0" step="0.01" placeholder="Scryfall price" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)} className="flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+                </div>
                 <button onClick={() => setEditPurchasePrice('0')} className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap">Booster pull</button>
               </div>
               {editPurchasePrice === '0' && <p className="text-xs text-stone-600">Shows dollar gain instead of %</p>}
@@ -873,8 +875,13 @@ export default function BinderPage() {
   const rows: CardResult[] = entries.map(e => {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foil)
     const result = results.get(rKey)
+    const currentPrice = result?.currentPrice ?? null
+    const costBasis = e.purchasePrice != null ? e.purchasePrice : e.snapshotPrice
+    const pct = currentPrice != null && costBasis > 0
+      ? ((currentPrice - costBasis) / costBasis) * 100
+      : result?.pct ?? null
     return result
-      ? { ...result, rowKey: rKey, foil: e.foil, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
+      ? { ...result, pct, rowKey: rKey, foil: e.foil, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
       : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, imageUrl: null, fromCache: false, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
   })
 
