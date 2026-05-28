@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getCached, cacheKey } from '@/lib/cache'
+import { getCached, getCronTimestamp, cacheKey } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,5 +68,7 @@ export async function GET() {
   }
   wishlistDrops.sort((a, b) => a.pct - b.pct)
 
-  return NextResponse.json({ topGainers, wishlistDrops })
+  const lastUpdated = await getCronTimestamp()
+
+  return NextResponse.json({ topGainers, wishlistDrops, lastUpdated })
 }
