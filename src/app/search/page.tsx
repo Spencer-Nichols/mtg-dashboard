@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, type ReactNode } from 'react'
+import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react'
 import { KEYWORDS, KEYWORD_CATEGORIES } from '@/lib/keywords'
 import type { BrewCard } from '@/app/api/search/brew/route'
 
@@ -70,10 +70,12 @@ const RARITY_COLOR: Record<string, string> = {
 function buildBrewQuery(
   keywords: string[], colors: Set<string>, activeType: string | null,
   maxCmc: number | null, maxPrice: number | null, raw: string,
+  oracleText?: string,
 ): string {
   const parts: string[] = []
   for (const slug of keywords) parts.push(`function:${slug}`)
   if (raw.trim()) parts.push(raw.trim())
+  if (oracleText?.trim()) parts.push(`o:"${oracleText.trim()}"`)
   if (colors.size > 0) parts.push(`color<=${[...colors].join('')}`)
   if (activeType) parts.push(`t:${activeType}`)
   if (maxCmc !== null) parts.push(`cmc<=${maxCmc}`)
@@ -216,6 +218,8 @@ export default function SearchPage() {
 
   // ── Brew state ────────────────────────────────────────────
   const [brewRawQuery, setBrewRawQuery] = useState('')
+  const [displayedQuery, setDisplayedQuery] = useState('')
+  const [oracleText, setOracleText] = useState('')
   const [activeKeywords, setActiveKeywords] = useState<string[]>([])
   const [activeColors, setActiveColors] = useState<Set<string>>(new Set())
   const [activeType, setActiveType] = useState<string | null>(null)
@@ -278,6 +282,21 @@ export default function SearchPage() {
     brewDebounceRef.current = setTimeout(() => runBrewFetch(q, 1, false), 700)
   }
 
+  // Sync displayedQuery when filters change (not when user types — that's handleBrewRawInput)
+  const brewRawQueryRef = useRef(brewRawQuery)
+  useEffect(() => { brewRawQueryRef.current = brewRawQuery }, [brewRawQuery])
+
+  useEffect(() => {
+    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText)
+    const raw = brewRawQueryRef.current
+    setDisplayedQuery(
+      filterPart
+        ? raw.trim() ? `${filterPart} ${raw.trim()}` : filterPart
+        : raw
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeKeywords, activeColors, activeType, maxCmc, maxPrice, oracleText])
+
   // ── Brew filter handlers ──────────────────────────────────
 
   function toggleKeyword(slug: string) {
@@ -285,25 +304,25 @@ export default function SearchPage() {
       ? activeKeywords.filter(k => k !== slug)
       : [...activeKeywords, slug]
     setActiveKeywords(next)
-    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery))
+    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText))
   }
 
   function toggleColor(symbol: string) {
     const next = new Set(activeColors)
     next.has(symbol) ? next.delete(symbol) : next.add(symbol)
     setActiveColors(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery))
+    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery, oracleText))
   }
 
   function selectType(type: string) {
     const next = activeType === type ? null : type
     setActiveType(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery, oracleText))
   }
 
   function setCmcFilter(val: number | null) {
     setMaxCmc(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery, oracleText))
   }
 
   function handlePriceSlider(val: number) {
@@ -315,13 +334,18 @@ export default function SearchPage() {
     setAllFetchedCards([])
     setScryfallPage(1)
     brewDebounceRef.current = setTimeout(() => {
-      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery), 1, false)
+      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery, oracleText), 1, false)
     }, 500)
   }
 
   function handleBrewRawInput(val: string) {
-    setBrewRawQuery(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, val))
+    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText)
+    const extraTerms = filterPart && val.startsWith(filterPart)
+      ? val.slice(filterPart.length).trimStart()
+      : val
+    setBrewRawQuery(extraTerms)
+    setDisplayedQuery(val)
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, extraTerms, oracleText))
   }
 
   function clearAllFilters() {
@@ -332,6 +356,8 @@ export default function SearchPage() {
     setMaxPrice(null)
     setPriceSlider(MAX_PRICE_SLIDER)
     setBrewRawQuery('')
+    setDisplayedQuery('')
+    setOracleText('')
     setAllFetchedCards([])
     setBrewTotal(0)
     setHasMoreScryfall(false)
@@ -351,8 +377,7 @@ export default function SearchPage() {
     if ((nextPage - 1) * CLIENT_PAGE_SIZE < allFetchedCards.length) {
       setClientPage(nextPage)
     } else if (hasMoreScryfall && !brewLoading) {
-      const q = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery)
-      await runBrewFetch(q, scryfallPage + 1, true)
+      await runBrewFetch(displayedQuery, scryfallPage + 1, true)
       setClientPage(nextPage)
     }
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -394,6 +419,7 @@ export default function SearchPage() {
     ...(activeType ? [{ label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
     ...(maxCmc !== null ? [{ label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
     ...(maxPrice !== null ? [{ label: `≤ $${maxPrice}`, onRemove: () => { handlePriceSlider(MAX_PRICE_SLIDER) } }] : []),
+    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => { setOracleText(''); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, '')) } }] : []),
   ]
 
   // ── Card search handlers ──────────────────────────────────
@@ -453,7 +479,7 @@ export default function SearchPage() {
 
   const image = card?.image_uris?.normal ?? card?.card_faces?.[0]?.image_uris?.normal
   const oracle = card?.oracle_text ?? card?.card_faces?.map(f => `${f.name}\n${f.oracle_text ?? ''}`).join('\n\n')
-  const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim()
+  const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim() || oracleText.trim()
 
   return (
     <div>
@@ -623,14 +649,14 @@ export default function SearchPage() {
             {/* Raw query input */}
             <div className="flex gap-3">
               <input
-                value={brewRawQuery}
+                value={displayedQuery}
                 onChange={e => handleBrewRawInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery), 1, false)}
-                placeholder="try: ramp draw removal · or click keywords →"
+                onKeyDown={e => e.key === 'Enter' && runBrewFetch(displayedQuery, 1, false)}
+                placeholder="Scryfall syntax or use filters"
                 className="flex-1 bg-stone-900 border-2 border-stone-700 rounded-lg px-4 py-3 text-stone-100 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors font-mono text-sm"
               />
               <button
-                onClick={() => runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery), 1, false)}
+                onClick={() => runBrewFetch(displayedQuery, 1, false)}
                 disabled={brewLoading}
                 className="px-6 py-3 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg font-medium transition-colors whitespace-nowrap"
               >
@@ -641,17 +667,17 @@ export default function SearchPage() {
             {/* Mobile accordion — hidden on desktop */}
             <div className="lg:hidden space-y-1">
               <AccordionRow title="Keywords" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
-                <div className="space-y-1.5">
+                <div className="space-y-3">
                   {KEYWORD_CATEGORIES.map(cat => (
-                    <div key={cat} className="flex items-center gap-2">
-                      <span className="text-xs text-stone-600 shrink-0 w-20 text-right leading-tight">{cat}</span>
-                      <div className="flex gap-1.5 overflow-x-auto pb-0.5 flex-1 min-w-0" style={{ scrollbarWidth: 'none' }}>
+                    <div key={cat}>
+                      <p className="text-xs text-stone-400 uppercase tracking-widest mb-1.5">{cat}</p>
+                      <div className="flex flex-wrap gap-1.5">
                         {KEYWORDS.filter(k => k.category === cat).map(kw => (
                           <button key={kw.slug} onClick={() => toggleKeyword(kw.slug)}
-                            className={`text-xs px-2.5 py-1 rounded-full border-2 shrink-0 transition-colors ${
+                            className={`text-sm px-3 py-1.5 rounded-full border-2 transition-colors ${
                               activeKeywords.includes(kw.slug)
                                 ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                                : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                                : 'bg-stone-800 border-stone-700 text-stone-300 active:border-amber-700/60 active:text-amber-400'
                             }`}>
                             {kw.label}
                           </button>
@@ -661,6 +687,16 @@ export default function SearchPage() {
                   ))}
                 </div>
               </AccordionRow>
+
+              <div className="px-1 py-1">
+                <p className="text-xs text-stone-500 uppercase tracking-widest mb-1.5">Oracle Text</p>
+                <input
+                  value={oracleText}
+                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value)) }}
+                  placeholder='e.g. whenever you draw'
+                  className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+                />
+              </div>
 
               <AccordionRow title="Colors" count={activeColors.size} open={colorsOpen} onToggle={() => setColorsOpen(o => !o)}>
                 <div className="flex gap-2.5">
@@ -820,6 +856,15 @@ export default function SearchPage() {
                     {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
                   </span>
                 </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
+                <input
+                  value={oracleText}
+                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value)) }}
+                  placeholder='e.g. whenever you draw'
+                  className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+                />
               </div>
             </div>
 
