@@ -443,7 +443,9 @@ function CardRow({
       </td>
       <td className="px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
-        <p className="md:hidden text-xs text-stone-600">was ${row.snapshotPrice.toFixed(2)}</p>
+        <p className="md:hidden text-xs text-stone-600">
+          {row.purchasePrice === 0 ? 'booster pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}
+        </p>
       </td>
       <td className={`px-4 py-3.5 text-right font-mono font-semibold ${pctColor(row.pct, row.purchasePrice)}`}>
         {pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
