@@ -9,15 +9,37 @@ interface AccessRequest {
   status: string
 }
 
+interface AdminUser {
+  id: string
+  email: string
+  lastSeen: string | null
+  createdAt: string
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<AccessRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
+  const [users, setUsers] = useState<AdminUser[]>([])
 
   useEffect(() => {
     fetch('/api/admin/requests')
       .then(r => r.json())
       .then(data => { setRequests(data); setLoading(false) })
+    fetch('/api/admin/users')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setUsers(data) })
   }, [])
 
   async function sendInvite(id: string, email: string) {
@@ -100,6 +122,22 @@ export default function AdminRequestsPage() {
                 <p className="text-stone-500 text-sm">{r.email}</p>
                 <span className={`text-xs px-2 py-0.5 rounded font-mono ${r.status === 'approved' ? 'text-green-400 bg-green-950/40' : 'text-red-400 bg-red-950/40'}`}>
                   {r.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {users.length > 0 && (
+        <div id="admin-users" className="flex flex-col gap-2">
+          <p className="text-xs text-stone-600 uppercase tracking-wider">Users</p>
+          <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+            {users.sort((a, b) => (b.lastSeen ?? b.createdAt) > (a.lastSeen ?? a.createdAt) ? 1 : -1).map(u => (
+              <div key={u.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
+                <p className="text-stone-300 text-sm">{u.email}</p>
+                <span className="text-xs text-stone-600 font-mono shrink-0">
+                  {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
                 </span>
               </div>
             ))}
