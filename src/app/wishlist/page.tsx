@@ -187,6 +187,10 @@ export default function WishlistPage() {
   const [addLoading, setAddLoading] = useState(false)
   const [addCandidates, setAddCandidates] = useState<Candidate[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024
+  const [gainersOpen, setGainersOpen] = useState(isDesktop)
+  const [losersOpen, setLosersOpen] = useState(true)
+  const [watchingOpen, setWatchingOpen] = useState(isDesktop)
   const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
@@ -511,23 +515,57 @@ export default function WishlistPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
-          {[...rows]
-            .sort((a, b) => {
-              if (a.pct === null && b.pct === null) return 0
-              if (a.pct === null) return 1
-              if (b.pct === null) return -1
-              return a.pct - b.pct
-            })
-            .map(row => (
-              <WishlistCard
-                key={row.displayName}
-                row={row}
-                onDelete={deleteCard}
-                onMoveToBinder={moveToBinder}
-                sparkline={wishlistHistory[row.displayName]?.map(h => h.price)}
-              />
-            ))}
+        <div className="flex flex-col gap-6">
+          {losers.length > 0 && (
+            <div>
+              <button onClick={() => setLosersOpen(o => !o)} className="w-full flex items-center gap-2 mb-3 text-left">
+                <span className="text-red-400 font-semibold">▼ Drops</span>
+                <span className="text-stone-600 font-normal text-sm">{losers.length} cards</span>
+                <span className="text-stone-400 text-sm ml-auto">{losersOpen ? '▲' : '▼'}</span>
+              </button>
+              {losersOpen && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
+                  {[...losers].sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0)).map(row => (
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {gainers.length > 0 && (
+            <div>
+              <button onClick={() => setGainersOpen(o => !o)} className="w-full flex items-center gap-2 mb-3 text-left">
+                <span className="text-green-400 font-semibold">▲ Rising</span>
+                <span className="text-stone-600 font-normal text-sm">{gainers.length} cards</span>
+                <span className="text-stone-400 text-sm ml-auto">{gainersOpen ? '▲' : '▼'}</span>
+              </button>
+              {gainersOpen && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
+                  {[...gainers].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0)).map(row => (
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(flat.length > 0 || pending.length > 0) && (
+            <div>
+              <button onClick={() => setWatchingOpen(o => !o)} className="w-full flex items-center gap-2 mb-3 text-left">
+                <span className="text-stone-400 font-semibold">— Watching</span>
+                <span className="text-stone-600 font-normal text-sm">{flat.length + pending.length} cards</span>
+                <span className="text-stone-400 text-sm ml-auto">{watchingOpen ? '▲' : '▼'}</span>
+              </button>
+              {watchingOpen && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
+                  {[...flat, ...pending].map(row => (
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

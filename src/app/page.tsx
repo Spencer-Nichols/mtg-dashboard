@@ -58,7 +58,7 @@ export default function HomePage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [faceIndex, setFaceIndex] = useState(0)
   const [isDesktop, setIsDesktop] = useState(true)
-  const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
+  const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; purchasePrice: number | null; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
   const [cardFetchedAt, setCardFetchedAt] = useState<Date | null>(null)
 
   function fetchHighlights() {
@@ -303,11 +303,17 @@ export default function HomePage() {
                         <p className="text-sm font-mono text-stone-300">
                           {c.currentPrice != null ? `$${c.currentPrice.toFixed(2)}` : `$${c.snapshotPrice.toFixed(2)}`}
                         </p>
-                        {c.currentPrice != null && c.snapshotPrice > 0 && (
-                          <p className={`text-xs font-mono ${c.currentPrice >= c.snapshotPrice ? 'text-green-500' : 'text-red-500'}`}>
-                            {c.currentPrice >= c.snapshotPrice ? '▲' : '▼'}{Math.abs(((c.currentPrice - c.snapshotPrice) / c.snapshotPrice) * 100).toFixed(1)}%
-                          </p>
-                        )}
+                        {c.currentPrice != null && (() => {
+                          const basis = c.purchasePrice ?? c.snapshotPrice
+                          if (basis <= 0) return null
+                          const pct = ((c.currentPrice - basis) / basis) * 100
+                          if (Math.abs(pct) < 0.05) return null
+                          return (
+                            <p className={`text-xs font-mono ${pct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              {pct >= 0 ? '▲' : '▼'}{Math.abs(pct).toFixed(1)}%
+                            </p>
+                          )
+                        })()}
                       </div>
                     </div>
                   ))}
@@ -320,8 +326,8 @@ export default function HomePage() {
 
       {/* Sidebar — order-1 on mobile so it renders above main content */}
       {sidebar && (
-        <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-6 order-1 lg:order-2">
-          <div className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 flex flex-col gap-0.5">
+        <div id="sidebar" className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-6 order-1 lg:order-2">
+          <div id="sidebar-price-data" className="hidden lg:flex bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 flex-col gap-0.5">
             <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold">Price Data</p>
             <p className="text-xs text-stone-400">
               {lastUpdated ? `Last updated ${formatRelativeTime(lastUpdated)}` : 'Not yet synced'}
@@ -332,14 +338,20 @@ export default function HomePage() {
             <p className="text-xs text-stone-600">Price highlights will appear here once you have cards in your <Link href="/binder" className="text-amber-700 hover:text-amber-600">binder</Link> and <Link href="/wishlist" className="text-amber-700 hover:text-amber-600">wishlist</Link>.</p>
           )}
 
+          {lastUpdated && (
+            <p className="lg:hidden text-xs text-stone-600 text-right -mt-2">
+              Prices updated {formatRelativeTime(lastUpdated)}
+            </p>
+          )}
+
           {topGainers.length > 0 && (
-            <div>
+            <div id="sidebar-top-gainers">
               <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Top Gainers</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
                 {topGainers.map(c => (
                   <button
                     key={c.displayName}
-                    onClick={() => router.push('/binder')}
+                    onClick={() => router.push(`/binder?expand=${encodeURIComponent(c.displayName)}`)}
                     className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2 hover:bg-stone-800 transition-colors text-left w-full"
                   >
                     {c.imageUrl && (
@@ -358,7 +370,7 @@ export default function HomePage() {
           )}
 
           {wishlistDrops.length > 0 && (
-            <div>
+            <div id="sidebar-wishlist-drops">
               <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Wishlist Drops</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
                 {wishlistDrops.map(c => (
