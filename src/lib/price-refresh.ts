@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { fetchByName, fetchById, getPrice, sleep } from '@/lib/scryfall'
-import { getCached, setCached, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
+import { getCached, setCached, cacheKey, setCronTimestamp, setSealedPrice, CacheEntry } from '@/lib/cache'
+import { fetchGroupPrices } from '@/lib/tcgcsv'
 
 const STALE_MS = 6 * 60 * 60 * 1000
 
@@ -111,6 +112,26 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
 
   if (wishlistCardHistory.length > 0) {
     await supabase.from('wishlist_card_history').upsert(wishlistCardHistory, { onConflict: 'user_id,card_name,date' })
+  }
+
+  // Refresh sealed product prices from TCGCSV (one request per set)
+  const { data: sealedRows } = await supabase
+    .from('sealed_wishlist')
+    .select('tcg_product_id, tcg_group_id')
+
+  if (sealedRows && sealedRows.length > 0) {
+    const byGroup = new Map<number, number[]>()
+    for (const row of sealedRows) {
+      const ids = byGroup.get(row.tcg_group_id) ?? []
+      ids.push(row.tcg_product_id)
+      byGroup.set(row.tcg_group_id, ids)
+    }
+    for (const [groupId, productIds] of byGroup) {
+      const prices = await fetchGroupPrices(groupId)
+      for (const productId of productIds) {
+        await setSealedPrice(productId, prices.get(productId) ?? null)
+      }
+    }
   }
 
   await setCronTimestamp()

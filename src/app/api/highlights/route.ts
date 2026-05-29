@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getCached, getCronTimestamp, cacheKey } from '@/lib/cache'
+import { getCached, getCronTimestamp, cacheKey, getSealedPrice } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +15,7 @@ export interface HighlightCard {
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ topGainers: [], wishlistDrops: [], lastUpdated: null }, { status: 401 })
+  if (!user) return NextResponse.json({ topGainers: [], wishlistDrops: [], sealedDrops: [], lastUpdated: null }, { status: 401 })
 
   // --- Binder gainers ---
   const { data: binderRows } = await supabase
@@ -74,7 +74,33 @@ export async function GET() {
   }
   wishlistDrops.sort((a, b) => a.pct - b.pct).splice(5)
 
+  // --- Sealed drops ---
+  const { data: sealedRows } = await supabase
+    .from('sealed_wishlist')
+    .select('product_name, tcg_product_id, snapshot_price, image_url')
+    .eq('user_id', user.id)
+
+  const sealedDrops: HighlightCard[] = []
+  for (const item of sealedRows ?? []) {
+    const cached = await getSealedPrice(item.tcg_product_id)
+    if (cached === 'miss' || cached === null) continue
+    const snapshotPrice = item.snapshot_price ?? 0
+    if (snapshotPrice <= 0) continue
+    const pct = ((cached - snapshotPrice) / snapshotPrice) * 100
+    if (pct <= -10) {
+      sealedDrops.push({
+        displayName: item.product_name,
+        snapshotPrice,
+        currentPrice: cached,
+        pct,
+        imageUrl: item.image_url ?? null,
+      })
+    }
+  }
+  sealedDrops.sort((a, b) => a.pct - b.pct).splice(5)
+
+
   const lastUpdated = await getCronTimestamp()
 
-  return NextResponse.json({ topGainers, wishlistDrops, lastUpdated })
+  return NextResponse.json({ topGainers, wishlistDrops, sealedDrops, lastUpdated })
 }
