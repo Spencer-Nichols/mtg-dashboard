@@ -1,6 +1,4 @@
 import { NextRequest } from 'next/server'
-import fs from 'fs'
-import { getMoxfieldPath } from '@/lib/config'
 import { fetchByName, getPrice, sleep, frameSuffix } from '@/lib/scryfall'
 import { createClient } from '@/lib/supabase/server'
 
@@ -33,6 +31,7 @@ function parseCSV(content: string): Record<string, string>[] {
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const minPrice: number = typeof body.minPrice === 'number' ? body.minPrice : 2.0
+  const csvText: string = typeof body.csvText === 'string' ? body.csvText : ''
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -42,14 +41,13 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const csvPath = getMoxfieldPath()
-  if (!csvPath) {
-    return new Response('data: ' + JSON.stringify({ type: 'error', message: 'No Moxfield CSV found in scryfall directory' }) + '\n\n', {
+  if (!csvText) {
+    return new Response('data: ' + JSON.stringify({ type: 'error', message: 'No CSV data provided' }) + '\n\n', {
       headers: { 'Content-Type': 'text/event-stream' },
     })
   }
 
-  const rows = parseCSV(fs.readFileSync(csvPath, 'utf-8'))
+  const rows = parseCSV(csvText)
   const candidates = rows.filter(row => {
     const isProxy = row['Proxy']?.toLowerCase() === 'true'
     const isPlaytest = row['Tags']?.toLowerCase().includes('playtest')

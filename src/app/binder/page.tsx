@@ -656,6 +656,7 @@ export default function BinderPage() {
   const [importCsvLoading, setImportCsvLoading] = useState(false)
   const [importCsvResults, setImportCsvResults] = useState<{ name: string; status: 'added' | 'skipped' | 'error'; message?: string; price?: number }[]>([])
   const [importCsvProgress, setImportCsvProgress] = useState<{ current: number; total: number } | null>(null)
+  const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null)
   const [gainersOpen, setGainersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [losersOpen, setLosersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [flatOpen, setFlatOpen] = useState(false)
@@ -668,6 +669,7 @@ export default function BinderPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const addInputRef = useRef<HTMLInputElement>(null)
+  const csvFileInputRef = useRef<HTMLInputElement>(null)
   const expandParamRef = useRef<string | null>(null)
 
   // History state
@@ -940,11 +942,13 @@ export default function BinderPage() {
   }
 
   async function importFromCsv() {
+    if (!selectedCsvFile) return
     setImportCsvLoading(true)
     setImportCsvResults([])
     setImportCsvProgress(null)
 
-    const res = await fetch('/api/binder/import-csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minPrice: 2.0 }) })
+    const csvText = await selectedCsvFile.text()
+    const res = await fetch('/api/binder/import-csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csvText, minPrice: 2.0 }) })
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -1201,7 +1205,24 @@ return (
       {/* Import CSV panel */}
       {showImportCsv && (
         <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
-          <p className="text-stone-500 text-xs">Reads the latest Moxfield haves CSV from disk. Skips proxies, playtests, and cards already in the binder. Only imports cards ≥ $2.00.</p>
+          <p className="text-stone-500 text-xs">Import a Moxfield haves CSV. Skips proxies, playtests, and cards already in the binder. Only imports cards ≥ $2.00.</p>
+          <input
+            ref={csvFileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={e => setSelectedCsvFile(e.target.files?.[0] ?? null)}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => csvFileInputRef.current?.click()}
+              disabled={importCsvLoading}
+              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-40 border border-stone-600 rounded-lg text-sm text-stone-300 transition-colors"
+            >
+              Choose file
+            </button>
+            <span className="text-xs text-stone-500 truncate">{selectedCsvFile ? selectedCsvFile.name : 'No file chosen'}</span>
+          </div>
           {importCsvProgress && (
             <div className="flex items-center gap-3">
               <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
@@ -1227,14 +1248,14 @@ return (
           <div className="flex gap-2">
             <button
               onClick={importFromCsv}
-              disabled={importCsvLoading}
+              disabled={importCsvLoading || !selectedCsvFile}
               className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
             >
-              {importCsvLoading ? 'Importing...' : 'Import from Moxfield CSV'}
+              {importCsvLoading ? 'Importing...' : 'Import'}
             </button>
             {!importCsvLoading && importCsvResults.length > 0 && (
               <button
-                onClick={() => { setImportCsvResults([]); setImportCsvProgress(null); setShowImportCsv(false) }}
+                onClick={() => { setImportCsvResults([]); setImportCsvProgress(null); setShowImportCsv(false); setSelectedCsvFile(null) }}
                 className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
               >
                 Done
