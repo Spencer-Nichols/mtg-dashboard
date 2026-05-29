@@ -2,7 +2,15 @@
 
 import { useState } from 'react'
 
-const STEPS = [
+interface Step {
+  title: string
+  nav: string
+  description: string
+  detail: string[]
+  callout?: { label: string; title: string; body: string }
+}
+
+const STEPS: Step[] = [
   {
     title: 'Your Binder',
     nav: 'Binder',
@@ -36,6 +44,11 @@ const STEPS = [
       'Rising section shows cards climbing',
       'Move a card to your Binder once you\'ve picked it up',
     ],
+    callout: {
+      label: 'NEW',
+      title: 'Sealed Products',
+      body: 'Track booster boxes, collector boxes, bundles, and more! Search any set and add sealed products to your watchlist an alert will appear when prices drop 10%+.',
+    },
   },
 ]
 
@@ -70,6 +83,15 @@ export default function OnboardingModal({ onDismiss }: { onDismiss: () => void }
               </li>
             ))}
           </ul>
+          {current.callout && (
+            <div className="rounded-xl border border-amber-700/50 bg-amber-950/30 px-4 py-3 flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-amber-600 text-stone-950">{current.callout.label}</span>
+                <p className="text-sm font-semibold text-amber-300">{current.callout.title}</p>
+              </div>
+              <p className="text-xs text-stone-400 leading-relaxed">{current.callout.body}</p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
