@@ -77,12 +77,12 @@ export default function LoginPage() {
               </Link>
             </form>
 
-            <p className="text-center text-sm text-stone-600 mt-4">
-              Don&apos;t have an account?{' '}
-              <button onClick={() => setRequesting(true)} className="text-stone-400 hover:text-stone-200 underline transition-colors">
-                Request access
-              </button>
-            </p>
+            <button
+              onClick={() => setRequesting(true)}
+              className="mt-2 w-full border border-amber-700/50 hover:border-amber-600 text-amber-200 hover:bg-amber-950/60 font-semibold rounded-lg px-4 py-2.5 transition-colors text-sm"
+            >
+              Request access
+            </button>
           </>
         ) : (
           <div className="bg-stone-900 border border-stone-700 rounded-xl p-6 flex flex-col gap-4">
