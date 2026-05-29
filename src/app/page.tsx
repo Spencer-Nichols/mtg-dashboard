@@ -55,6 +55,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [topGainers, setTopGainers] = useState<HighlightCard[]>([])
   const [wishlistDrops, setWishlistDrops] = useState<HighlightCard[]>([])
+  const [sealedDrops, setSealedDrops] = useState<HighlightCard[]>([])
   const [binderHistory, setBinderHistory] = useState<HistoryPoint[]>([])
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [faceIndex, setFaceIndex] = useState(0)
@@ -69,6 +70,7 @@ export default function HomePage() {
       const data = JSON.parse(cached)
       setTopGainers(data.topGainers ?? [])
       setWishlistDrops(data.wishlistDrops ?? [])
+      setSealedDrops(data.sealedDrops ?? [])
       if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
     }
     fetch('/api/highlights')
@@ -76,6 +78,7 @@ export default function HomePage() {
       .then(data => {
         setTopGainers(data.topGainers ?? [])
         setWishlistDrops(data.wishlistDrops ?? [])
+        setSealedDrops(data.sealedDrops ?? [])
         if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
         localStorage.setItem(LS_HIGHLIGHTS, JSON.stringify(data))
       })
@@ -338,7 +341,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          {topGainers.length === 0 && wishlistDrops.length === 0 && (
+          {topGainers.length === 0 && wishlistDrops.length === 0 && sealedDrops.length === 0 && (
             <p className="text-xs text-stone-600">Price highlights will appear here once you have cards in your <Link href="/binder" className="text-amber-700 hover:text-amber-600">binder</Link> and <Link href="/wishlist" className="text-amber-700 hover:text-amber-600">wishlist</Link>.</p>
           )}
 
@@ -394,6 +397,34 @@ export default function HomePage() {
                     <span className="text-xs font-bold text-red-400 font-mono shrink-0">▼{Math.abs(c.pct).toFixed(1)}%</span>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {sealedDrops.length > 0 && (
+            <div id="sidebar-sealed-drops">
+              <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Sealed Drops</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
+                {sealedDrops.map(c => {
+                  const suffix = c.displayName.includes(' - ') ? c.displayName.slice(c.displayName.indexOf(' - ') + 3) : c.displayName
+                  return (
+                    <button
+                      key={c.displayName}
+                      onClick={() => router.push('/wishlist#wishlist-sealed')}
+                      className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2 hover:bg-stone-800 transition-colors text-left w-full"
+                    >
+                      {c.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.imageUrl} alt={suffix} className="w-7 h-7 object-cover rounded shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-stone-200 font-medium truncate">{suffix}</p>
+                        <p className="text-xs text-stone-600 font-mono">${c.snapshotPrice.toFixed(2)} → ${c.currentPrice.toFixed(2)}</p>
+                      </div>
+                      <span className="text-xs font-bold text-red-400 font-mono shrink-0">▼{Math.abs(c.pct).toFixed(1)}%</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}

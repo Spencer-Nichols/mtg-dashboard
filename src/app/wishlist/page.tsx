@@ -2,6 +2,41 @@
 
 import { useState, useEffect, useRef } from 'react'
 
+interface SealedWishlistItem {
+  id: string
+  tcgProductId: number
+  tcgGroupId: number
+  productName: string
+  setName: string
+  snapshotPrice: number
+  imageUrl: string | null
+}
+
+interface SealedResult {
+  id: string
+  productId: number
+  productName: string
+  setName: string
+  snapshotPrice: number
+  currentPrice: number | null
+  pct: number | null
+  imageUrl: string | null
+}
+
+interface TcgGroup {
+  groupId: number
+  name: string
+  abbreviation: string
+  publishedOn: string
+}
+
+interface SealedProductOption {
+  productId: number
+  name: string
+  imageUrl: string | null
+  price: number | null
+}
+
 interface CardResult {
   displayName: string
   snapshotPrice: number
@@ -22,6 +57,8 @@ const BUY_THRESHOLD = -10
 const LS_WISHLIST_SINGLES = 'tnk:wishlist:singles'
 const LS_WISHLIST_RESULTS = 'tnk:wishlist:results'
 const LS_WISHLIST_HISTORY = 'tnk:wishlist:history'
+const LS_SEALED_ITEMS = 'tnk:wishlist:sealed'
+const LS_SEALED_RESULTS = 'tnk:wishlist:sealed:results'
 
 function pctColor(pct: number | null) {
   if (pct === null) return 'text-stone-500'
@@ -175,6 +212,51 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardR
   )
 }
 
+function SealedCard({ item, onDelete }: { item: SealedResult; onDelete: (id: string) => void }) {
+  const suffix = item.productName.includes(' - ')
+    ? item.productName.slice(item.productName.indexOf(' - ') + 3)
+    : item.productName
+
+  return (
+    <div className="group relative flex flex-col gap-1.5">
+      <div className="relative rounded-xl overflow-hidden shadow-lg bg-stone-800">
+        {item.imageUrl
+          ? <img src={item.imageUrl} alt={item.productName} className="w-full block" />
+          : <div className="aspect-[4/3] bg-stone-800" />}
+        {item.pct != null && (
+          <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm pointer-events-none ${
+            item.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
+            item.pct < -0.05 ? 'bg-red-900/80 text-red-300' :
+            'bg-stone-800/80 text-stone-400'
+          }`}>
+            {pctLabel(item.pct)}
+          </div>
+        )}
+        <div className="absolute bottom-2 left-0 right-0 flex justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => onDelete(item.id)}
+            className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border border-red-800/50 text-red-400 hover:bg-red-900/40 transition-colors"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+      <div className="px-0.5 flex flex-col gap-0.5">
+        <p className="text-sm text-stone-200 font-semibold leading-tight">{suffix}</p>
+        <p className="text-xs text-stone-500">{item.setName}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className={`text-sm font-mono font-semibold ${pctColor(item.pct)}`}>
+            {item.currentPrice != null ? `$${item.currentPrice.toFixed(2)}` : item.snapshotPrice > 0 ? `$${item.snapshotPrice.toFixed(2)}` : '—'}
+          </span>
+          {item.snapshotPrice > 0 && item.currentPrice != null && item.currentPrice !== item.snapshotPrice && (
+            <span className="text-xs text-stone-600 font-mono">was ${item.snapshotPrice.toFixed(2)}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function WishlistPage() {
   const [singles, setSingles] = useState<{ name: string; note?: string; snapshotPrice: number | null }[]>([])
   const [results, setResults] = useState<Map<string, CardResult>>(new Map())
@@ -191,19 +273,39 @@ export default function WishlistPage() {
   const [gainersOpen, setGainersOpen] = useState(isDesktop)
   const [losersOpen, setLosersOpen] = useState(true)
   const [watchingOpen, setWatchingOpen] = useState(isDesktop)
+  const [sealedOpen, setSealedOpen] = useState(isDesktop)
   const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
+  const [sealedItems, setSealedItems] = useState<SealedWishlistItem[]>([])
+  const [sealedResults, setSealedResults] = useState<Map<string, SealedResult>>(new Map())
+  const [sealedStreaming, setSealedStreaming] = useState(false)
+  const [sealedProgress, setSealedProgress] = useState(0)
+  const [sealedTotal, setSealedTotal] = useState(0)
+  const [sealedQuery, setSealedQuery] = useState('')
+  const [sealedGroups, setSealedGroups] = useState<TcgGroup[]>([])
+  const [sealedGroupsLoaded, setSealedGroupsLoaded] = useState(false)
+  const [sealedSelectedGroup, setSealedSelectedGroup] = useState<TcgGroup | null>(null)
+  const [sealedProducts, setSealedProducts] = useState<SealedProductOption[]>([])
+  const [sealedProductsLoading, setSealedProductsLoading] = useState(false)
+  const [sealedShowDropdown, setSealedShowDropdown] = useState(false)
+  const [sealedAdding, setSealedAdding] = useState<number | null>(null)
+  const [sealedAddError, setSealedAddError] = useState('')
   const esRef = useRef<EventSource | null>(null)
+  const sealedEsRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const cachedSingles = localStorage.getItem(LS_WISHLIST_SINGLES)
     const cachedResults = localStorage.getItem(LS_WISHLIST_RESULTS)
     const cachedHistory = localStorage.getItem(LS_WISHLIST_HISTORY)
+    const cachedSealedItems = localStorage.getItem(LS_SEALED_ITEMS)
+    const cachedSealedResults = localStorage.getItem(LS_SEALED_RESULTS)
     if (cachedSingles) setSingles(JSON.parse(cachedSingles))
     if (cachedResults) setResults(new Map(JSON.parse(cachedResults)))
     if (cachedHistory) setWishlistHistory(JSON.parse(cachedHistory))
+    if (cachedSealedItems) setSealedItems(JSON.parse(cachedSealedItems))
+    if (cachedSealedResults) setSealedResults(new Map(JSON.parse(cachedSealedResults)))
 
     fetch('/api/wishlist')
       .then(r => r.json())
@@ -220,6 +322,24 @@ export default function WishlistPage() {
         localStorage.setItem(LS_WISHLIST_HISTORY, JSON.stringify(h))
       }
     })
+    fetch('/api/sealed/wishlist')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const items: SealedWishlistItem[] = data.map(d => ({
+            id: d.id,
+            tcgProductId: d.tcg_product_id,
+            tcgGroupId: d.tcg_group_id,
+            productName: d.product_name,
+            setName: d.set_name,
+            snapshotPrice: d.snapshot_price ?? 0,
+            imageUrl: d.image_url ?? null,
+          }))
+          setSealedItems(items)
+          localStorage.setItem(LS_SEALED_ITEMS, JSON.stringify(items))
+          if (items.length > 0) startSealedStream()
+        }
+      })
 
     const interval = setInterval(() => startStream(true), 60 * 60 * 1000)
     return () => clearInterval(interval)
@@ -270,6 +390,129 @@ export default function WishlistPage() {
     }
 
     es.onerror = () => { setStreaming(false); es.close() }
+  }
+
+  function startSealedStream(bust = false) {
+    if (sealedStreaming) return
+    sealedEsRef.current?.close()
+    if (bust) setSealedResults(new Map())
+    setSealedProgress(0)
+    setSealedStreaming(true)
+
+    const es = new EventSource(`/api/sealed/stream${bust ? '?bust=true' : ''}`)
+    sealedEsRef.current = es
+
+    es.onmessage = e => {
+      const msg = JSON.parse(e.data)
+      if (msg.type === 'total') {
+        setSealedTotal(msg.count)
+      } else if (msg.type === 'product') {
+        setSealedResults(prev => {
+          const next = new Map(prev)
+          next.set(msg.id, {
+            id: msg.id,
+            productId: msg.productId,
+            productName: msg.productName,
+            setName: msg.setName,
+            snapshotPrice: msg.snapshotPrice ?? 0,
+            currentPrice: msg.currentPrice,
+            pct: msg.pct,
+            imageUrl: msg.imageUrl,
+          })
+          return next
+        })
+        setSealedProgress(p => p + 1)
+      } else if (msg.type === 'done') {
+        setSealedStreaming(false)
+        es.close()
+        setSealedResults(prev => {
+          localStorage.setItem(LS_SEALED_RESULTS, JSON.stringify(Array.from(prev.entries())))
+          return prev
+        })
+      }
+    }
+
+    es.onerror = () => { setSealedStreaming(false); es.close() }
+  }
+
+  async function deleteSealedItem(id: string) {
+    await fetch('/api/sealed/wishlist/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    setSealedItems(prev => prev.filter(s => s.id !== id))
+    setSealedResults(prev => { const next = new Map(prev); next.delete(id); return next })
+  }
+
+  async function loadSealedGroups() {
+    if (sealedGroupsLoaded) return
+    const data = await fetch('/api/sealed/groups').then(r => r.json())
+    if (Array.isArray(data)) {
+      setSealedGroups(data)
+      setSealedGroupsLoaded(true)
+    }
+  }
+
+  async function selectSealedGroup(group: TcgGroup) {
+    setSealedSelectedGroup(group)
+    setSealedQuery(group.name)
+    setSealedProductsLoading(true)
+    setSealedProducts([])
+    const res = await fetch(`/api/sealed/products?groupId=${group.groupId}&groupName=${encodeURIComponent(group.name)}`)
+    const data = await res.json()
+    if (Array.isArray(data)) setSealedProducts(data)
+    setSealedProductsLoading(false)
+  }
+
+  async function addSealedProduct(p: SealedProductOption) {
+    if (!sealedSelectedGroup) return
+    setSealedAdding(p.productId)
+    setSealedAddError('')
+    const res = await fetch('/api/sealed/wishlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tcgProductId: p.productId,
+        tcgGroupId: sealedSelectedGroup.groupId,
+        productName: p.name,
+        setName: sealedSelectedGroup.name,
+        snapshotPrice: p.price,
+        imageUrl: p.imageUrl,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setSealedAddError(data.error ?? 'Something went wrong')
+    } else {
+      handleSealedAdded()
+      setSealedQuery('')
+      setSealedSelectedGroup(null)
+      setSealedProducts([])
+      setSealedShowDropdown(false)
+    }
+    setSealedAdding(null)
+  }
+
+  function handleSealedAdded() {
+    fetch('/api/sealed/wishlist')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const items: SealedWishlistItem[] = data.map(d => ({
+            id: d.id,
+            tcgProductId: d.tcg_product_id,
+            tcgGroupId: d.tcg_group_id,
+            productName: d.product_name,
+            setName: d.set_name,
+            snapshotPrice: d.snapshot_price ?? 0,
+            imageUrl: d.image_url ?? null,
+          }))
+          setSealedItems(items)
+          localStorage.setItem(LS_SEALED_ITEMS, JSON.stringify(items))
+          startSealedStream(true)
+        }
+      })
   }
 
   function handleAddInput(value: string) {
@@ -363,6 +606,7 @@ export default function WishlistPage() {
   const flat = rows.filter(r => r.pct !== null && Math.abs(r.pct) <= 0.05)
   const pending = rows.filter(r => r.pct === null)
   const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD)
+  const sealedBuySuggestions = Array.from(sealedResults.values()).filter(r => r.pct !== null && r.pct <= -10)
   const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
 
   return (
@@ -397,8 +641,9 @@ export default function WishlistPage() {
         </div>
       </div>
 
-      {/* Add card input */}
-      <div className="relative mb-6">
+      {/* Add inputs */}
+      <div className="flex flex-col gap-2 mb-6">
+      <div className="relative">
         <div className="flex gap-2">
           <input
             value={addQuery}
@@ -476,6 +721,96 @@ export default function WishlistPage() {
         )}
       </div>
 
+      {/* Add sealed input */}
+      <div id="wishlist-sealed-add" className="relative">
+        <input
+          value={sealedQuery}
+          onChange={e => {
+            setSealedQuery(e.target.value)
+            if (sealedSelectedGroup) { setSealedSelectedGroup(null); setSealedProducts([]) }
+            setSealedShowDropdown(true)
+          }}
+          onFocus={() => { loadSealedGroups(); setSealedShowDropdown(true) }}
+          onBlur={() => setTimeout(() => setSealedShowDropdown(false), 150)}
+          onKeyDown={e => { if (e.key === 'Escape') { setSealedShowDropdown(false); setSealedQuery(''); setSealedSelectedGroup(null) } }}
+          placeholder="Search sets to add sealed product…"
+          className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+        />
+        {sealedShowDropdown && (
+          <div id="wishlist-sealed-dropdown" className="absolute z-40 top-full left-0 right-0 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl max-h-72 overflow-y-auto">
+            {!sealedSelectedGroup ? (
+              <>
+                {!sealedGroupsLoaded ? (
+                  <p className="text-stone-600 text-sm px-4 py-3">Loading sets…</p>
+                ) : (() => {
+                  const filtered = sealedQuery.trim()
+                    ? sealedGroups.filter(g => g.name.toLowerCase().includes(sealedQuery.toLowerCase()))
+                    : sealedGroups.slice(0, 30)
+                  return filtered.length === 0 ? (
+                    <p className="text-stone-600 text-sm px-4 py-3">No sets found</p>
+                  ) : filtered.map(g => (
+                    <button
+                      key={g.groupId}
+                      onMouseDown={e => { e.preventDefault(); selectSealedGroup(g) }}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-stone-800 border-b border-stone-800 last:border-0 text-left transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-stone-200 text-sm truncate">{g.name}</p>
+                        {g.abbreviation && <p className="text-stone-600 text-xs">{g.abbreviation.toUpperCase()}</p>}
+                      </div>
+                      <span className="text-stone-600 text-xs shrink-0">{new Date(g.publishedOn).getFullYear()}</span>
+                    </button>
+                  ))
+                })()}
+              </>
+            ) : (
+              <>
+                <div className="px-4 py-2.5 border-b border-stone-800 flex items-center gap-2 sticky top-0 bg-stone-900">
+                  <button
+                    onMouseDown={e => { e.preventDefault(); setSealedSelectedGroup(null); setSealedProducts([]); setSealedQuery('') }}
+                    className="text-stone-500 hover:text-stone-300 text-xs"
+                  >← Back</button>
+                  <span className="text-stone-400 text-xs font-medium truncate">{sealedSelectedGroup.name}</span>
+                </div>
+                {sealedAddError && (
+                  <p className="mx-3 mt-2 text-red-400 text-xs bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2">{sealedAddError}</p>
+                )}
+                {sealedProductsLoading ? (
+                  <p className="text-stone-600 text-sm px-4 py-3">Loading products…</p>
+                ) : sealedProducts.length === 0 ? (
+                  <p className="text-stone-600 text-sm px-4 py-3">No sealed products found</p>
+                ) : sealedProducts.map(p => {
+                  const suffix = p.name.includes(' - ') ? p.name.slice(p.name.indexOf(' - ') + 3) : p.name
+                  const alreadyAdded = sealedItems.some(s => s.tcgProductId === p.productId)
+                  return (
+                    <button
+                      key={p.productId}
+                      onMouseDown={e => { e.preventDefault(); if (!alreadyAdded) addSealedProduct(p) }}
+                      disabled={sealedAdding === p.productId || alreadyAdded}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-stone-800 border-b border-stone-800 last:border-0 text-left transition-colors disabled:opacity-40"
+                    >
+                      {p.imageUrl
+                        ? <img src={p.imageUrl} alt="" className="w-10 h-10 object-cover rounded shrink-0" />
+                        : <div className="w-10 h-10 bg-stone-700 rounded shrink-0" />}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-stone-200 text-sm font-medium truncate">{suffix}</p>
+                        {p.price != null
+                          ? <p className="text-green-400 font-mono text-sm">${p.price.toFixed(2)}</p>
+                          : <p className="text-stone-600 font-mono text-sm">—</p>}
+                      </div>
+                      <span className="text-stone-500 text-xs shrink-0">
+                        {alreadyAdded ? 'Added' : sealedAdding === p.productId ? 'Adding…' : '+ Add'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      </div>
+
       {addStatus && (
         <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm ${
           addStatus.type === 'success'
@@ -492,7 +827,7 @@ export default function WishlistPage() {
         </div>
       )}
 
-      {buySuggestions.length > 0 && (
+      {(buySuggestions.length > 0 || sealedBuySuggestions.length > 0) && (
         <div className="mb-6 bg-green-950/40 border border-green-800/60 rounded-xl p-4">
           <p className="text-green-400 font-semibold text-sm mb-3">
             Good Time to Buy — down {Math.abs(BUY_THRESHOLD)}%+ from when you started watching
@@ -503,6 +838,20 @@ export default function WishlistPage() {
               return (
                 <div key={r.displayName} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
                   <p className="text-stone-200 text-sm font-medium">{r.displayName}</p>
+                  <p className="text-green-400 text-xs font-mono mt-0.5">
+                    ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
+                    {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
+                  </p>
+                </div>
+              )
+            })}
+            {sealedBuySuggestions.map(r => {
+              const suffix = r.productName.includes(' - ') ? r.productName.slice(r.productName.indexOf(' - ') + 3) : r.productName
+              const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
+              return (
+                <div key={r.id} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
+                  <p className="text-stone-200 text-sm font-medium">{suffix}</p>
+                  <p className="text-xs text-stone-500">{r.setName}</p>
                   <p className="text-green-400 text-xs font-mono mt-0.5">
                     ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
                     {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
@@ -575,6 +924,55 @@ export default function WishlistPage() {
           <p className="text-sm text-stone-600">Search for a card above to add it and track price drops.</p>
         </div>
       )}
+
+      {/* Sealed Products */}
+      <div id="wishlist-sealed" className="mt-8 flex flex-col gap-4">
+        <button
+          onClick={() => setSealedOpen(o => !o)}
+          className="w-full flex items-center gap-2 text-left"
+        >
+          <div className="flex-1 min-w-0">
+            <h2 className="text-stone-300 font-semibold">Sealed Products</h2>
+            <p className="text-xs text-stone-600 mt-0.5">
+              {sealedItems.length} {sealedItems.length === 1 ? 'product' : 'products'} tracked
+              {sealedStreaming && ` · loading ${sealedProgress}/${sealedTotal}`}
+            </p>
+          </div>
+          <span className="text-stone-400 text-sm shrink-0">{sealedOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {sealedStreaming && (
+          <div className="bg-stone-800 rounded-full overflow-hidden h-1">
+            <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: sealedTotal ? `${(sealedProgress / sealedTotal) * 100}%` : '0%' }} />
+          </div>
+        )}
+
+        {sealedOpen && (
+          sealedItems.length > 0 ? (
+            <div id="wishlist-sealed-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
+              {sealedItems.map(item => {
+                const result = sealedResults.get(item.id)
+                const display: SealedResult = result ?? {
+                  id: item.id,
+                  productId: item.tcgProductId,
+                  productName: item.productName,
+                  setName: item.setName,
+                  snapshotPrice: item.snapshotPrice,
+                  currentPrice: null,
+                  pct: null,
+                  imageUrl: item.imageUrl,
+                }
+                return <SealedCard key={item.id} item={display} onDelete={deleteSealedItem} />
+              })}
+            </div>
+          ) : (
+            <div className="bg-stone-900 border border-stone-800 rounded-xl px-5 py-8 text-center">
+              <p className="text-stone-500 text-sm">No sealed products on your watchlist</p>
+              <p className="text-xs text-stone-600 mt-1">Track booster boxes, bundles, and more</p>
+            </div>
+          )
+        )}
+      </div>
     </div>
   )
 }
