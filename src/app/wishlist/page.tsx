@@ -220,9 +220,20 @@ function SealedCard({ item, onDelete }: { item: SealedResult; onDelete: (id: str
   return (
     <div className="group relative flex flex-col gap-1.5">
       <div className="relative rounded-xl overflow-hidden shadow-lg bg-stone-800">
-        {item.imageUrl
-          ? <img src={item.imageUrl} alt={item.productName} className="w-full block" />
-          : <div className="aspect-[4/3] bg-stone-800" />}
+        <a
+          href={`https://www.tcgplayer.com/product/${item.productId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+          title="View on TCGPlayer"
+        >
+          {item.imageUrl
+            ? <img src={item.imageUrl} alt={item.productName} className="w-full block group-hover:brightness-110 transition-all" />
+            : <div className="aspect-[4/3] bg-stone-800" />}
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-10 pointer-events-none">
+            <span className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/60 text-amber-400 font-medium">View on TCGPlayer</span>
+          </div>
+        </a>
         {item.pct != null && (
           <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm pointer-events-none ${
             item.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
