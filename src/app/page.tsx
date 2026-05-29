@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import CollectionChart from '@/components/CollectionChart'
 
 interface Card {
   name: string
@@ -32,87 +33,6 @@ interface HistoryPoint {
   card_count?: number | null
 }
 
-function CollectionChart({ data }: { data: HistoryPoint[] }) {
-  if (data.length === 0) return null
-
-  const width = 600
-  const height = 120
-  const padX = 48
-  const padY = 16
-
-  const totals = data.map(d => d.total)
-  const min = Math.min(...totals)
-  const max = Math.max(...totals)
-  const range = max - min || 1
-
-  const x = (i: number) => padX + (i / Math.max(data.length - 1, 1)) * (width - padX * 2)
-  const y = (v: number) => padY + (1 - (v - min) / range) * (height - padY * 2)
-
-  const points = data.map((d, i) => `${x(i).toFixed(1)},${y(d.total).toFixed(1)}`).join(' ')
-  const area = `M${x(0).toFixed(1)},${height} ` +
-    data.map((d, i) => `L${x(i).toFixed(1)},${y(d.total).toFixed(1)}`).join(' ') +
-    ` L${x(data.length - 1).toFixed(1)},${height} Z`
-
-  const trend = data.length > 1 ? data[data.length - 1].total - data[0].total : 0
-  const color = trend >= 0 ? '#4ade80' : '#f87171'
-
-  const yLabels = [min, (min + max) / 2, max]
-  const xIndices = data.length <= 5
-    ? data.map((_, i) => i)
-    : [0, Math.floor(data.length / 3), Math.floor((2 * data.length) / 3), data.length - 1]
-
-  // Event markers: vertical lines where card count changed
-  const countMarkers: { i: number; delta: number }[] = []
-  for (let k = 1; k < data.length; k++) {
-    const prev = data[k - 1].card_count
-    const curr = data[k].card_count
-    if (curr != null && prev != null && curr !== prev) {
-      countMarkers.push({ i: k, delta: curr - prev })
-    }
-  }
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
-      <defs>
-        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <g className="hidden sm:block">
-        {yLabels.map((v, i) => (
-          <g key={i}>
-            <line x1={padX} y1={y(v)} x2={width - padX} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
-            <text x={padX - 4} y={y(v) + 4} textAnchor="end" fontSize="9" fill="#475569">${Math.round(v)}</text>
-          </g>
-        ))}
-        {xIndices.map(i => (
-          <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize="9" fill="#475569">
-            {data[i].date.slice(5)}
-          </text>
-        ))}
-      </g>
-      <g>
-        {countMarkers.map(({ i, delta }) => {
-          const cx = x(i)
-          const isAdd = delta > 0
-          const markerColor = isAdd ? '#4ade80' : '#f87171'
-          const label = isAdd ? `+${delta}` : `${delta}`
-          return (
-            <g key={i}>
-              <line x1={cx} y1={padY} x2={cx} y2={height - padY} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-              <text x={cx} y={padY - 3} textAnchor="middle" fontSize="11" fontWeight="600" fill={markerColor}>{label}</text>
-            </g>
-          )
-        })}
-      </g>
-      <path d={area} fill="url(#chartGrad)" />
-      {data.length > 1
-        ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-        : <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={color} />}
-    </svg>
-  )
-}
 
 function formatRelativeTime(date: Date): string {
   const mins = Math.floor((Date.now() - date.getTime()) / 60000)
