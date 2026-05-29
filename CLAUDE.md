@@ -32,7 +32,7 @@ Slightly stronger (0.12/0.11/0.10) on expanded row / CompactCardGrid.
 **Pending cards**: Cards with `pct === null` are included in the `flat` (unchanged) array — they were previously missing because only `Math.abs(pct) <= 0.05` was checked.
 
 ## Components (all in `src/app/binder/page.tsx`)
-- `Sparkline` — reused for both inline row sparklines (small) and full-width labeled chart. `fullWidth` + `showLabels` + `dates` + `counts` props for the labeled version. On labeled charts: y-axis/x-axis labels hidden on mobile (`hidden sm:block`), count-change markers always visible. All label font sizes are `"7"` (binder, wider container) vs `"9"` y/x and `"11"` count markers (home page, narrower due to sidebar) — same viewBox but different container widths cause the visual size difference.
+- `Sparkline` — reused for both inline row sparklines (small) and full-width labeled chart. `fullWidth` + `showLabels` + `dates` + `counts` props for the labeled version. `labelsOnMobile` prop removes the `hidden sm:block` on y/x labels and bumps count marker font size to `"14"` (vs `"7"` on desktop). Mobile binder chart uses `height={180}` + `labelsOnMobile`; desktop uses `height={120}`. All label font sizes are `"7"` (binder, wider container) vs `"9"` y/x and `"11"` count markers (home page, narrower due to sidebar) — same viewBox but different container widths cause the visual size difference.
 - `EditModal` — condition, foil toggle, purchase price, note, printing selector. Triggered by edit button OR post-add via `postAddRow`.
 - `CompactCardGrid` — unchanged cards, single column on mobile (`grid-cols-1 sm:grid-cols-2`).
 - `CardRow` / `CardTable` — gainers and losers.
