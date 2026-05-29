@@ -440,8 +440,8 @@ function CardRow({
           <Sparkline values={sparkline} />
         </td>
       )}
-      <td className="hidden md:table-cell px-4 py-3.5 text-right text-stone-500 font-mono">
-        {row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `$${row.purchasePrice.toFixed(2)}` : `$${row.snapshotPrice.toFixed(2)}`}
+      <td className="hidden md:table-cell px-4 py-3.5 text-right text-stone-500 font-mono text-sm">
+        {row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}
       </td>
       <td className="px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
@@ -534,7 +534,7 @@ function CardTable({
           <tr>
             <th className="text-left px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Card</th>
             {hasSparklines && <th className="hidden md:table-cell px-2 py-3" />}
-            <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Paid</th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Basis</th>
             <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Now</th>
             <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">%</th>
             <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">+/-</th>
