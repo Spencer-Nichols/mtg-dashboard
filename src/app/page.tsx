@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import CollectionChart from '@/components/CollectionChart'
+import OnboardingModal from '@/components/OnboardingModal'
 
 interface Card {
   name: string
@@ -60,6 +61,7 @@ export default function HomePage() {
   const [isDesktop, setIsDesktop] = useState(true)
   const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; purchasePrice: number | null; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
   const [cardFetchedAt, setCardFetchedAt] = useState<Date | null>(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   function fetchHighlights() {
     const cached = localStorage.getItem(LS_HIGHLIGHTS)
@@ -80,6 +82,7 @@ export default function HomePage() {
   }
 
   useEffect(() => {
+    fetch('/api/profile').then(r => r.json()).then(d => { if (!d.onboarded) setShowOnboarding(true) })
     fetchHighlights()
 
     const cachedRecent = localStorage.getItem(LS_RECENT)
@@ -183,6 +186,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col gap-8">
+      {showOnboarding && <OnboardingModal onDismiss={() => setShowOnboarding(false)} />}
 
       {/* On mobile: chart sits above the sidebar (gainers/drops) */}
       {!isDesktop && binderChart}
