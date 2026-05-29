@@ -879,13 +879,21 @@ export default function BinderPage() {
     setImportCsvLoading(false)
   }
 
-  async function copyExport() {
+  async function downloadExport() {
+    setExportStatus('Exporting...')
     const res = await fetch(`/api/binder/export?since=${exportSince}`)
-    const data = await res.json()
-    if (!res.ok || !data.lines) { setExportStatus('Error fetching export'); return }
-    if (data.lines.length === 0) { setExportStatus('No cards added since that date'); return }
-    await navigator.clipboard.writeText(data.lines.join('\n'))
-    setExportStatus(`Copied ${data.count} card${data.count !== 1 ? 's' : ''} to clipboard`)
+    if (res.status === 404) { setExportStatus('No cards added since that date'); return }
+    if (!res.ok) { setExportStatus('Error fetching export'); return }
+    const text = await res.text()
+    const count = text.trim().split('\n').length - 1 // subtract header row
+    const blob = new Blob([text], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `moxfield_export_${exportSince}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    setExportStatus(`Downloaded ${count} card${count !== 1 ? 's' : ''}`)
   }
 
   // --- Binder derived data ---
@@ -1087,10 +1095,10 @@ return (
             className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-100 focus:outline-none focus:border-amber-600 transition-colors"
           />
           <button
-            onClick={copyExport}
+            onClick={downloadExport}
             className="px-4 py-1.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 rounded-lg text-sm font-medium transition-colors"
           >
-            Copy for Moxfield
+            Download CSV
           </button>
           {exportStatus && <span className="text-sm text-stone-400">{exportStatus}</span>}
         </div>
