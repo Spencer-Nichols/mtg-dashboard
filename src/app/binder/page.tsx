@@ -98,8 +98,8 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min || 1
-  const padLeft = showLabels ? 48 : 1.5
-  const padRight = showLabels ? 48 : 1.5
+  const padLeft = showLabels ? 36 : 1.5
+  const padRight = showLabels ? 8 : 1.5
   const padY = showLabels ? 16 : 1.5
   const padBottom = showLabels ? 16 : 1.5
   const x = (i: number) => padLeft + (values.length > 1 ? (i / (values.length - 1)) : 0) * (width - padLeft - padRight)
@@ -362,7 +362,7 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
           <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
             <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
               {sparkline && sparkline.values.length >= 2
-                ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels height={80} />
+                ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} />
                 : <SparklinePlaceholder height={80} />}
             </div>
             <input
@@ -418,6 +418,7 @@ function CardRow({
   pendingDelete,
   expanded,
   onToggleExpand,
+  rowId,
 }: {
   row: CardResult
   onDelete: (name: string, rowKey: string) => void
@@ -425,6 +426,7 @@ function CardRow({
   sparkline?: { values: number[], dates: string[] }
   expanded: boolean
   onToggleExpand: () => void
+  rowId?: string
 }) {
   const costBasis = row.purchasePrice != null ? row.purchasePrice : row.snapshotPrice
   const diff = row.currentPrice != null ? row.currentPrice - costBasis : null
@@ -446,6 +448,7 @@ function CardRow({
   return (
     <>
     <tr
+      id={rowId}
       className="group border-b border-stone-800 hover:bg-stone-800/50 transition-colors cursor-pointer"
       style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.10) 35%, rgba(96, 165, 250, 0.10) 52%, rgba(52, 211, 153, 0.08) 68%, #1c1917 85%)' } : undefined}
       onClick={onToggleExpand}
@@ -523,7 +526,7 @@ function CardRow({
             <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
               <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
                 {sparkline && sparkline.values.length >= 2
-                  ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels height={80} />
+                  ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} />
                   : <SparklinePlaceholder height={80} />}
               </div>
               <input
@@ -559,14 +562,30 @@ function CardTable({
   emptyLabel,
   sparklines,
   pendingDelete,
+  autoExpandName,
 }: {
   rows: CardResult[]
   onDelete: (name: string, rowKey: string) => void
   emptyLabel: string
   sparklines?: Map<string, { values: number[], dates: string[] }>
   pendingDelete: string | null
+  autoExpandName?: string | null
 }) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const autoExpandedRef = useRef(false)
+
+  useEffect(() => {
+    if (!autoExpandName || autoExpandedRef.current) return
+    const idx = rows.findIndex(r => r.displayName === autoExpandName)
+    if (idx === -1) return
+    autoExpandedRef.current = true
+    const rKey = `${rows[idx].displayName}-${idx}`
+    setExpandedKey(rKey)
+    setTimeout(() => {
+      document.getElementById(`binder-row-${rKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 150)
+  }, [autoExpandName, rows])
+
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
       <table className="w-full">
@@ -590,6 +609,7 @@ function CardTable({
               return (
                 <CardRow
                   key={rKey}
+                  rowId={`binder-row-${rKey}`}
                   row={row}
                   onDelete={onDelete}
                   sparkline={sparklines?.get(row.displayName)}
@@ -643,10 +663,12 @@ export default function BinderPage() {
   const [clearConfirm, setClearConfirm] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
   const [postAddRow, setPostAddRow] = useState<CardResult | null>(null)
+  const [autoExpandName, setAutoExpandName] = useState<string | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const addInputRef = useRef<HTMLInputElement>(null)
+  const expandParamRef = useRef<string | null>(null)
 
   // History state
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
@@ -654,6 +676,8 @@ export default function BinderPage() {
   const [cardHistory, setCardHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
 
   useEffect(() => {
+    expandParamRef.current = new URLSearchParams(window.location.search).get('expand')
+
     if (localStorage.getItem(LS_CACHE_VERSION) !== CACHE_VERSION) {
       localStorage.removeItem(LS_BINDER_ENTRIES)
       localStorage.removeItem(LS_BINDER_RESULTS)
@@ -675,6 +699,13 @@ export default function BinderPage() {
       .then(data => {
         setEntries(data.entries)
         localStorage.setItem(LS_BINDER_ENTRIES, JSON.stringify(data.entries))
+        if (expandParamRef.current) {
+          const match = (data.entries as BinderEntry[]).find(e => e.displayName === expandParamRef.current)
+          if (match) {
+            setAutoExpandName(expandParamRef.current)
+            setGainersOpen(true)
+          }
+        }
         startStream()
       })
     fetch('/api/binder/history').then(r => r.json()).then(h => {
@@ -976,9 +1007,10 @@ export default function BinderPage() {
     ? rows.filter(r => r.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
     : rows
 
-  const gainers = filteredRows.filter(r => (r.pct ?? 0) > 0.05).sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
-  const losers = filteredRows.filter(r => (r.pct ?? 0) < -0.05).sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0))
-  const flat = filteredRows.filter(r => r.pct === null || Math.abs(r.pct) <= 0.05)
+  const MIN_DOLLAR = 0.25
+  const gainers = filteredRows.filter(r => (r.pct ?? 0) > 0.05 && (r.currentPrice ?? 0) - (r.purchasePrice ?? r.snapshotPrice) >= MIN_DOLLAR).sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
+  const losers = filteredRows.filter(r => (r.pct ?? 0) < -0.05 && (r.purchasePrice ?? r.snapshotPrice) - (r.currentPrice ?? 0) >= MIN_DOLLAR).sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0))
+  const flat = filteredRows.filter(r => r.pct === null || Math.abs(r.pct) <= 0.05 || (Math.abs((r.currentPrice ?? 0) - (r.purchasePrice ?? r.snapshotPrice)) < MIN_DOLLAR))
   const pending = filteredRows.filter(r => r.pct === null)
   const sellSuggestions = filteredRows.filter(r => r.pct !== null && r.pct <= SELL_THRESHOLD)
 
@@ -1402,8 +1434,8 @@ return (
           )}
 
           {/* Two-column layout */}
-          {entries.length > 0 && <><div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
+          {entries.length > 0 && <><div id="binder-gainers-losers" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div id="binder-gainers">
               <button
                 onClick={() => setGainersOpen(o => !o)}
                 className="w-full flex items-center gap-2 mb-3 text-left"
@@ -1422,10 +1454,11 @@ return (
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No gainers'}
                   pendingDelete={pendingDelete}
                   sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
+                  autoExpandName={autoExpandName}
                 />
               )}
             </div>
-            <div>
+            <div id="binder-losers">
               <button
                 onClick={() => setLosersOpen(o => !o)}
                 className="w-full flex items-center gap-2 mb-3 text-left"
@@ -1451,7 +1484,7 @@ return (
 
           {/* Flat cards */}
           {flat.length > 0 && (
-            <div className="mt-8">
+            <div id="binder-unchanged" className="mt-8">
               <button
                 onClick={() => setFlatOpen(o => !o)}
                 className="w-full flex items-center gap-2 px-4 py-3 text-left rounded-xl border border-stone-800 bg-stone-900 hover:border-stone-700 hover:bg-stone-800/60 transition-colors mb-3"

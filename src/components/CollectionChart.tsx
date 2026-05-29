@@ -1,3 +1,5 @@
+import setReleases from '@/lib/set-releases.json'
+
 interface DataPoint {
   date: string
   total: number
@@ -33,6 +35,20 @@ export default function CollectionChart({
 
   const x = (i: number) => padX + (i / Math.max(data.length - 1, 1)) * (width - padX * 2)
   const y = (v: number) => padY + (1 - (v - min) / range) * (height - padY * 2)
+
+  const firstDate = new Date(data[0].date).getTime()
+  const lastDate = new Date(data[data.length - 1].date).getTime()
+  const dateToX = (dateStr: string) => {
+    const d = new Date(dateStr).getTime()
+    if (lastDate === firstDate) return padX
+    return padX + ((d - firstDate) / (lastDate - firstDate)) * (width - padX * 2)
+  }
+  const releaseMarkers = data.length > 1
+    ? setReleases.filter(r => {
+        const t = new Date(r.date).getTime()
+        return t >= firstDate && t <= lastDate
+      })
+    : []
 
   const points = data.map((d, i) => `${x(i).toFixed(1)},${y(d.total).toFixed(1)}`).join(' ')
   const area = `M${x(0).toFixed(1)},${height} ` +
@@ -93,6 +109,9 @@ export default function CollectionChart({
           )
         })}
       </g>
+      {releaseMarkers.map(r => (
+        <line key={r.date} x1={dateToX(r.date)} y1={padY} x2={dateToX(r.date)} y2={height - padY} stroke="#a07848" strokeWidth="1" opacity="0.5" />
+      ))}
       <path d={area} fill={`url(#${gradId})`} />
       {data.length > 1
         ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />

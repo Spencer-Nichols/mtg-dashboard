@@ -11,7 +11,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('binder_cards')
-    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price, date_added')
+    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price, purchase_price, date_added')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(5)
@@ -25,6 +25,7 @@ export async function GET() {
       displayName: row.display_name,
       setCode: row.set_code ?? '',
       snapshotPrice: row.snapshot_price ?? 0,
+      purchasePrice: row.purchase_price ?? null,
       currentPrice: cached ? (row.foil ? (cached.foilPrice ?? cached.price) : cached.price) : null,
       imageUrl: cached?.imageUrl ?? null,
       dateAdded: row.date_added,

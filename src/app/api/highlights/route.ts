@@ -20,22 +20,24 @@ export async function GET() {
   // --- Binder gainers ---
   const { data: binderRows } = await supabase
     .from('binder_cards')
-    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price')
+    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price, purchase_price')
     .eq('user_id', user.id)
 
+  const MIN_DOLLAR = 0.25
   const binderGainers: HighlightCard[] = []
   for (const entry of binderRows ?? []) {
     const key = cacheKey(entry.base_name, entry.scryfall_id ?? entry.set_code ?? '')
     const cached = await getCached(key)
     if (!cached) continue
     const currentPrice = entry.foil ? (cached.foilPrice ?? cached.price) : cached.price
-    const snapshotPrice = entry.snapshot_price ?? 0
-    if (currentPrice == null || snapshotPrice <= 0) continue
-    const pct = ((currentPrice - snapshotPrice) / snapshotPrice) * 100
-    if (pct > 0) {
+    const costBasis = entry.purchase_price ?? entry.snapshot_price ?? 0
+    if (currentPrice == null || costBasis <= 0) continue
+    const diff = currentPrice - costBasis
+    const pct = (diff / costBasis) * 100
+    if (pct > 0.05 && diff >= MIN_DOLLAR) {
       binderGainers.push({
         displayName: entry.display_name,
-        snapshotPrice,
+        snapshotPrice: costBasis,
         currentPrice,
         pct,
         imageUrl: cached.imageUrl ?? null,
@@ -70,7 +72,7 @@ export async function GET() {
       })
     }
   }
-  wishlistDrops.sort((a, b) => a.pct - b.pct)
+  wishlistDrops.sort((a, b) => a.pct - b.pct).splice(5)
 
   const lastUpdated = await getCronTimestamp()
 
