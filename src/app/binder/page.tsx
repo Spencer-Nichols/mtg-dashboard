@@ -82,7 +82,7 @@ function CardImage({ src, alt, className }: { src: string | null | undefined; al
   return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
 }
 
-function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts }: {
+function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts, labelsOnMobile = false }: {
   values: number[]
   width?: number
   height?: number
@@ -90,6 +90,7 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   dates?: string[]
   showLabels?: boolean
   counts?: (number | null)[]
+  labelsOnMobile?: boolean
 }) {
   if (values.length === 0) return null
   const min = Math.min(...values)
@@ -138,7 +139,7 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
           </linearGradient>
         </defs>
       )}
-      <g className="hidden sm:block">
+      <g className={labelsOnMobile ? undefined : 'hidden sm:block'}>
         {yLabels.map((v, i) => (
           <g key={i}>
             <line x1={padLeft} y1={y(v)} x2={width - padRight} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
@@ -160,7 +161,7 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
           return (
             <g key={i}>
               <line x1={cx} y1={padY} x2={cx} y2={height - padBottom} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-              <text x={cx} y={padY - 3} textAnchor="middle" fontSize="7" fontWeight="600" fill={markerColor}>{label}</text>
+              <text x={cx} y={padY - 3} textAnchor="middle" fontSize={labelsOnMobile ? "14" : "7"} fontWeight="600" fill={markerColor}>{label}</text>
             </g>
           )
         })}
@@ -1009,7 +1010,7 @@ return (
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={80} fullWidth showLabels />
+            <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={180} fullWidth showLabels labelsOnMobile />
           </div>
         )}
         {results.size > 0 && (
