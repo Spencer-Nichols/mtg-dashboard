@@ -260,20 +260,6 @@ export default function WishlistPage() {
         es.close()
         setResults(prev => {
           localStorage.setItem(LS_WISHLIST_RESULTS, JSON.stringify(Array.from(prev.entries())))
-          const prices: Record<string, number> = {}
-          prev.forEach((r, name) => { if (r.currentPrice != null) prices[name] = r.currentPrice })
-          if (Object.keys(prices).length > 0) {
-            fetch('/api/wishlist/history', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prices }),
-            }).then(r => r.json()).then(h => {
-              if (h && typeof h === 'object') {
-                setWishlistHistory(h)
-                localStorage.setItem(LS_WISHLIST_HISTORY, JSON.stringify(h))
-              }
-            })
-          }
           return prev
         })
       }

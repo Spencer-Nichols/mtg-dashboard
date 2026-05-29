@@ -50,6 +50,7 @@ const SELL_THRESHOLD = -10 // % drop to flag as sell suggestion
 const LS_BINDER_ENTRIES = 'tnk:binder:entries'
 const LS_BINDER_RESULTS = 'tnk:binder:results'
 const LS_BINDER_HISTORY = 'tnk:binder:history'
+const LS_BINDER_CARD_HISTORY = 'tnk:binder:card-history'
 const LS_CACHE_VERSION = 'tnk:cache:version'
 const CACHE_VERSION = '2'
 
@@ -175,6 +176,15 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   )
 }
 
+function SparklinePlaceholder({ height = 100 }: { height?: number }) {
+  const mid = height / 2
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 200 ${height}`} preserveAspectRatio="none" className="w-full opacity-60">
+      <polyline points={`0,${mid} 200,${mid}`} fill="none" stroke="#6b7280" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
   const [editPrints, setEditPrints] = useState<Candidate[]>([])
   const [editPrintsLoading, setEditPrintsLoading] = useState(true)
@@ -293,7 +303,87 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
   )
 }
 
-function CompactCardGrid({ rows, onDelete, pendingDelete }: { rows: CardResult[]; onDelete: (name: string, rowKey: string) => void; pendingDelete: string | null }) {
+function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded, onToggleExpand }: {
+  row: CardResult
+  onDelete: (name: string, rowKey: string) => void
+  onEdit: (row: CardResult) => void
+  pendingDelete: string | null
+  sparkline?: { values: number[], dates: string[] }
+  expanded: boolean
+  onToggleExpand: () => void
+}) {
+  const [noteVal, setNoteVal] = useState(row.note ?? '')
+  const [savedNote, setSavedNote] = useState(row.note ?? '')
+  const manapoolSlug = row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+  function commitNote() {
+    const trimmed = noteVal.trim()
+    if (trimmed === savedNote) return
+    setSavedNote(trimmed)
+    fetch('/api/binder/note', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: row.displayName, note: trimmed }),
+    })
+  }
+
+  return (
+    <div className="bg-stone-900 flex flex-col" style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : undefined}>
+      <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-stone-800/60 transition-colors" onClick={onToggleExpand}>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
+          {row.condition && row.condition !== 'NM' && <span className="text-xs px-1 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700 shrink-0">{row.condition}</span>}
+          {row.foil && <span className="text-xs px-1 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">foil</span>}
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-sm text-stone-500 font-mono">${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}</span>
+          <span className="text-stone-600 text-xs">{expanded ? '▲' : '▼'}</span>
+        </div>
+      </div>
+      {expanded && (
+        <div className="px-3 pb-3 pt-2 flex gap-3 border-t border-stone-800">
+          {row.imageUrl && (
+            <div className="flex gap-2 shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={row.imageUrl} alt={row.displayName} className="w-24 rounded-lg shadow-2xl" />
+              {row.backImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-24 rounded-lg shadow-2xl" />
+              )}
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5 shrink-0 justify-center">
+            <a href={`https://manapool.com/card/${manapoolSlug}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors text-center">Manapool ↗</a>
+            <button onClick={() => onEdit(row)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors">Edit</button>
+            <button onClick={() => onDelete(row.displayName, row.rowKey ?? row.displayName)} className={`text-xs px-2.5 py-1 rounded border transition-colors ${pendingDelete === (row.rowKey ?? row.displayName) ? 'border-red-600 text-red-400 bg-red-900/30' : 'border-red-800/50 text-red-400 hover:bg-red-900/30'}`}>
+              {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
+            </button>
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
+            <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
+              {sparkline && sparkline.values.length >= 2
+                ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels height={80} />
+                : <SparklinePlaceholder height={80} />}
+            </div>
+            <input
+              value={noteVal}
+              onChange={e => setNoteVal(e.target.value)}
+              onBlur={commitNote}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+                if (e.key === 'Escape') { setNoteVal(savedNote); (e.target as HTMLInputElement).blur() }
+              }}
+              className="text-base sm:text-sm px-2 py-1.5 rounded bg-stone-800 border border-stone-700 text-stone-300 placeholder-stone-600 focus:outline-none focus:border-stone-500 transition-colors w-full"
+              placeholder="Add a note..."
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompactCardGrid({ rows, onDelete, pendingDelete, sparklines }: { rows: CardResult[]; onDelete: (name: string, rowKey: string) => void; pendingDelete: string | null; sparklines?: Map<string, { values: number[], dates: string[] }> }) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [editRow, setEditRow] = useState<CardResult | null>(null)
 
@@ -302,42 +392,17 @@ function CompactCardGrid({ rows, onDelete, pendingDelete }: { rows: CardResult[]
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-px">
         {rows.map((row, i) => {
           const rKey = `${row.displayName}-${i}`
-          const isExpanded = expandedKey === rKey
           return (
-            <div key={rKey} className="bg-stone-900 flex flex-col" style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : undefined}>
-              <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-stone-800/60 transition-colors" onClick={() => setExpandedKey(k => k === rKey ? null : rKey)}>
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
-                  {row.condition && row.condition !== 'NM' && <span className="text-xs px-1 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700 shrink-0">{row.condition}</span>}
-                  {row.foil && <span className="text-xs px-1 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">foil</span>}
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-sm text-stone-500 font-mono">${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}</span>
-                  <span className="text-stone-600 text-xs">{isExpanded ? '▲' : '▼'}</span>
-                </div>
-              </div>
-              {isExpanded && (
-                <div className="px-3 pb-3 pt-2 flex flex-col items-center gap-3 border-t border-stone-800">
-                  {row.imageUrl && (
-                    <div className="flex gap-3 justify-center flex-wrap">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={row.imageUrl} alt={row.displayName} className="w-32 rounded-xl shadow-2xl" />
-                      {row.backImageUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-32 rounded-xl shadow-2xl" />
-                      )}
-                    </div>
-                  )}
-                  <div className="flex gap-2 flex-wrap justify-center">
-                    <a href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors">Manapool ↗</a>
-                    <button onClick={() => setEditRow(row)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors">Edit</button>
-                    <button onClick={() => onDelete(row.displayName, row.rowKey ?? row.displayName)} className={`text-xs px-2.5 py-1 rounded border transition-colors ${pendingDelete === (row.rowKey ?? row.displayName) ? 'border-red-600 text-red-400 bg-red-900/30' : 'border-red-800/50 text-red-400 hover:bg-red-900/30'}`}>
-                      {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <CompactCard
+              key={rKey}
+              row={row}
+              onDelete={onDelete}
+              onEdit={setEditRow}
+              pendingDelete={pendingDelete}
+              sparkline={sparklines?.get(row.displayName)}
+              expanded={expandedKey === rKey}
+              onToggleExpand={() => setExpandedKey(k => k === rKey ? null : rKey)}
+            />
           )
         })}
       </div>
@@ -357,23 +422,20 @@ function CardRow({
   row: CardResult
   onDelete: (name: string, rowKey: string) => void
   pendingDelete: string | null
-  sparkline?: number[]
+  sparkline?: { values: number[], dates: string[] }
   expanded: boolean
   onToggleExpand: () => void
 }) {
-  const diff = row.currentPrice != null ? row.currentPrice - row.snapshotPrice : null
-  const [editingNote, setEditingNote] = useState(false)
+  const costBasis = row.purchasePrice != null ? row.purchasePrice : row.snapshotPrice
+  const diff = row.currentPrice != null ? row.currentPrice - costBasis : null
   const [noteVal, setNoteVal] = useState(row.note ?? '')
-  const [currentNote, setCurrentNote] = useState(row.note ?? '')
+  const [savedNote, setSavedNote] = useState(row.note ?? '')
   const [showEdit, setShowEdit] = useState(false)
-  const cancelNoteRef = useRef(false)
 
   function commitNote() {
-    setEditingNote(false)
-    if (cancelNoteRef.current) { cancelNoteRef.current = false; setNoteVal(currentNote); return }
     const trimmed = noteVal.trim()
-    if (trimmed === currentNote) return
-    setCurrentNote(trimmed)
+    if (trimmed === savedNote) return
+    setSavedNote(trimmed)
     fetch('/api/binder/note', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -399,47 +461,8 @@ function CardRow({
               <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">foil</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {editingNote ? (
-              <input
-                autoFocus
-                value={noteVal}
-                onChange={e => setNoteVal(e.target.value)}
-                onBlur={commitNote}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-                  if (e.key === 'Escape') { cancelNoteRef.current = true; (e.target as HTMLInputElement).blur() }
-                }}
-                onClick={e => e.stopPropagation()}
-                className="text-xs px-2 py-0.5 rounded bg-stone-800 border-2 border-amber-700 text-stone-200 placeholder-stone-600 focus:outline-none w-40"
-                placeholder="Add a note..."
-              />
-            ) : (
-              <span
-                onClick={e => { e.stopPropagation(); setNoteVal(currentNote); setEditingNote(true) }}
-                className={`text-xs cursor-text px-1 rounded hover:bg-stone-700 transition-colors ${currentNote ? 'text-stone-500' : 'opacity-0 group-hover:opacity-100 text-stone-600'}`}
-              >
-                {currentNote || '+ note'}
-              </span>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(row.displayName, row.rowKey ?? row.displayName) }}
-              className={`hidden md:inline opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border transition-all ${
-                pendingDelete === (row.rowKey ?? row.displayName)
-                  ? 'border-red-600 text-red-400 bg-red-900/30 opacity-100'
-                  : 'border-stone-700 text-stone-500 hover:border-red-700 hover:text-red-400'
-              }`}
-            >
-              {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
-            </button>
-          </div>
         </div>
       </td>
-      {sparkline && (
-        <td className="hidden md:table-cell px-2 py-3.5">
-          <Sparkline values={sparkline} />
-        </td>
-      )}
       <td className="hidden md:table-cell px-4 py-3.5 text-right text-stone-500 font-mono text-sm">
         {row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}
       </td>
@@ -458,27 +481,27 @@ function CardRow({
     </tr>
     {expanded && (
       <tr className="border-b border-stone-800" style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : { background: 'rgb(28 25 23 / 0.5)' }}>
-        <td colSpan={6} className="px-4 py-4">
-          <div className="flex flex-col items-center gap-3">
+        <td colSpan={5} className="px-4 py-4">
+          <div className="flex gap-4 items-center">
             {row.imageUrl && (
-              <div className="flex gap-3 justify-center flex-wrap">
+              <div className="flex gap-2 shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={row.imageUrl} alt={row.displayName} className="w-40 rounded-xl shadow-2xl" />
+                <img src={row.imageUrl} alt={row.displayName} className="w-28 rounded-xl shadow-2xl" />
                 {row.backImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-40 rounded-xl shadow-2xl" />
+                  <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-28 rounded-xl shadow-2xl" />
                 )}
               </div>
             )}
-            <div className="flex gap-2 flex-wrap justify-center">
+            <div className="flex flex-col gap-1.5 shrink-0">
               <a
                 href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                className="text-xs px-3 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors"
+                className="text-xs px-3 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors text-center"
               >
-                View on Manapool ↗
+                Manapool ↗
               </a>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowEdit(true) }}
@@ -497,7 +520,25 @@ function CardRow({
                 {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
               </button>
             </div>
-
+            <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
+              <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
+                {sparkline && sparkline.values.length >= 2
+                  ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels height={80} />
+                  : <SparklinePlaceholder height={80} />}
+              </div>
+              <input
+                value={noteVal}
+                onChange={e => setNoteVal(e.target.value)}
+                onBlur={commitNote}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+                  if (e.key === 'Escape') { setNoteVal(savedNote); (e.target as HTMLInputElement).blur() }
+                }}
+                onClick={e => e.stopPropagation()}
+                className="text-sm base:text-base sm:text-sm px-2 py-1.5 rounded bg-stone-800 border border-stone-700 text-stone-300 placeholder-stone-600 focus:outline-none focus:border-stone-500 transition-colors w-full"
+                placeholder="Add a note..."
+              />
+            </div>
           </div>
         </td>
       </tr>
@@ -522,18 +563,16 @@ function CardTable({
   rows: CardResult[]
   onDelete: (name: string, rowKey: string) => void
   emptyLabel: string
-  sparklines?: Map<string, number[]>
+  sparklines?: Map<string, { values: number[], dates: string[] }>
   pendingDelete: string | null
 }) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
-  const hasSparklines = sparklines && sparklines.size > 0
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
       <table className="w-full">
         <thead className="border-b border-stone-800">
           <tr>
             <th className="text-left px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Card</th>
-            {hasSparklines && <th className="hidden md:table-cell px-2 py-3" />}
             <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Basis</th>
             <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Now</th>
             <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">%</th>
@@ -543,7 +582,7 @@ function CardTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={hasSparklines ? 6 : 5} className="px-4 py-8 text-center text-stone-600 text-sm">{emptyLabel}</td>
+              <td colSpan={5} className="px-4 py-8 text-center text-stone-600 text-sm">{emptyLabel}</td>
             </tr>
           ) : (
             rows.map((row, i) => {
@@ -612,6 +651,7 @@ export default function BinderPage() {
   // History state
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
   const [binderUpdatedAt, setBinderUpdatedAt] = useState<Date | null>(null)
+  const [cardHistory, setCardHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
 
   useEffect(() => {
     if (localStorage.getItem(LS_CACHE_VERSION) !== CACHE_VERSION) {
@@ -624,9 +664,11 @@ export default function BinderPage() {
     const cachedEntries = localStorage.getItem(LS_BINDER_ENTRIES)
     const cachedResults = localStorage.getItem(LS_BINDER_RESULTS)
     const cachedHistory = localStorage.getItem(LS_BINDER_HISTORY)
+    const cachedCardHistory = localStorage.getItem(LS_BINDER_CARD_HISTORY)
     if (cachedEntries) setEntries(JSON.parse(cachedEntries))
     if (cachedResults) setResults(new Map(JSON.parse(cachedResults)))
     if (cachedHistory) setBinderHistory(JSON.parse(cachedHistory))
+    if (cachedCardHistory) setCardHistory(JSON.parse(cachedCardHistory))
 
     fetch('/api/binder')
       .then(r => r.json())
@@ -639,6 +681,12 @@ export default function BinderPage() {
       if (Array.isArray(h)) {
         setBinderHistory(h)
         localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h))
+      }
+    })
+    fetch('/api/binder/card-history').then(r => r.json()).then(h => {
+      if (h && typeof h === 'object' && !h.error) {
+        setCardHistory(h)
+        localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
       }
     })
 
@@ -835,6 +883,20 @@ export default function BinderPage() {
               localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h))
             }
           })
+          const prices: Record<string, number> = {}
+          prev.forEach(r => { if (r.currentPrice != null) prices[r.displayName] = r.currentPrice })
+          if (Object.keys(prices).length > 0) {
+            fetch('/api/binder/card-history', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prices }),
+            }).then(r => r.json()).then(h => {
+              if (h && typeof h === 'object' && !h.error) {
+                setCardHistory(h)
+                localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
+              }
+            })
+          }
           return prev
         })
       }
@@ -1356,10 +1418,10 @@ return (
               {gainersOpen && (
                 <CardTable
                   rows={gainers}
-
                   onDelete={requestDelete}
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No gainers'}
                   pendingDelete={pendingDelete}
+                  sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
                 />
               )}
             </div>
@@ -1378,10 +1440,10 @@ return (
               {losersOpen && (
                 <CardTable
                   rows={losers}
-
                   onDelete={requestDelete}
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No losers'}
                   pendingDelete={pendingDelete}
+                  sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
                 />
               )}
             </div>
@@ -1403,6 +1465,7 @@ return (
                   rows={flat}
                   onDelete={requestDelete}
                   pendingDelete={pendingDelete}
+                  sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
                 />
               )}
             </div>
