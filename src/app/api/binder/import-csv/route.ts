@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import fs from 'fs'
 import { getMoxfieldPath } from '@/lib/config'
 import { fetchByName, getPrice, sleep, frameSuffix } from '@/lib/scryfall'
-import { readBinder, writeBinder, BinderEntry } from '@/lib/binder'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +34,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const minPrice: number = typeof body.minPrice === 'number' ? body.minPrice : 2.0
 
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return new Response('data: ' + JSON.stringify({ type: 'error', message: 'Unauthorized' }) + '\n\n', {
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  }
+
   const csvPath = getMoxfieldPath()
   if (!csvPath) {
     return new Response('data: ' + JSON.stringify({ type: 'error', message: 'No Moxfield CSV found in scryfall directory' }) + '\n\n', {
@@ -62,10 +70,17 @@ export async function POST(req: NextRequest) {
         const setCode = row['Edition']?.trim().toLowerCase() || undefined
         const foil = row['Foil']?.toLowerCase() === 'foil'
         const count = parseInt(row['Count'] || '1') || 1
+        const purchasePriceRaw = row['Purchase Price']?.trim()
+        const purchasePrice = purchasePriceRaw ? parseFloat(purchasePriceRaw) : null
+        const condition = row['Condition']?.trim() || null
 
-        const entries = readBinder()
-        const exists = entries.find(e => e.baseName.toLowerCase() === name.toLowerCase())
-        if (exists) {
+        const { data: existing } = await supabase
+          .from('binder_cards')
+          .select('base_name')
+          .eq('user_id', user.id)
+          .ilike('base_name', name)
+          .maybeSingle()
+        if (existing) {
           send({ type: 'result', name, status: 'skipped', message: 'Already in binder' })
           continue
         }
@@ -84,21 +99,29 @@ export async function POST(req: NextRequest) {
           continue
         }
 
-        const newEntry: BinderEntry = {
-          displayName: card.name + frameSuffix(card),
-          baseName: card.name,
-          setCode: card.set ?? '',
-          scryfallId: card.id ?? null,
+        const newRow = {
+          user_id: user.id,
+          display_name: card.name + frameSuffix(card),
+          base_name: card.name,
+          set_code: card.set ?? null,
+          scryfall_id: card.id ?? null,
           foil,
           count,
-          snapshotPrice: price,
+          snapshot_price: price,
+          purchase_price: purchasePrice,
+          condition,
           note: null,
-          dateAdded: new Date().toISOString().slice(0, 10),
+          date_added: new Date().toISOString().slice(0, 10),
         }
 
-        writeBinder([...readBinder(), newEntry])
+        const { error } = await supabase.from('binder_cards').insert(newRow)
+        if (error) {
+          send({ type: 'result', name, status: 'error', message: error.message })
+          continue
+        }
+
         added++
-        send({ type: 'result', name: newEntry.displayName, status: 'added', price, setCode: newEntry.setCode })
+        send({ type: 'result', name: newRow.display_name, status: 'added', price, setCode: newRow.set_code })
       }
 
       send({ type: 'done', added })

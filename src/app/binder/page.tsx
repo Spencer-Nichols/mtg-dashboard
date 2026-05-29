@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import CollectionChart from '@/components/CollectionChart'
 
 interface BinderEntry {
   id: string
@@ -440,7 +441,7 @@ function CardRow({
         </td>
       )}
       <td className="hidden md:table-cell px-4 py-3.5 text-right text-stone-500 font-mono">
-        ${row.snapshotPrice.toFixed(2)}
+        {row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `$${row.purchasePrice.toFixed(2)}` : `$${row.snapshotPrice.toFixed(2)}`}
       </td>
       <td className="px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
@@ -533,7 +534,7 @@ function CardTable({
           <tr>
             <th className="text-left px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Card</th>
             {hasSparklines && <th className="hidden md:table-cell px-2 py-3" />}
-            <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Was</th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Paid</th>
             <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Now</th>
             <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">%</th>
             <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">+/-</th>
@@ -976,7 +977,7 @@ return (
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="mt-3 bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={120} fullWidth showLabels />
+            <CollectionChart data={binderHistory} labelFontSize={7} countFontSize={7} />
           </div>
         )}
       </div>
@@ -1010,7 +1011,7 @@ return (
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <Sparkline values={binderSparkValues} dates={binderHistory.map(h => h.date)} counts={binderHistory.map(h => h.card_count ?? null)} width={600} height={180} fullWidth showLabels labelsOnMobile />
+            <CollectionChart data={binderHistory} height={180} labelFontSize={7} countFontSize={14} labelsOnMobile />
           </div>
         )}
         {results.size > 0 && (
