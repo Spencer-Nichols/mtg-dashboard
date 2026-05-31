@@ -14,6 +14,7 @@ interface AdminUser {
   email: string
   lastSeen: string | null
   createdAt: string
+  cardCount: number
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -131,14 +132,24 @@ export default function AdminRequestsPage() {
 
       {users.length > 0 && (
         <div id="admin-users" className="flex flex-col gap-2">
-          <p className="text-xs text-stone-600 uppercase tracking-wider">Users</p>
+          <div className="flex items-baseline justify-between">
+            <p className="text-xs text-stone-600 uppercase tracking-wider">Users</p>
+            <p className="text-xs text-stone-500 font-mono">
+              {users.reduce((sum, u) => sum + u.cardCount, 0).toLocaleString()} cards total
+            </p>
+          </div>
           <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
             {users.sort((a, b) => (b.lastSeen ?? b.createdAt) > (a.lastSeen ?? a.createdAt) ? 1 : -1).map(u => (
               <div key={u.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
                 <p className="text-stone-300 text-sm">{u.email}</p>
-                <span className="text-xs text-stone-600 font-mono shrink-0">
-                  {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
-                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  {u.cardCount > 0 && (
+                    <span className="text-xs text-stone-600 font-mono">{u.cardCount.toLocaleString()} cards</span>
+                  )}
+                  <span className="text-xs text-stone-600 font-mono">
+                    {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
