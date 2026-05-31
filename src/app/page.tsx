@@ -164,6 +164,8 @@ export default function HomePage() {
   const currentTotal = binderHistory.length > 0 ? binderHistory[binderHistory.length - 1].total : null
   const firstTotal = binderHistory.length > 1 ? binderHistory[0].total : null
   const totalDiff = currentTotal != null && firstTotal != null ? currentTotal - firstTotal : null
+  const prevTotal = binderHistory.length > 1 ? binderHistory[binderHistory.length - 2].total : null
+  const dailyDiff = currentTotal != null && prevTotal != null ? currentTotal - prevTotal : null
 
   const binderChart = binderHistory.length > 0 ? (
     <div className="bg-stone-900 border-2 border-amber-900/40 rounded-xl p-5">
@@ -172,11 +174,18 @@ export default function HomePage() {
           <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold mb-1">Binder Value</p>
           <p className="text-2xl font-bold text-stone-100">${currentTotal!.toFixed(2)}</p>
         </div>
-        {totalDiff != null && (
-          <span className={`text-sm font-mono font-semibold ${totalDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {totalDiff >= 0 ? '▲' : '▼'} ${Math.abs(totalDiff).toFixed(2)} all time
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1">
+          {dailyDiff != null && (
+            <span className={`text-sm font-mono font-semibold ${dailyDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {dailyDiff >= 0 ? '▲' : '▼'} ${Math.abs(dailyDiff).toFixed(2)} today
+            </span>
+          )}
+          {totalDiff != null && (
+            <span className={`text-xs font-mono text-stone-500`}>
+              {totalDiff >= 0 ? '▲' : '▼'} ${Math.abs(totalDiff).toFixed(2)} all time
+            </span>
+          )}
+        </div>
       </div>
       <CollectionChart data={binderHistory} />
     </div>
