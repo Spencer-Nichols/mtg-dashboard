@@ -33,11 +33,15 @@ export default function CollectionChart({
   const max = Math.max(...totals)
   const range = max - min || 1
 
-  const x = (i: number) => padX + (i / Math.max(data.length - 1, 1)) * (width - padX * 2)
   const y = (v: number) => padY + (1 - (v - min) / range) * (height - padY * 2)
 
   const firstDate = new Date(data[0].date).getTime()
   const lastDate = new Date(data[data.length - 1].date).getTime()
+  const x = (i: number) => {
+    const d = new Date(data[i].date).getTime()
+    if (lastDate === firstDate) return padX
+    return padX + ((d - firstDate) / (lastDate - firstDate)) * (width - padX * 2)
+  }
   const dateToX = (dateStr: string) => {
     const d = new Date(dateStr).getTime()
     if (lastDate === firstDate) return padX
@@ -91,7 +95,7 @@ export default function CollectionChart({
         ))}
         {xIndices.map(i => (
           <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
-            {data[i].date.slice(5)}
+            {data[i].date.slice(5, 10)}
           </text>
         ))}
       </g>

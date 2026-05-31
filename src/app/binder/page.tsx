@@ -51,6 +51,8 @@ const LS_BINDER_ENTRIES = 'tnk:binder:entries'
 const LS_BINDER_RESULTS = 'tnk:binder:results'
 const LS_BINDER_HISTORY = 'tnk:binder:history'
 const LS_BINDER_CARD_HISTORY = 'tnk:binder:card-history'
+const LS_HIGHLIGHTS = 'tnk:highlights'
+const LS_HISTORY = 'tnk:history'
 const LS_CACHE_VERSION = 'tnk:cache:version'
 const CACHE_VERSION = '2'
 
@@ -102,7 +104,15 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   const padRight = showLabels ? 8 : 1.5
   const padY = showLabels ? 16 : 1.5
   const padBottom = showLabels ? 16 : 1.5
-  const x = (i: number) => padLeft + (values.length > 1 ? (i / (values.length - 1)) : 0) * (width - padLeft - padRight)
+  const firstTs = dates && dates.length > 1 ? new Date(dates[0]).getTime() : 0
+  const lastTs = dates && dates.length > 1 ? new Date(dates[dates.length - 1]).getTime() : 0
+  const x = (i: number) => {
+    if (dates && dates.length > 1 && lastTs !== firstTs) {
+      const t = new Date(dates[i]).getTime()
+      return padLeft + ((t - firstTs) / (lastTs - firstTs)) * (width - padLeft - padRight)
+    }
+    return padLeft + (values.length > 1 ? (i / (values.length - 1)) : 0) * (width - padLeft - padRight)
+  }
   const y = (v: number) => padY + (1 - (v - min) / range) * (height - padY - padBottom)
   const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
   const trend = values[values.length - 1] - values[0]
@@ -906,6 +916,17 @@ export default function BinderPage() {
         setResults(prev => {
           localStorage.setItem(LS_BINDER_RESULTS, JSON.stringify(Array.from(prev.entries())))
           const total = Array.from(prev.values()).reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
+
+          // Keep homepage highlights cache in sync with fresh binder prices
+          const totalDelta = parseFloat(Array.from(prev.values()).reduce((sum, r) => {
+            const costBasis = (r.purchasePrice != null ? r.purchasePrice : r.snapshotPrice) ?? 0
+            return sum + ((r.currentPrice ?? r.snapshotPrice) - costBasis)
+          }, 0).toFixed(2))
+          try {
+            const cached = localStorage.getItem(LS_HIGHLIGHTS)
+            const highlights = cached ? JSON.parse(cached) : {}
+            localStorage.setItem(LS_HIGHLIGHTS, JSON.stringify({ ...highlights, totalDelta }))
+          } catch { /* ignore */ }
           fetch('/api/binder/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -914,6 +935,7 @@ export default function BinderPage() {
             if (Array.isArray(h)) {
               setBinderHistory(h)
               localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h))
+              localStorage.setItem(LS_HISTORY, JSON.stringify(h))
             }
           })
           const prices: Record<string, number> = {}
