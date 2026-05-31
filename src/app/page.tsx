@@ -56,6 +56,10 @@ export default function HomePage() {
   const [topGainers, setTopGainers] = useState<HighlightCard[]>([])
   const [wishlistDrops, setWishlistDrops] = useState<HighlightCard[]>([])
   const [sealedDrops, setSealedDrops] = useState<HighlightCard[]>([])
+  const [totalDelta, setTotalDelta] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    try { const c = localStorage.getItem(LS_HIGHLIGHTS); return c ? (JSON.parse(c).totalDelta ?? null) : null } catch { return null }
+  })
   const [binderHistory, setBinderHistory] = useState<HistoryPoint[]>(() => {
     if (typeof window === 'undefined') return []
     try { const c = localStorage.getItem(LS_HISTORY); return c ? JSON.parse(c) : [] } catch { return [] }
@@ -75,6 +79,7 @@ export default function HomePage() {
       setWishlistDrops(data.wishlistDrops ?? [])
       setSealedDrops(data.sealedDrops ?? [])
       if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
+      if (data.totalDelta != null) setTotalDelta(data.totalDelta)
     }
     fetch('/api/highlights')
       .then(r => r.json())
@@ -83,6 +88,7 @@ export default function HomePage() {
         setWishlistDrops(data.wishlistDrops ?? [])
         setSealedDrops(data.sealedDrops ?? [])
         if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
+        if (data.totalDelta != null) setTotalDelta(data.totalDelta)
         localStorage.setItem(LS_HIGHLIGHTS, JSON.stringify(data))
       })
   }
@@ -165,8 +171,7 @@ export default function HomePage() {
   const currentTotal = binderHistory.length > 0 ? binderHistory[binderHistory.length - 1].total : null
   const firstTotal = binderHistory.length > 1 ? binderHistory[0].total : null
   const totalDiff = currentTotal != null && firstTotal != null ? currentTotal - firstTotal : null
-  const prevTotal = binderHistory.length > 1 ? binderHistory[binderHistory.length - 2].total : null
-  const dailyDiff = currentTotal != null && prevTotal != null ? currentTotal - prevTotal : null
+
 
   const binderChart = binderHistory.length > 0 ? (
     <div className="bg-stone-900 border-2 border-amber-900/40 rounded-xl p-5">
@@ -176,13 +181,13 @@ export default function HomePage() {
           <p className="text-2xl font-bold text-stone-100">${currentTotal!.toFixed(2)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          {dailyDiff != null && (
-            <span className={`text-sm font-mono font-semibold ${dailyDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {dailyDiff >= 0 ? '▲' : '▼'} ${Math.abs(dailyDiff).toFixed(2)} today
+          {totalDelta != null && (
+            <span className={`text-sm font-mono font-semibold ${totalDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {totalDelta >= 0 ? '▲' : '▼'} ${Math.abs(totalDelta).toFixed(2)} vs cost
             </span>
           )}
           {totalDiff != null && (
-            <span className={`text-xs font-mono text-stone-500`}>
+            <span className="text-xs font-mono text-stone-500">
               {totalDiff >= 0 ? '▲' : '▼'} ${Math.abs(totalDiff).toFixed(2)} all time
             </span>
           )}
