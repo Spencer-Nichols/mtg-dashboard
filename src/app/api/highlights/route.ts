@@ -25,6 +25,7 @@ export async function GET() {
 
   const MIN_DOLLAR = 0.25
   const binderGainers: HighlightCard[] = []
+  let totalDelta = 0
   for (const entry of binderRows ?? []) {
     const key = cacheKey(entry.base_name, entry.scryfall_id ?? entry.set_code ?? '')
     const cached = await getCached(key)
@@ -34,6 +35,7 @@ export async function GET() {
     if (currentPrice == null || costBasis <= 0) continue
     const diff = currentPrice - costBasis
     const pct = (diff / costBasis) * 100
+    totalDelta += diff
     if (pct > 0.05 && diff >= MIN_DOLLAR) {
       binderGainers.push({
         displayName: entry.display_name,
@@ -102,5 +104,5 @@ export async function GET() {
 
   const lastUpdated = await getCronTimestamp()
 
-  return NextResponse.json({ topGainers, wishlistDrops, sealedDrops, lastUpdated })
+  return NextResponse.json({ topGainers, wishlistDrops, sealedDrops, lastUpdated, totalDelta: parseFloat(totalDelta.toFixed(2)) })
 }
