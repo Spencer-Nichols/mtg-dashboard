@@ -52,6 +52,7 @@ const LS_BINDER_RESULTS = 'tnk:binder:results'
 const LS_BINDER_HISTORY = 'tnk:binder:history'
 const LS_BINDER_CARD_HISTORY = 'tnk:binder:card-history'
 const LS_HIGHLIGHTS = 'tnk:highlights'
+const LS_HISTORY = 'tnk:history'
 const LS_CACHE_VERSION = 'tnk:cache:version'
 const CACHE_VERSION = '2'
 
