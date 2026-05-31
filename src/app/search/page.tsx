@@ -666,7 +666,7 @@ export default function SearchPage() {
 
             {/* Mobile accordion — hidden on desktop */}
             <div className="lg:hidden space-y-1">
-              <AccordionRow title="Keywords" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
+              <AccordionRow title="Keywords (Most Common)" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
                 <div className="space-y-3">
                   {KEYWORD_CATEGORIES.map(cat => (
                     <div key={cat}>
@@ -685,6 +685,7 @@ export default function SearchPage() {
                       </div>
                     </div>
                   ))}
+                  <p className="text-xs text-stone-600 pt-1">This is a curated selection. Use <span className="font-mono text-stone-500">function:tag</span> in the query field above for hundreds more.</p>
                 </div>
               </AccordionRow>
 
@@ -944,7 +945,7 @@ export default function SearchPage() {
 
           {/* Desktop legend sidebar */}
           <div className="hidden lg:block w-52 shrink-0">
-            <p className="text-xs text-stone-500 uppercase tracking-widest mb-4">Keywords</p>
+            <p className="text-xs text-stone-500 uppercase tracking-widest mb-4">Keywords (Most Common)</p>
             <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
           </div>
         </div>

@@ -141,7 +141,7 @@ export default function AdminRequestsPage() {
           <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
             {users.sort((a, b) => (b.lastSeen ?? b.createdAt) > (a.lastSeen ?? a.createdAt) ? 1 : -1).map(u => (
               <div key={u.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
-                <p className="text-stone-300 text-sm">{u.email}</p>
+                <p className="text-stone-300 text-sm truncate min-w-0">{u.email}</p>
                 <div className="flex items-center gap-3 shrink-0">
                   {u.cardCount > 0 && (
                     <span className="text-xs text-stone-600 font-mono">{u.cardCount.toLocaleString()} cards</span>
