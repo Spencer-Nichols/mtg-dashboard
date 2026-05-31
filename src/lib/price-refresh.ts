@@ -90,7 +90,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: today, price: parseFloat(price.toFixed(2)) })
   }
 
-  const HISTORY_MIN_DELTA = 0.50
+  const HISTORY_MIN_DELTA = 0.25
 
   for (const [userId, total] of userTotals) {
     const newTotal = parseFloat(total.toFixed(2))

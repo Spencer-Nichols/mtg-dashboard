@@ -5,8 +5,8 @@ export async function GET() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('wishlist_card_history')
-    .select('card_name, date, price')
-    .order('date')
+    .select('card_name, recorded_at, price')
+    .order('recorded_at')
 
   if (error) return NextResponse.json({}, { status: 500 })
 
@@ -14,7 +14,7 @@ export async function GET() {
   const history: Record<string, Array<{ date: string; price: number }>> = {}
   for (const row of data ?? []) {
     if (!history[row.card_name]) history[row.card_name] = []
-    history[row.card_name].push({ date: row.date, price: row.price })
+    history[row.card_name].push({ date: row.recorded_at ?? new Date().toISOString(), price: row.price })
   }
 
   return NextResponse.json(history)
@@ -47,13 +47,13 @@ export async function POST(req: NextRequest) {
   // Return in the same shape as GET
   const { data } = await supabase
     .from('wishlist_card_history')
-    .select('card_name, date, price')
-    .order('date')
+    .select('card_name, recorded_at, price')
+    .order('recorded_at')
 
   const history: Record<string, Array<{ date: string; price: number }>> = {}
   for (const row of data ?? []) {
     if (!history[row.card_name]) history[row.card_name] = []
-    history[row.card_name].push({ date: row.date, price: row.price })
+    history[row.card_name].push({ date: row.recorded_at ?? new Date().toISOString(), price: row.price })
   }
 
   return NextResponse.json(history)
