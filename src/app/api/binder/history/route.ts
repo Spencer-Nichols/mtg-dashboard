@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-const HISTORY_MIN_DELTA = 0.50
+const HISTORY_MIN_DELTA = 0.25
 
 async function getHistory(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data, error } = await supabase
