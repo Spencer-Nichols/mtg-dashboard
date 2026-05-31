@@ -90,11 +90,27 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: today, price: parseFloat(price.toFixed(2)) })
   }
 
+  const HISTORY_MIN_DELTA = 0.50
+
   for (const [userId, total] of userTotals) {
-    await supabase.from('binder_history').upsert(
-      { user_id: userId, date: today, total: parseFloat(total.toFixed(2)), card_count: userCounts.get(userId) ?? null },
-      { onConflict: 'user_id,date' }
-    )
+    const newTotal = parseFloat(total.toFixed(2))
+    const { data: lastEntry } = await supabase
+      .from('binder_history')
+      .select('total')
+      .eq('user_id', userId)
+      .order('recorded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const lastTotal = lastEntry?.total ?? null
+    if (lastTotal === null || Math.abs(newTotal - lastTotal) >= HISTORY_MIN_DELTA) {
+      await supabase.from('binder_history').insert({
+        user_id: userId,
+        date: today,
+        total: newTotal,
+        card_count: userCounts.get(userId) ?? null,
+      })
+    }
   }
 
   if (binderCardHistory.length > 0) {
