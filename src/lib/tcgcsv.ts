@@ -26,8 +26,10 @@ export interface TcgPrice {
 const SEALED_KEYWORDS = ['Booster', 'Bundle', 'Display', 'Pack', 'Case', 'Deck', 'Box', 'Draft Night', 'Secret Lair', 'Commander']
 
 export function isSealedProduct(productName: string, groupName: string): boolean {
-  if (!productName.startsWith(groupName + ' - ')) return false
-  const suffix = productName.slice(groupName.length + 3)
+  // Some sets prefix product names with "Magic: The Gathering {groupName}" instead of just "{groupName}"
+  const idx = productName.indexOf(groupName + ' - ')
+  if (idx === -1) return false
+  const suffix = productName.slice(idx + groupName.length + 3)
   return SEALED_KEYWORDS.some(k => suffix.includes(k))
 }
 
@@ -59,7 +61,8 @@ export async function fetchGroupPrices(groupId: number): Promise<Map<number, num
   const map = new Map<number, number | null>()
   for (const p of prices) {
     if (p.subTypeName === 'Normal') {
-      map.set(p.productId, p.marketPrice ?? p.midPrice ?? p.lowPrice ?? null)
+      // marketPrice is the actual market average; midPrice can be skewed by outlier listings
+      map.set(p.productId, p.marketPrice ?? null)
     }
   }
   return map

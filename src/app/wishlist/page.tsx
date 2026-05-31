@@ -59,6 +59,7 @@ const LS_WISHLIST_RESULTS = 'tnk:wishlist:results'
 const LS_WISHLIST_HISTORY = 'tnk:wishlist:history'
 const LS_SEALED_ITEMS = 'tnk:wishlist:sealed'
 const LS_SEALED_RESULTS = 'tnk:wishlist:sealed:results'
+const LS_SEALED_HISTORY = 'tnk:wishlist:sealed:history'
 
 function pctColor(pct: number | null) {
   if (pct === null) return 'text-stone-500'
@@ -212,7 +213,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardR
   )
 }
 
-function SealedCard({ item, onDelete }: { item: SealedResult; onDelete: (id: string) => void }) {
+function SealedCard({ item, onDelete, sparkline }: { item: SealedResult; onDelete: (id: string) => void; sparkline?: number[] }) {
   const suffix = item.productName.includes(' - ')
     ? item.productName.slice(item.productName.indexOf(' - ') + 3)
     : item.productName
@@ -263,6 +264,11 @@ function SealedCard({ item, onDelete }: { item: SealedResult; onDelete: (id: str
             <span className="text-xs text-stone-600 font-mono">was ${item.snapshotPrice.toFixed(2)}</span>
           )}
         </div>
+        {sparkline && sparkline.length >= 2 && (
+          <div className="mt-1">
+            <Sparkline values={sparkline} />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -288,6 +294,7 @@ export default function WishlistPage() {
   const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
+  const [sealedHistory, setSealedHistory] = useState<Record<number, Array<{ date: string; price: number }>>>({})
   const [sealedItems, setSealedItems] = useState<SealedWishlistItem[]>([])
   const [sealedResults, setSealedResults] = useState<Map<string, SealedResult>>(new Map())
   const [sealedStreaming, setSealedStreaming] = useState(false)
@@ -331,6 +338,14 @@ export default function WishlistPage() {
       if (h && typeof h === 'object') {
         setWishlistHistory(h)
         localStorage.setItem(LS_WISHLIST_HISTORY, JSON.stringify(h))
+      }
+    })
+    const cachedSealedHistory = localStorage.getItem(LS_SEALED_HISTORY)
+    if (cachedSealedHistory) setSealedHistory(JSON.parse(cachedSealedHistory))
+    fetch('/api/sealed/history').then(r => r.json()).then(h => {
+      if (h && typeof h === 'object') {
+        setSealedHistory(h)
+        localStorage.setItem(LS_SEALED_HISTORY, JSON.stringify(h))
       }
     })
     fetch('/api/sealed/wishlist')
@@ -973,7 +988,8 @@ export default function WishlistPage() {
                   pct: null,
                   imageUrl: item.imageUrl,
                 }
-                return <SealedCard key={item.id} item={display} onDelete={deleteSealedItem} />
+                const sparkline = sealedHistory[item.tcgProductId]?.map(h => h.price)
+                return <SealedCard key={item.id} item={display} onDelete={deleteSealedItem} sparkline={sparkline} />
               })}
             </div>
           ) : (
