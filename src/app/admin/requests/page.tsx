@@ -70,8 +70,8 @@ export default function AdminRequestsPage() {
   }
 
   const pending = requests.filter(r => r.status === 'pending')
-  const userEmails = new Set(users.map(u => u.email.toLowerCase()))
-  const handled = requests.filter(r => r.status !== 'pending' && !(r.status === 'approved' && userEmails.has(r.email.toLowerCase())))
+  const activeUserEmails = new Set(users.filter(u => u.lastSeen).map(u => u.email.toLowerCase()))
+  const handled = requests.filter(r => r.status !== 'pending' && !(r.status === 'approved' && activeUserEmails.has(r.email.toLowerCase())))
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
