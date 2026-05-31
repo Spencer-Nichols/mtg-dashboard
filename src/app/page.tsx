@@ -56,7 +56,10 @@ export default function HomePage() {
   const [topGainers, setTopGainers] = useState<HighlightCard[]>([])
   const [wishlistDrops, setWishlistDrops] = useState<HighlightCard[]>([])
   const [sealedDrops, setSealedDrops] = useState<HighlightCard[]>([])
-  const [binderHistory, setBinderHistory] = useState<HistoryPoint[]>([])
+  const [binderHistory, setBinderHistory] = useState<HistoryPoint[]>(() => {
+    if (typeof window === 'undefined') return []
+    try { const c = localStorage.getItem(LS_HISTORY); return c ? JSON.parse(c) : [] } catch { return [] }
+  })
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [faceIndex, setFaceIndex] = useState(0)
   const [isDesktop, setIsDesktop] = useState(true)
@@ -97,8 +100,6 @@ export default function HomePage() {
       }
     })
 
-    const cachedHistory = localStorage.getItem(LS_HISTORY)
-    if (cachedHistory) setBinderHistory(JSON.parse(cachedHistory))
     fetch('/api/binder/history').then(r => r.json()).then(h => {
       if (Array.isArray(h)) {
         setBinderHistory(h)
