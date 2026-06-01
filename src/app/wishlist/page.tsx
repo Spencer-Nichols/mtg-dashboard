@@ -228,9 +228,11 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl }: { item: SealedR
           className="block"
           title="View on TCGPlayer"
         >
-          {item.imageUrl
-            ? <img src={item.imageUrl} alt={item.productName} className="w-full block group-hover:brightness-110 transition-all" />
-            : <div className="aspect-[4/3] bg-stone-800" />}
+          <div className="aspect-[4/3] bg-white flex items-center justify-center">
+            {item.imageUrl
+              ? <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain group-hover:brightness-110 transition-all" />
+              : null}
+          </div>
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-10 pointer-events-none">
             <span className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/60 text-amber-400 font-medium">View on TCGPlayer</span>
           </div>
@@ -639,7 +641,7 @@ export default function WishlistPage() {
   const pending = rows.filter(r => r.pct === null)
   const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD)
   const sealedBuySuggestions = Array.from(sealedResults.values()).filter(r => r.pct !== null && r.pct <= -10)
-  const ATL_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
+  const ATL_WINDOW_MS = 24 * 60 * 60 * 1000
   const atlCutoff = Date.now() - ATL_WINDOW_MS
 
   function isAtlPrice(currentPrice: number | null | undefined, productId: number) {

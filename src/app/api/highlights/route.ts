@@ -96,7 +96,7 @@ export async function GET() {
     .select('product_name, tcg_product_id, snapshot_price, image_url')
     .eq('user_id', user.id)
 
-  const atlCutoff = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+  const atlCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: sealedHistoryRows } = await supabase
     .from('sealed_wishlist_history')
     .select('tcg_product_id, recorded_at, price')

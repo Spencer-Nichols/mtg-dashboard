@@ -502,6 +502,7 @@ function CardRow({
         )}
       </td>
       <td className={`hidden md:table-cell px-4 py-3.5 text-right font-mono ${
+        diff != null && diff < 0 && (row.dailyPct ?? 0) > 0 ? 'text-amber-500' :
         diff != null && diff < 0 ? 'text-red-400' :
         diff != null && diff > 0 && (row.dailyPct ?? 0) < 0 ? 'text-amber-500' :
         diff != null && diff > 0 ? 'text-green-400' :
