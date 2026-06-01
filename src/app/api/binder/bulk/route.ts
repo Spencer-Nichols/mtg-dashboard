@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fetchByName, fetchBySetAndNumber, getPrice, sleep, frameSuffix } from '@/lib/scryfall'
+import { fetchByName, fetchBySetAndNumber, getPriceByFoilType, sleep, frameSuffix, FoilType } from '@/lib/scryfall'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,10 +14,10 @@ function parseLine(raw: string): { name: string; setCode?: string; collectorNumb
   let setCode: string | undefined
   let collectorNumber: string | undefined
 
-  // Strip " // foil" from the end first (export format for foil cards)
-  const foilTail = line.match(/\s+\/\/\s+foil\s*$/i)
+  // Strip " // foil" or " // etched" from the end first (export format)
+  const foilTail = line.match(/\s+\/\/\s+(foil|etched)\s*$/i)
   if (foilTail) {
-    note = 'foil'
+    note = foilTail[1].toLowerCase()
     line = line.slice(0, foilTail.index!).trim()
   }
 
@@ -97,8 +97,8 @@ export async function POST(req: NextRequest) {
           continue
         }
 
-        const isFoil = note === 'foil'
-        const price = getPrice(card, isFoil)
+        const foilType: FoilType = note === 'foil' ? 'foil' : note === 'etched' ? 'etched' : 'none'
+        const price = getPriceByFoilType(card, foilType) ?? getPriceByFoilType(card, 'none')
         if (!price) {
           send({ type: 'result', name, status: 'error', message: 'No price data' })
           continue
@@ -110,10 +110,10 @@ export async function POST(req: NextRequest) {
           base_name: card.name,
           set_code: card.set ?? null,
           scryfall_id: card.id ?? null,
-          foil: isFoil,
+          foil_type: foilType,
           count: 1,
           snapshot_price: price,
-          note: isFoil ? null : (note || null),
+          note: foilType !== 'none' ? null : (note || null),
           date_added: new Date().toISOString().slice(0, 10),
         }
 

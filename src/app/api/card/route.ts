@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
       setName: c.set_name,
       price: c.prices.usd ? parseFloat(c.prices.usd) : null,
       foilPrice: c.prices.usd_foil ? parseFloat(c.prices.usd_foil) : null,
+      etchedPrice: c.prices.usd_etched ? parseFloat(c.prices.usd_etched) : null,
       type_line: c.type_line,
       collectorNumber: c.collector_number,
       rarity: c.rarity,

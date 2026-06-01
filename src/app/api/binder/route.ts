@@ -21,7 +21,7 @@ export async function GET() {
       baseName: row.base_name,
       setCode: row.set_code ?? '',
       scryfallId: row.scryfall_id,
-      foil: row.foil,
+      foilType: row.foil_type ?? 'none',
       count: row.count,
       snapshotPrice: row.snapshot_price ?? 0,
       purchasePrice: row.purchase_price ?? null,

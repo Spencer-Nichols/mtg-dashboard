@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fetchByName, fetchById, getPrice, sleep } from '@/lib/scryfall'
-import { getCached, setCached, cacheKey, setCronTimestamp } from '@/lib/cache'
+import { fetchByName, fetchById, getPrice, getPriceByFoilType, sleep } from '@/lib/scryfall'
+import { getCached, setCached, getCachedPriceByFoilType, cacheKey, setCronTimestamp } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('binder_cards')
-    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price, purchase_price, condition')
+    .select('display_name, base_name, set_code, scryfall_id, foil_type, snapshot_price, purchase_price, condition')
     .eq('user_id', user.id)
     .order('created_at')
 
@@ -39,9 +39,10 @@ export async function GET(req: NextRequest) {
         let imageUrl: string | null = null
         let backImageUrl: string | null = null
 
+        const foilType = entry.foil_type ?? 'none'
         const cached = bust ? null : await getCached(key)
         if (cached) {
-          currentPrice = entry.foil ? (cached.foilPrice ?? cached.price) : cached.price
+          currentPrice = getCachedPriceByFoilType(cached, foilType)
           imageUrl = cached.imageUrl ?? null
           backImageUrl = cached.backImageUrl ?? null
         } else {
@@ -52,10 +53,11 @@ export async function GET(req: NextRequest) {
           if (card) {
             const price = getPrice(card, false)
             const foilPrice = getPrice(card, true)
+            const etchedPrice = getPriceByFoilType(card, 'etched')
             imageUrl = card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? null
             backImageUrl = card.card_faces?.[1]?.image_uris?.normal ?? null
-            await setCached(key, price, foilPrice, imageUrl, { backImageUrl })
-            currentPrice = entry.foil ? (foilPrice ?? price) : price
+            await setCached(key, price, foilPrice, imageUrl, { backImageUrl, etchedPrice })
+            currentPrice = getPriceByFoilType(card, foilType)
           }
         }
 
@@ -69,7 +71,7 @@ export async function GET(req: NextRequest) {
           index: i,
           displayName: entry.display_name,
           setCode: entry.set_code,
-          foil: entry.foil,
+          foilType: foilType,
           snapshotPrice: entry.snapshot_price ?? 0,
           purchasePrice: entry.purchase_price ?? null,
           condition: entry.condition ?? null,

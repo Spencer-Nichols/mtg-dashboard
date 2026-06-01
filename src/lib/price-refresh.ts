@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/service'
-import { fetchByName, fetchById, getPrice, sleep } from '@/lib/scryfall'
-import { getCached, setCached, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
+import { fetchByName, fetchById, getPrice, getPriceByFoilType, sleep } from '@/lib/scryfall'
+import { getCached, setCached, getCachedPriceByFoilType, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
 
 const STALE_MS = 6 * 60 * 60 * 1000
 
@@ -22,7 +22,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
   const supabase = createServiceClient()
 
   const [{ data: binderRows }, { data: wishlistRows }] = await Promise.all([
-    supabase.from('binder_cards').select('user_id, display_name, base_name, set_code, scryfall_id, foil, snapshot_price'),
+    supabase.from('binder_cards').select('user_id, display_name, base_name, set_code, scryfall_id, foil_type, snapshot_price'),
     supabase.from('wishlist_singles').select('user_id, name, set_code, scryfall_id'),
   ])
 
@@ -60,12 +60,14 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     if (scryfallCard) {
       const price = getPrice(scryfallCard, false)
       const foilPrice = getPrice(scryfallCard, true)
+      const etchedPrice = getPriceByFoilType(scryfallCard, 'etched')
       const imageUrl = scryfallCard.image_uris?.normal ?? scryfallCard.card_faces?.[0]?.image_uris?.normal ?? null
       await setCached(key, price, foilPrice, imageUrl, {
         setName: scryfallCard.set_name ?? undefined,
         setCode: scryfallCard.set ?? undefined,
         rarity: scryfallCard.rarity ?? undefined,
         typeLine: scryfallCard.type_line ?? undefined,
+        etchedPrice,
       })
       fetched++
     }
@@ -83,7 +85,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     const key = cacheKey(row.base_name, row.scryfall_id ?? row.set_code ?? '')
     const cached = await getCached(key)
     if (!cached) continue
-    const price = row.foil ? (cached.foilPrice ?? cached.price) : cached.price
+    const price = getCachedPriceByFoilType(cached, row.foil_type ?? 'none')
     if (price == null) continue
     userTotals.set(row.user_id, (userTotals.get(row.user_id) ?? 0) + price)
     binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: today, price: parseFloat(price.toFixed(2)) })
