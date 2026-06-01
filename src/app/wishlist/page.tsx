@@ -93,7 +93,7 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
-function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isDismissed, onDismiss }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[]; isStale?: boolean; isDismissed?: boolean; onDismiss?: () => void }) {
+function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[]; isStale?: boolean }) {
   const [editingNote, setEditingNote] = useState(false)
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
@@ -150,11 +150,6 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isDis
               flat 2d
             </div>
           )}
-          {isDismissed && (
-            <div className="text-xs px-2 py-0.5 rounded-full bg-red-950/60 text-red-500 backdrop-blur-sm">
-              dismissed
-            </div>
-          )}
         </div>
         <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <button
@@ -199,14 +194,6 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isDis
             <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
           )}
         </div>
-        {onDismiss && (
-          <button
-            onClick={onDismiss}
-            className="self-start text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
-          >
-            Dismiss
-          </button>
-        )}
         {editingNote ? (
           <input
             autoFocus
@@ -1007,12 +994,20 @@ export default function WishlistPage() {
             {buySuggestions.map(r => {
               const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
               return (
-                <div key={r.displayName} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
+                <div key={r.displayName} className="group relative bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
                   <p className="text-stone-200 text-sm font-medium">{r.displayName}</p>
                   <p className="text-green-400 text-xs font-mono mt-0.5">
                     ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
                     {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
                   </p>
+                  {r.currentPrice != null && (
+                    <button
+                      onClick={() => dismissWishlistCard(r.displayName, r.currentPrice!)}
+                      className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      Dismiss
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -1020,13 +1015,21 @@ export default function WishlistPage() {
               const suffix = r.productName.includes(' - ') ? r.productName.slice(r.productName.indexOf(' - ') + 3) : r.productName
               const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
               return (
-                <div key={r.id} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
+                <div key={r.id} className="group relative bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
                   <p className="text-stone-200 text-sm font-medium">{suffix}</p>
                   <p className="text-xs text-stone-500">{r.setName}</p>
                   <p className="text-green-400 text-xs font-mono mt-0.5">
                     ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
                     {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
                   </p>
+                  {r.currentPrice != null && (
+                    <button
+                      onClick={() => dismissSealed(r.productId, r.currentPrice!)}
+                      className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      Dismiss
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -1116,7 +1119,7 @@ export default function WishlistPage() {
               {losersOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
                   {[...losers].sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0)).map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} onDismiss={row.currentPrice != null ? () => dismissWishlistCard(row.displayName, row.currentPrice!) : undefined} />
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
                   ))}
                 </div>
               )}
@@ -1150,7 +1153,7 @@ export default function WishlistPage() {
               {watchingOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
                   {[...flat, ...pending].map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} isDismissed={isWishlistCardDismissed(row.displayName, row.currentPrice)} />
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} />
                   ))}
                 </div>
               )}

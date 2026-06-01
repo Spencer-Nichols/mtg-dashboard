@@ -49,7 +49,7 @@ function parseLine(raw: string): { name: string; setCode?: string; collectorNumb
 }
 
 export async function POST(req: NextRequest) {
-  const { lines } = await req.json() as { lines: string[] }
+  const { lines, minPrice } = await req.json() as { lines: string[]; minPrice?: number }
   if (!Array.isArray(lines) || lines.length === 0) {
     return new Response('data: ' + JSON.stringify({ type: 'error', message: 'No lines provided' }) + '\n\n', {
       headers: { 'Content-Type': 'text/event-stream' },
@@ -101,6 +101,11 @@ export async function POST(req: NextRequest) {
         const price = getPriceByFoilType(card, foilType) ?? getPriceByFoilType(card, 'none')
         if (!price) {
           send({ type: 'result', name, status: 'error', message: 'No price data' })
+          continue
+        }
+
+        if (minPrice != null && price < minPrice) {
+          send({ type: 'result', name: card.name + frameSuffix(card), status: 'skipped', message: `Below $${minPrice.toFixed(2)} threshold`, price })
           continue
         }
 
