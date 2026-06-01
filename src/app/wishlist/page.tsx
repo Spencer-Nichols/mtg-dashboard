@@ -313,6 +313,7 @@ export default function WishlistPage() {
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
   const [sealedHistory, setSealedHistory] = useState<Record<number, Array<{ date: string; price: number }>>>({})
+  const [sealedLastTriggered, setSealedLastTriggered] = useState<Date | null>(null)
   const [sealedItems, setSealedItems] = useState<SealedWishlistItem[]>([])
   const [sealedResults, setSealedResults] = useState<Map<string, SealedResult>>(new Map())
   const [sealedStreaming, setSealedStreaming] = useState(false)
@@ -360,6 +361,8 @@ export default function WishlistPage() {
     })
     const cachedSealedHistory = localStorage.getItem(LS_SEALED_HISTORY)
     if (cachedSealedHistory) setSealedHistory(JSON.parse(cachedSealedHistory))
+    const triggered = localStorage.getItem('tnk:sealed:last_triggered')
+    if (triggered) setSealedLastTriggered(new Date(triggered))
     fetch('/api/sealed/history').then(r => r.json()).then(h => {
       if (h && typeof h === 'object') {
         setSealedHistory(h)
@@ -988,9 +991,10 @@ export default function WishlistPage() {
                 {sealedStreaming && ` · loading ${sealedProgress}/${sealedTotal}`}
                 {!sealedStreaming && (() => {
                   const allDates = Object.values(sealedHistory).flat().map(e => e.date)
-                  if (allDates.length === 0) return null
-                  const latest = new Date(Math.max(...allDates.map(d => new Date(d).getTime())))
-                  const mins = Math.floor((Date.now() - latest.getTime()) / 60000)
+                  const historyDate = allDates.length > 0 ? new Date(Math.max(...allDates.map(d => new Date(d).getTime()))) : null
+                  const reference = [historyDate, sealedLastTriggered].filter(Boolean).reduce<Date | null>((a, b) => (a && b ? (a > b ? a : b) : a ?? b), null)
+                  if (!reference) return null
+                  const mins = Math.floor((Date.now() - reference.getTime()) / 60000)
                   const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`
                   return ` · updated ${label}`
                 })()}
