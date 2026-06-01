@@ -25,6 +25,8 @@ interface CardResult {
   condition?: string | null
   currentPrice: number | null
   pct: number | null
+  dailyPct: number | null
+  dailyBaseline: number | null
   imageUrl: string | null
   backImageUrl?: string | null
   fromCache?: boolean
@@ -839,11 +841,11 @@ export default function BinderPage() {
       setAddQuery('')
       setResults(prev => {
         const next = new Map(prev)
-        next.set(makeRowKey(data.name, data.setCode, false), { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, imageUrl: data.imageUrl ?? null, fromCache: false })
+        next.set(makeRowKey(data.name, data.setCode, false), { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, imageUrl: data.imageUrl ?? null, fromCache: false })
         return next
       })
       fetch('/api/binder').then(r => r.json()).then(d => setEntries(d.entries))
-      setPostAddRow({ displayName: data.name, setCode: data.setCode, foil: false, snapshotPrice: data.price, currentPrice: data.price, pct: 0, purchasePrice: null, condition: null, imageUrl: data.imageUrl ?? null, fromCache: false })
+      setPostAddRow({ displayName: data.name, setCode: data.setCode, foil: false, snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, purchasePrice: null, condition: null, imageUrl: data.imageUrl ?? null, fromCache: false })
     }
     setAddLoading(false)
   }
@@ -1016,6 +1018,8 @@ export default function BinderPage() {
   }
 
   // --- Binder derived data ---
+  const todayStr = new Date().toISOString().split('T')[0]
+
   const rows: CardResult[] = entries.map(e => {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foil)
     const result = results.get(rKey)
@@ -1024,19 +1028,24 @@ export default function BinderPage() {
     const pct = currentPrice != null && costBasis > 0
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
+    const priorEntries = (cardHistory[e.displayName] ?? []).filter(h => h.date.split('T')[0] < todayStr)
+    const dailyBaseline = priorEntries.length > 0 ? priorEntries[priorEntries.length - 1].price : null
+    const dailyPct = currentPrice != null && dailyBaseline != null && dailyBaseline > 0
+      ? ((currentPrice - dailyBaseline) / dailyBaseline) * 100
+      : null
     return result
-      ? { ...result, pct, rowKey: rKey, foil: e.foil, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
-      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, imageUrl: null, fromCache: false, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
+      ? { ...result, pct, dailyPct, dailyBaseline, rowKey: rKey, foil: e.foil, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
+      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, imageUrl: null, fromCache: false, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
   })
 
   const filteredRows = searchQuery.trim()
     ? rows.filter(r => r.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
     : rows
 
-  const MIN_DOLLAR = 0.25
-  const gainers = filteredRows.filter(r => (r.pct ?? 0) > 0.05 && (r.currentPrice ?? 0) - (r.purchasePrice ?? r.snapshotPrice) >= MIN_DOLLAR).sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
-  const losers = filteredRows.filter(r => (r.pct ?? 0) < -0.05 && (r.purchasePrice ?? r.snapshotPrice) - (r.currentPrice ?? 0) >= MIN_DOLLAR).sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0))
-  const flat = filteredRows.filter(r => r.pct === null || Math.abs(r.pct) <= 0.05 || (Math.abs((r.currentPrice ?? 0) - (r.purchasePrice ?? r.snapshotPrice)) < MIN_DOLLAR))
+  const MIN_DAILY_PCT = 2
+  const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
+  const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
+  const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT)
   const pending = filteredRows.filter(r => r.pct === null)
   const sellSuggestions = filteredRows.filter(r => r.pct !== null && r.pct <= SELL_THRESHOLD)
 
@@ -1046,8 +1055,8 @@ export default function BinderPage() {
   const totalPct = totalDelta != null && totalSnapshotValue > 0 ? (totalDelta / totalSnapshotValue) * 100 : null
   const binderSparkValues = binderHistory.map(h => h.total)
 
-  const gainersDelta = gainers.reduce((sum, r) => sum + ((r.currentPrice ?? r.snapshotPrice) - r.snapshotPrice), 0)
-  const losersDelta = losers.reduce((sum, r) => sum + ((r.currentPrice ?? r.snapshotPrice) - r.snapshotPrice), 0)
+  const gainersDelta = gainers.reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
+  const losersDelta = losers.reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
 
 return (
     <div>
@@ -1144,11 +1153,11 @@ return (
         )}
         {results.size > 0 && (
           <div className="mt-3 pt-3 border-t border-stone-800 flex items-center gap-4">
-            <span className={`text-sm font-semibold ${gainersDelta > 0 ? 'text-green-400' : 'text-stone-600'}`}>
+            <span className={`text-sm font-semibold whitespace-nowrap ${gainersDelta > 0 ? 'text-green-400' : 'text-stone-600'}`}>
               ▲ {gainers.length}{gainersDelta > 0 ? ` · +$${gainersDelta.toFixed(2)}` : ''}
             </span>
             <span className="text-stone-700">·</span>
-            <span className={`text-sm font-semibold ${losersDelta < 0 ? 'text-red-400' : 'text-stone-600'}`}>
+            <span className={`text-sm font-semibold whitespace-nowrap ${losersDelta < 0 ? 'text-red-400' : 'text-stone-600'}`}>
               ▼ {losers.length}{losersDelta < 0 ? ` · -$${Math.abs(losersDelta).toFixed(2)}` : ''}
             </span>
             <span className="text-stone-700">·</span>

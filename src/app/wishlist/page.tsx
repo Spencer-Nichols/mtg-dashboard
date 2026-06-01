@@ -639,11 +639,19 @@ export default function WishlistPage() {
   const pending = rows.filter(r => r.pct === null)
   const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD)
   const sealedBuySuggestions = Array.from(sealedResults.values()).filter(r => r.pct !== null && r.pct <= -10)
+  const ATL_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
+  const atlCutoff = Date.now() - ATL_WINDOW_MS
+
+  function isAtlPrice(currentPrice: number | null | undefined, productId: number) {
+    if (currentPrice == null) return false
+    const older = (sealedHistory[productId] ?? []).filter(h => new Date(h.date).getTime() < atlCutoff)
+    if (older.length === 0) return false
+    return currentPrice < Math.min(...older.map(h => h.price))
+  }
+
   const atlSealedItems = sealedItems.filter(item => {
     const currentPrice = sealedResults.get(item.id)?.currentPrice
-    const history = sealedHistory[item.tcgProductId]?.map(h => h.price) ?? []
-    if (currentPrice == null || history.length < 2) return false
-    return currentPrice < Math.min(...history)
+    return isAtlPrice(currentPrice, item.tcgProductId)
   })
   const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
 
@@ -970,8 +978,7 @@ export default function WishlistPage() {
                   imageUrl: item.imageUrl,
                 }
                 const history = sealedHistory[item.tcgProductId]?.map(h => h.price) ?? []
-                const atl = history.length >= 2 ? Math.min(...history) : null
-                const isAtl = display.currentPrice != null && atl != null && display.currentPrice < atl
+                const isAtl = isAtlPrice(display.currentPrice, item.tcgProductId)
                 const sparkline = history.length > 0 ? history : undefined
                 return <SealedCard key={item.id} item={display} onDelete={deleteSealedItem} sparkline={sparkline} isAtl={isAtl} />
               })}

@@ -26,6 +26,7 @@ interface HighlightCard {
   currentPrice: number
   pct: number
   imageUrl: string | null
+  isAtl?: boolean
 }
 
 interface HistoryPoint {
@@ -418,7 +419,7 @@ export default function HomePage() {
 
           {sealedDrops.length > 0 && (
             <div id="sidebar-sealed-drops">
-              <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Sealed Drops</h3>
+              <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Sealed All-Time Low</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
                 {sealedDrops.map(c => {
                   const suffix = c.displayName.includes(' - ') ? c.displayName.slice(c.displayName.indexOf(' - ') + 3) : c.displayName
@@ -436,7 +437,7 @@ export default function HomePage() {
                         <p className="text-xs text-stone-200 font-medium truncate">{suffix}</p>
                         <p className="text-xs text-stone-600 font-mono">${c.snapshotPrice.toFixed(2)} → ${c.currentPrice.toFixed(2)}</p>
                       </div>
-                      <span className="text-xs font-bold text-red-400 font-mono shrink-0">▼{Math.abs(c.pct).toFixed(1)}%</span>
+                      <span className="text-xs font-bold text-green-400 font-mono shrink-0">↓ ATL</span>
                     </button>
                   )
                 })}
