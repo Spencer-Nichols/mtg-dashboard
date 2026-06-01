@@ -76,6 +76,12 @@ function pctLabel(pct: number | null, currentPrice?: number | null, purchasePric
   return `${arrow}${Math.abs(pct).toFixed(1)}%`
 }
 
+function dailyPctLabel(dailyPct: number | null) {
+  if (dailyPct === null) return null
+  const arrow = dailyPct > 0 ? '▲' : dailyPct < 0 ? '▼' : ''
+  return `${arrow}${Math.abs(dailyPct).toFixed(1)}% today`
+}
+
 function CardImage({ src, alt, className }: { src: string | null | undefined; alt: string; className: string }) {
   const [failed, setFailed] = useState(false)
   if (!src || failed) {
@@ -487,10 +493,20 @@ function CardRow({
           {row.purchasePrice === 0 ? 'booster pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}
         </p>
       </td>
-      <td className={`px-4 py-3.5 text-right font-mono font-semibold ${pctColor(row.pct, row.purchasePrice)}`}>
-        {pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
+      <td className={`px-4 py-3.5 text-right font-mono font-semibold ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
+        {row.dailyPct != null ? dailyPctLabel(row.dailyPct) : pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
+        {row.dailyPct != null && row.pct != null && (
+          <p className={`text-xs font-normal ${pctColor(row.pct, row.purchasePrice)}`}>
+            {pctLabel(row.pct, row.currentPrice, row.purchasePrice)} overall
+          </p>
+        )}
       </td>
-      <td className={`hidden md:table-cell px-4 py-3.5 text-right font-mono ${diff != null && diff < 0 ? 'text-red-400' : diff != null && diff > 0 ? 'text-green-400' : 'text-stone-500'}`}>
+      <td className={`hidden md:table-cell px-4 py-3.5 text-right font-mono ${
+        diff != null && diff < 0 ? 'text-red-400' :
+        diff != null && diff > 0 && (row.dailyPct ?? 0) < 0 ? 'text-amber-500' :
+        diff != null && diff > 0 ? 'text-green-400' :
+        'text-stone-500'
+      }`}>
         {diff != null ? `${diff >= 0 ? '+' : ''}$${diff.toFixed(2)}` : '—'}
       </td>
     </tr>
