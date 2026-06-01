@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getCached, getCachedPriceByFoilType, getCronTimestamp, cacheKey, getSealedPrice } from '@/lib/cache'
+import { getCached, getCachedPriceByFoilType, getCronTimestamp, cacheKey } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,29 +102,35 @@ export async function GET() {
     .from('sealed_wishlist_history')
     .select('tcg_product_id, recorded_at, price')
     .eq('user_id', user.id)
-    .lt('recorded_at', atlCutoff)
+    .order('recorded_at', { ascending: false })
 
-  const sealedHistoryMap = new Map<number, number[]>()
+  const latestSealedPriceMap = new Map<number, number>()
+  const sealedOlderPricesMap = new Map<number, number[]>()
   for (const row of sealedHistoryRows ?? []) {
-    const arr = sealedHistoryMap.get(row.tcg_product_id) ?? []
-    arr.push(row.price)
-    sealedHistoryMap.set(row.tcg_product_id, arr)
+    if (!latestSealedPriceMap.has(row.tcg_product_id)) {
+      latestSealedPriceMap.set(row.tcg_product_id, row.price)
+    }
+    if (row.recorded_at < atlCutoff) {
+      const arr = sealedOlderPricesMap.get(row.tcg_product_id) ?? []
+      arr.push(row.price)
+      sealedOlderPricesMap.set(row.tcg_product_id, arr)
+    }
   }
 
   const sealedDrops: HighlightCard[] = []
   for (const item of sealedRows ?? []) {
-    const cached = await getSealedPrice(item.tcg_product_id)
-    if (cached === 'miss' || cached === null) continue
+    const currentPrice = latestSealedPriceMap.get(item.tcg_product_id)
+    if (currentPrice == null) continue
     const snapshotPrice = item.snapshot_price ?? 0
     if (snapshotPrice <= 0) continue
-    const pct = ((cached - snapshotPrice) / snapshotPrice) * 100
-    const olderPrices = sealedHistoryMap.get(item.tcg_product_id) ?? []
-    const isAtl = olderPrices.length > 0 && cached < Math.min(...olderPrices)
+    const pct = ((currentPrice - snapshotPrice) / snapshotPrice) * 100
+    const olderPrices = sealedOlderPricesMap.get(item.tcg_product_id) ?? []
+    const isAtl = olderPrices.length > 0 && currentPrice < Math.min(...olderPrices)
     if (isAtl) {
       sealedDrops.push({
         displayName: item.product_name,
         snapshotPrice,
-        currentPrice: cached,
+        currentPrice,
         pct,
         imageUrl: item.image_url ?? null,
         isAtl,

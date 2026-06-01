@@ -46,17 +46,7 @@ export function cacheKey(name: string, setCode: string) {
   return `price:${name.toLowerCase()}|${setCode.toLowerCase()}`
 }
 
-const SEALED_PRICE_TTL = 25 * 60 * 60
 const SEALED_GROUPS_TTL = 24 * 60 * 60
-
-export async function getSealedPrice(productId: number): Promise<number | null | 'miss'> {
-  const result = await redis.get<{ price: number | null }>(`tcgcsv:price:${productId}`)
-  return result === null ? 'miss' : result.price
-}
-
-export async function setSealedPrice(productId: number, price: number | null) {
-  await redis.set(`tcgcsv:price:${productId}`, { price }, { ex: SEALED_PRICE_TTL })
-}
 
 export async function getSealedGroups(): Promise<unknown[] | null> {
   return redis.get<unknown[]>('tcgcsv:groups')
