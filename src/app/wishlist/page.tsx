@@ -482,7 +482,7 @@ export default function WishlistPage() {
     setSealedProgress(0)
     setSealedStreaming(true)
 
-    const es = new EventSource(`/api/sealed/stream${bust ? '?bust=true' : ''}`)
+    const es = new EventSource('/api/sealed/stream')
     sealedEsRef.current = es
 
     es.onmessage = e => {
