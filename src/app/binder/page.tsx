@@ -79,7 +79,7 @@ function pctLabel(pct: number | null, currentPrice?: number | null, purchasePric
 function dailyPctLabel(dailyPct: number | null) {
   if (dailyPct === null) return null
   const arrow = dailyPct > 0 ? '▲' : dailyPct < 0 ? '▼' : ''
-  return `${arrow}${Math.abs(dailyPct).toFixed(1)}% today`
+  return <>{arrow}{Math.abs(dailyPct).toFixed(1)}% <span className="text-xs font-normal">today</span></>
 }
 
 function CardImage({ src, alt, className }: { src: string | null | undefined; alt: string; className: string }) {
@@ -484,16 +484,13 @@ function CardRow({
           </div>
         </div>
       </td>
-      <td className="hidden md:table-cell px-4 py-3.5 text-right text-stone-500 font-mono text-sm">
+      <td className="hidden md:table-cell lg:hidden xl:table-cell px-4 py-3.5 text-right text-stone-500 font-mono text-sm">
         {row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}
       </td>
-      <td className="px-4 py-3.5 text-right font-mono text-stone-200">
+      <td className="hidden md:table-cell lg:hidden xl:table-cell px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
-        <p className="md:hidden text-xs text-stone-600">
-          {row.purchasePrice === 0 ? 'booster pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}
-        </p>
       </td>
-      <td className={`px-4 py-3.5 text-right font-mono font-semibold ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
+      <td className={`px-2 py-3.5 text-right font-mono font-semibold whitespace-nowrap ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
         {row.dailyPct != null ? dailyPctLabel(row.dailyPct) : pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
         {row.dailyPct != null && row.pct != null && (
           <p className={`text-xs font-normal ${pctColor(row.pct, row.purchasePrice)}`}>
@@ -501,7 +498,7 @@ function CardRow({
           </p>
         )}
       </td>
-      <td className={`hidden md:table-cell px-4 py-3.5 text-right font-mono ${
+      <td className={`px-4 py-3.5 text-right font-mono ${
         diff != null && diff < 0 && (row.dailyPct ?? 0) > 0 ? 'text-amber-500' :
         diff != null && diff < 0 ? 'text-red-400' :
         diff != null && diff > 0 && (row.dailyPct ?? 0) < 0 ? 'text-amber-500' :
@@ -621,10 +618,10 @@ function CardTable({
         <thead className="border-b border-stone-800">
           <tr>
             <th className="text-left px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Card</th>
-            <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Basis</th>
-            <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Now</th>
+            <th className="hidden md:table-cell lg:hidden xl:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Basis</th>
+            <th className="hidden md:table-cell lg:hidden xl:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">Now</th>
             <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">%</th>
-            <th className="hidden md:table-cell text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">+/-</th>
+            <th className="text-right px-4 py-3 text-sm font-semibold text-stone-500 uppercase tracking-wider">+/-</th>
           </tr>
         </thead>
         <tbody>
@@ -1503,7 +1500,7 @@ return (
           )}
 
           {/* Two-column layout */}
-          {entries.length > 0 && <><div id="binder-gainers-losers" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {entries.length > 0 && <><div id="binder-gainers-losers" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div id="binder-gainers">
               <button
                 onClick={() => setGainersOpen(o => !o)}
@@ -1511,10 +1508,13 @@ return (
               >
                 <span className="text-green-400 font-semibold">▲ Gainers</span>
                 {gainers.length > 0 && <span className="text-stone-600 font-normal text-sm">{gainers.length} cards</span>}
-                {!gainersOpen && gainersDelta > 0 && (
-                  <span className="ml-auto text-green-400 font-mono text-sm font-semibold">+${gainersDelta.toFixed(2)}</span>
+                {!gainersOpen && (gainers[0]?.dailyPct != null || gainersDelta > 0) && (
+                  <span className="ml-auto flex items-center gap-2 shrink-0">
+                    {gainers[0]?.dailyPct != null && <span className="text-green-400 font-mono text-sm">▲{gainers[0].dailyPct.toFixed(1)}%</span>}
+                    {gainersDelta > 0 && <span className="text-green-400 font-mono text-sm">+${gainersDelta.toFixed(2)}</span>}
+                  </span>
                 )}
-                <span className="text-stone-400 text-sm ml-auto">{gainersOpen ? '▲' : '▼'}</span>
+                <span className="text-stone-400 text-sm shrink-0 ml-auto">{gainersOpen ? '▲' : '▼'}</span>
               </button>
               {gainersOpen && (
                 <CardTable
@@ -1534,10 +1534,13 @@ return (
               >
                 <span className="text-red-400 font-semibold">▼ Losers</span>
                 {losers.length > 0 && <span className="text-stone-600 font-normal text-sm">{losers.length} cards</span>}
-                {!losersOpen && losersDelta < 0 && (
-                  <span className="ml-auto text-red-400 font-mono text-sm font-semibold">-${Math.abs(losersDelta).toFixed(2)}</span>
+                {!losersOpen && (losers[0]?.dailyPct != null || losersDelta < 0) && (
+                  <span className="ml-auto flex items-center gap-2 shrink-0">
+                    {losers[0]?.dailyPct != null && <span className="text-red-400 font-mono text-sm">▼{Math.abs(losers[0].dailyPct).toFixed(1)}%</span>}
+                    {losersDelta < 0 && <span className="text-red-400 font-mono text-sm">-${Math.abs(losersDelta).toFixed(2)}</span>}
+                  </span>
                 )}
-                <span className="text-stone-400 text-sm ml-auto">{losersOpen ? '▲' : '▼'}</span>
+                <span className="text-stone-400 text-sm shrink-0 ml-auto">{losersOpen ? '▲' : '▼'}</span>
               </button>
               {losersOpen && (
                 <CardTable
