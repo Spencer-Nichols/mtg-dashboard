@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     base_name: resolved.name,
     set_code: resolved.set ?? null,
     scryfall_id: resolved.id ?? null,
-    foil: false,
+    foil_type: 'none',
     count: 1,
     snapshot_price: price,
     note: note?.trim() || null,

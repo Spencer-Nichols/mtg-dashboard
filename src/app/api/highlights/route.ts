@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getCached, getCronTimestamp, cacheKey, getSealedPrice } from '@/lib/cache'
+import { getCached, getCachedPriceByFoilType, getCronTimestamp, cacheKey, getSealedPrice } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ export async function GET() {
   // --- Binder gainers ---
   const { data: binderRows } = await supabase
     .from('binder_cards')
-    .select('display_name, base_name, set_code, scryfall_id, foil, snapshot_price')
+    .select('display_name, base_name, set_code, scryfall_id, foil_type, snapshot_price')
     .eq('user_id', user.id)
 
   const today = new Date().toISOString().split('T')[0]
@@ -44,7 +44,7 @@ export async function GET() {
     const key = cacheKey(entry.base_name, entry.scryfall_id ?? entry.set_code ?? '')
     const cached = await getCached(key)
     if (!cached) continue
-    const currentPrice = entry.foil ? (cached.foilPrice ?? cached.price) : cached.price
+    const currentPrice = getCachedPriceByFoilType(cached, entry.foil_type ?? 'none')
     const baseline = dailyBaselineMap.get(entry.display_name)
     if (currentPrice == null || baseline == null || baseline <= 0) continue
     const diff = currentPrice - baseline

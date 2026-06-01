@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     base_name: card.name,
     set_code: card.set ?? null,
     scryfall_id: card.id ?? null,
-    foil: false,
+    foil_type: 'none',
     count: 1,
     snapshot_price: price,
     note: null,

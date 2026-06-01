@@ -10,6 +10,7 @@ const TTL_SECONDS = 24 * 60 * 60
 export interface CacheEntry {
   price: number | null
   foilPrice: number | null
+  etchedPrice: number | null
   imageUrl: string | null
   backImageUrl?: string | null
   timestamp: number
@@ -28,10 +29,17 @@ export async function setCached(
   price: number | null,
   foilPrice: number | null,
   imageUrl: string | null,
-  meta?: { setName?: string; setCode?: string; rarity?: string; typeLine?: string; backImageUrl?: string | null }
+  meta?: { setName?: string; setCode?: string; rarity?: string; typeLine?: string; backImageUrl?: string | null; etchedPrice?: number | null }
 ) {
-  const entry: CacheEntry = { price, foilPrice, imageUrl, timestamp: Date.now(), ...meta }
+  const { etchedPrice = null, ...rest } = meta ?? {}
+  const entry: CacheEntry = { price, foilPrice, etchedPrice, imageUrl, timestamp: Date.now(), ...rest }
   await redis.set(key, entry, { ex: TTL_SECONDS })
+}
+
+export function getCachedPriceByFoilType(cached: CacheEntry, foilType: string): number | null {
+  if (foilType === 'etched') return cached.etchedPrice ?? cached.foilPrice ?? cached.price
+  if (foilType === 'foil') return cached.foilPrice ?? cached.price
+  return cached.price
 }
 
 export function cacheKey(name: string, setCode: string) {

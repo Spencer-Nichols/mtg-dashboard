@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import CollectionChart from '@/components/CollectionChart'
+import type { FoilType } from '@/lib/scryfall'
 
 interface BinderEntry {
   id: string
@@ -9,7 +10,7 @@ interface BinderEntry {
   baseName: string
   setCode: string
   scryfallId: string | null
-  foil: boolean
+  foilType: FoilType
   count: number
   snapshotPrice: number
   purchasePrice: number | null
@@ -35,16 +36,16 @@ interface CardResult {
   setCode?: string
   rarity?: string
   typeLine?: string
-  foil?: boolean
+  foilType?: FoilType
   rowKey?: string
 }
 
 const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'Damaged'] as const
 type Condition = typeof CONDITIONS[number]
-type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
+type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; etchedPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
 
-function makeRowKey(displayName: string, setCode: string | null | undefined, foil: boolean): string {
-  return `${displayName}||${setCode ?? ''}||${foil ? '1' : '0'}`
+function makeRowKey(displayName: string, setCode: string | null | undefined, foilType: FoilType): string {
+  return `${displayName}||${setCode ?? ''}||${foilType}`
 }
 
 const SELL_THRESHOLD = -10 // % drop to flag as sell suggestion
@@ -56,7 +57,7 @@ const LS_BINDER_CARD_HISTORY = 'tnk:binder:card-history'
 const LS_HIGHLIGHTS = 'tnk:highlights'
 const LS_HISTORY = 'tnk:history'
 const LS_CACHE_VERSION = 'tnk:cache:version'
-const CACHE_VERSION = '2'
+const CACHE_VERSION = '3'
 
 function pctColor(pct: number | null, purchasePrice?: number | null) {
   if (purchasePrice === 0) return 'text-green-400'
@@ -206,7 +207,7 @@ function SparklinePlaceholder({ height = 100 }: { height?: number }) {
 function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
   const [editPrints, setEditPrints] = useState<Candidate[]>([])
   const [editPrintsLoading, setEditPrintsLoading] = useState(true)
-  const [editFoil, setEditFoil] = useState(row.foil ?? false)
+  const [editFoilType, setEditFoilType] = useState<FoilType>(row.foilType ?? 'none')
   const [editCondition, setEditCondition] = useState<string>(row.condition ?? 'NM')
   const [editPurchasePrice, setEditPurchasePrice] = useState(row.purchasePrice != null ? String(row.purchasePrice) : '')
   const [editNote, setEditNote] = useState(row.note ?? '')
@@ -229,7 +230,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
     const res = await fetch('/api/binder/edit', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName: row.displayName, scryfallId, setCode, foil: editFoil, purchasePrice, condition: editCondition, note: editNote.trim() || null }),
+      body: JSON.stringify({ displayName: row.displayName, scryfallId, setCode, foilType: editFoilType, purchasePrice, condition: editCondition, note: editNote.trim() || null }),
     })
     setEditSaving(false)
     if (!res.ok) {
@@ -247,7 +248,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
           <div>
             <p className="font-semibold text-stone-100">{row.displayName}</p>
-            <p className="text-xs text-stone-500">{row.setCode?.toUpperCase()} · {row.foil ? 'Foil' : 'Non-foil'}</p>
+            <p className="text-xs text-stone-500">{row.setCode?.toUpperCase()} · {row.foilType === 'etched' ? 'Etched foil' : row.foilType === 'foil' ? 'Foil' : 'Non-foil'}</p>
           </div>
           <button onClick={onClose} className="text-stone-500 hover:text-stone-200 text-xl leading-none">×</button>
         </div>
@@ -264,9 +265,13 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="text-xs text-stone-500 uppercase tracking-wider">Foil</span>
-              <button onClick={() => setEditFoil(f => !f)} className={`text-xs px-3 py-1 rounded border transition-colors ${editFoil ? 'border-amber-600 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:border-stone-500'}`}>
-                {editFoil ? '★ Foil' : 'Non-foil'}
-              </button>
+              <div className="flex gap-1.5">
+                {(['none', 'foil', 'etched'] as FoilType[]).map(ft => (
+                  <button key={ft} onClick={() => setEditFoilType(ft)} className={`text-xs px-2.5 py-1 rounded border transition-colors ${editFoilType === ft ? 'border-amber-600 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:border-stone-500'}`}>
+                    {ft === 'none' ? 'Non-foil' : ft === 'foil' ? 'Foil' : 'Etched'}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
               <span className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</span>
@@ -302,7 +307,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
                       <p className="text-xs text-stone-300 font-medium">{p.setName}</p>
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-xs text-stone-600 font-mono">{p.setCode.toUpperCase()}</span>
-                        <span className="text-xs font-mono text-stone-400 shrink-0">{editFoil && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}</span>
+                        <span className="text-xs font-mono text-stone-400 shrink-0">{editFoilType === 'etched' && p.etchedPrice != null ? `$${p.etchedPrice.toFixed(2)}` : editFoilType === 'foil' && p.foilPrice != null ? `$${p.foilPrice.toFixed(2)}` : p.price != null ? `$${p.price.toFixed(2)}` : '—'}</span>
                       </div>
                     </div>
                   </button>
@@ -346,12 +351,12 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
   }
 
   return (
-    <div className="bg-stone-900 flex flex-col" style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : undefined}>
+    <div className="bg-stone-900 flex flex-col" style={row.foilType && row.foilType !== 'none' ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : undefined}>
       <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-stone-800/60 transition-colors" onClick={onToggleExpand}>
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
           {row.condition && row.condition !== 'NM' && <span className="text-xs px-1 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700 shrink-0">{row.condition}</span>}
-          {row.foil && <span className="text-xs px-1 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">foil</span>}
+          {row.foilType && row.foilType !== 'none' && <span className="text-xs px-1 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">{row.foilType}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-sm text-stone-500 font-mono">${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}</span>
@@ -468,7 +473,7 @@ function CardRow({
     <tr
       id={rowId}
       className="group border-b border-stone-800 hover:bg-stone-800/50 transition-colors cursor-pointer"
-      style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.10) 35%, rgba(96, 165, 250, 0.10) 52%, rgba(52, 211, 153, 0.08) 68%, #1c1917 85%)' } : undefined}
+      style={row.foilType && row.foilType !== 'none' ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.10) 35%, rgba(96, 165, 250, 0.10) 52%, rgba(52, 211, 153, 0.08) 68%, #1c1917 85%)' } : undefined}
       onClick={onToggleExpand}
     >
       <td className="px-4 py-3 text-stone-200 font-medium">
@@ -478,8 +483,8 @@ function CardRow({
             {row.condition && row.condition !== 'NM' && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700">{row.condition}</span>
             )}
-            {row.foil && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">foil</span>
+            {row.foilType && row.foilType !== 'none' && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">{row.foilType}</span>
             )}
           </div>
         </div>
@@ -509,7 +514,7 @@ function CardRow({
       </td>
     </tr>
     {expanded && (
-      <tr className="border-b border-stone-800" style={row.foil ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : { background: 'rgb(28 25 23 / 0.5)' }}>
+      <tr className="border-b border-stone-800" style={row.foilType && row.foilType !== 'none' ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : { background: 'rgb(28 25 23 / 0.5)' }}>
         <td colSpan={5} className="px-4 py-4">
           <div className="flex gap-4 items-center">
             {row.imageUrl && (
@@ -794,13 +799,13 @@ export default function BinderPage() {
   }
 
   async function deleteCard(name: string, rKey: string) {
-    const entry = entries.find(e => makeRowKey(e.displayName, e.setCode, e.foil) === rKey)
+    const entry = entries.find(e => makeRowKey(e.displayName, e.setCode, e.foilType) === rKey)
     await fetch('/api/binder/remove', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: entry?.id, name }),
     })
-    setEntries(prev => prev.filter(e => makeRowKey(e.displayName, e.setCode, e.foil) !== rKey))
+    setEntries(prev => prev.filter(e => makeRowKey(e.displayName, e.setCode, e.foilType) !== rKey))
     setResults(prev => { const next = new Map(prev); next.delete(rKey); return next })
   }
 
@@ -855,11 +860,11 @@ export default function BinderPage() {
       setAddQuery('')
       setResults(prev => {
         const next = new Map(prev)
-        next.set(makeRowKey(data.name, data.setCode, false), { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, imageUrl: data.imageUrl ?? null, fromCache: false })
+        next.set(makeRowKey(data.name, data.setCode, 'none'), { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, imageUrl: data.imageUrl ?? null, fromCache: false })
         return next
       })
       fetch('/api/binder').then(r => r.json()).then(d => setEntries(d.entries))
-      setPostAddRow({ displayName: data.name, setCode: data.setCode, foil: false, snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, purchasePrice: null, condition: null, imageUrl: data.imageUrl ?? null, fromCache: false })
+      setPostAddRow({ displayName: data.name, setCode: data.setCode, foilType: 'none', snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, purchasePrice: null, condition: null, imageUrl: data.imageUrl ?? null, fromCache: false })
     }
     setAddLoading(false)
   }
@@ -921,7 +926,7 @@ export default function BinderPage() {
       } else if (msg.type === 'card') {
         setResults(prev => {
           const next = new Map(prev)
-          next.set(makeRowKey(msg.displayName, msg.setCode, msg.foil), msg)
+          next.set(makeRowKey(msg.displayName, msg.setCode, msg.foilType ?? 'none'), msg)
           return next
         })
         setProgress(p => p + 1)
@@ -1035,7 +1040,7 @@ export default function BinderPage() {
   const todayStr = new Date().toISOString().split('T')[0]
 
   const rows: CardResult[] = entries.map(e => {
-    const rKey = makeRowKey(e.displayName, e.setCode, e.foil)
+    const rKey = makeRowKey(e.displayName, e.setCode, e.foilType)
     const result = results.get(rKey)
     const currentPrice = result?.currentPrice ?? null
     const costBasis = e.purchasePrice != null ? e.purchasePrice : e.snapshotPrice
@@ -1048,8 +1053,8 @@ export default function BinderPage() {
       ? ((currentPrice - dailyBaseline) / dailyBaseline) * 100
       : null
     return result
-      ? { ...result, pct, dailyPct, dailyBaseline, rowKey: rKey, foil: e.foil, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
-      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, imageUrl: null, fromCache: false, rowKey: rKey, foil: e.foil, note: e.note ?? undefined }
+      ? { ...result, pct, dailyPct, dailyBaseline, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
+      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, imageUrl: null, fromCache: false, rowKey: rKey, foilType: e.foilType, note: e.note ?? undefined }
   })
 
   const filteredRows = searchQuery.trim()

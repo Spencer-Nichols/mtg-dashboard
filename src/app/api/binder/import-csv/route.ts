@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { fetchByName, getPrice, sleep, frameSuffix } from '@/lib/scryfall'
+import { fetchByName, getPriceByFoilType, sleep, frameSuffix, FoilType } from '@/lib/scryfall'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -66,7 +66,8 @@ export async function POST(req: NextRequest) {
         const row = candidates[i]
         const name = row['Name'].trim()
         const setCode = row['Edition']?.trim().toLowerCase() || undefined
-        const foil = row['Foil']?.toLowerCase() === 'foil'
+        const foilRaw = row['Foil']?.toLowerCase().trim()
+        const foilType: FoilType = foilRaw === 'etched' ? 'etched' : foilRaw === 'foil' ? 'foil' : 'none'
         const count = parseInt(row['Count'] || '1') || 1
         const purchasePriceRaw = row['Purchase Price']?.trim()
         const purchasePrice = purchasePriceRaw ? parseFloat(purchasePriceRaw) : null
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
           continue
         }
 
-        const price = getPrice(card, foil)
+        const price = getPriceByFoilType(card, foilType) ?? getPriceByFoilType(card, 'none')
         if (!price || price < minPrice) {
           send({ type: 'result', name, status: 'skipped', message: price ? `$${price.toFixed(2)} below minimum` : 'No price data' })
           continue
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
           base_name: card.name,
           set_code: card.set ?? null,
           scryfall_id: card.id ?? null,
-          foil,
+          foil_type: foilType,
           count,
           snapshot_price: price,
           purchase_price: purchasePrice,

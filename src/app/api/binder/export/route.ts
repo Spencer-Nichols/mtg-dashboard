@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('binder_cards')
-    .select('base_name, set_code, count, foil, condition, purchase_price, date_added')
+    .select('base_name, set_code, count, foil_type, condition, purchase_price, date_added')
     .eq('user_id', user.id)
     .gte('date_added', since)
     .order('date_added')
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       (e.set_code ?? '').toUpperCase(),
       e.condition ?? 'NM',
       'en',
-      e.foil ? 'foil' : '',
+      e.foil_type === 'foil' ? 'foil' : e.foil_type === 'etched' ? 'etched' : '',
       '',
       e.date_added ?? '',
       '',

@@ -114,10 +114,22 @@ export async function searchPrintings(name: string): Promise<ScryfallCard[]> {
   }
 }
 
+export type FoilType = 'none' | 'foil' | 'etched'
+
 export function getPrice(card: ScryfallCard, foil = false): number | null {
   if (foil && card.prices.usd_foil) return parseFloat(card.prices.usd_foil)
   if (card.prices.usd) return parseFloat(card.prices.usd)
   return null
+}
+
+export function getPriceByFoilType(card: ScryfallCard, foilType: FoilType): number | null {
+  if (foilType === 'etched') {
+    if (card.prices.usd_etched) return parseFloat(card.prices.usd_etched)
+    if (card.prices.usd_foil) return parseFloat(card.prices.usd_foil)
+    return null
+  }
+  if (foilType === 'foil') return card.prices.usd_foil ? parseFloat(card.prices.usd_foil) : null
+  return card.prices.usd ? parseFloat(card.prices.usd) : null
 }
 
 export function sleep(ms: number) {

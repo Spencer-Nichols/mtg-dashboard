@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fetchById, fetchByName, getPrice, frameSuffix } from '@/lib/scryfall'
+import { fetchById, fetchByName, getPriceByFoilType, frameSuffix, FoilType } from '@/lib/scryfall'
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { displayName, scryfallId, setCode, foil, purchasePrice, condition, note } = await req.json()
+  const { displayName, scryfallId, setCode, foilType, purchasePrice, condition, note } = await req.json()
   if (!displayName) return NextResponse.json({ error: 'Missing displayName' }, { status: 400 })
 
   const updates: Record<string, unknown> = {}
@@ -19,17 +19,17 @@ export async function PATCH(req: NextRequest) {
       : await fetchByName(displayName, setCode)
     if (!card) return NextResponse.json({ error: 'Card not found' }, { status: 404 })
 
-    const isFoil = foil ?? false
-    const price = getPrice(card, isFoil) ?? getPrice(card, false) ?? 0
+    const ft: FoilType = foilType ?? 'none'
+    const price = getPriceByFoilType(card, ft) ?? getPriceByFoilType(card, 'none') ?? 0
 
     updates.scryfall_id = card.id
     updates.set_code = card.set
     updates.display_name = card.name + frameSuffix(card)
     updates.base_name = card.name.replace(/\s*\/\/.*$/, '').trim()
     updates.snapshot_price = price
-    if (foil !== undefined) updates.foil = isFoil
-  } else if (foil !== undefined) {
-    updates.foil = foil
+    if (foilType !== undefined) updates.foil_type = ft
+  } else if (foilType !== undefined) {
+    updates.foil_type = foilType
   }
 
   if (purchasePrice !== undefined) updates.purchase_price = purchasePrice
