@@ -213,7 +213,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardR
   )
 }
 
-function SealedCard({ item, onDelete, sparkline, isAtl }: { item: SealedResult; onDelete: (id: string) => void; sparkline?: number[]; isAtl?: boolean }) {
+function SealedProductTile({ item, onDelete, sparkline, isAtl }: { item: SealedResult; onDelete: (id: string) => void; sparkline?: number[]; isAtl?: boolean }) {
   const suffix = item.productName.includes(' - ')
     ? item.productName.slice(item.productName.indexOf(' - ') + 3)
     : item.productName
@@ -1000,7 +1000,7 @@ export default function WishlistPage() {
                 const history = sealedHistory[item.tcgProductId]?.map(h => h.price) ?? []
                 const isAtl = isAtlPrice(display.currentPrice, item.tcgProductId)
                 const sparkline = history.length > 0 ? history : undefined
-                return <SealedCard key={item.id} item={display} onDelete={deleteSealedItem} sparkline={sparkline} isAtl={isAtl} />
+                return <SealedProductTile key={item.id} item={display} onDelete={deleteSealedItem} sparkline={sparkline} isAtl={isAtl} />
               })}
             </div>
             </>
