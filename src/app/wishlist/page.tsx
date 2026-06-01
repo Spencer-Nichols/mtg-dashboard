@@ -93,7 +93,7 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
-function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[] }) {
+function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[]; isStale?: boolean }) {
   const [editingNote, setEditingNote] = useState(false)
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
@@ -135,15 +135,22 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardR
             <span className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/60 text-amber-400 font-medium">View on Manapool</span>
           </div>
         </a>
-        {row.pct != null && (
-          <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm pointer-events-none ${
-            row.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
-            row.pct < -0.05 ? 'bg-red-900/80 text-red-300' :
-            'bg-stone-800/80 text-stone-400'
-          }`}>
-            {pctLabel(row.pct)}
-          </div>
-        )}
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-1 pointer-events-none">
+          {row.pct != null && (
+            <div className={`text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${
+              row.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
+              row.pct < -0.05 ? 'bg-red-900/80 text-red-300' :
+              'bg-stone-800/80 text-stone-400'
+            }`}>
+              {pctLabel(row.pct)}
+            </div>
+          )}
+          {isStale && (
+            <div className="text-xs px-2 py-0.5 rounded-full bg-stone-800/80 text-stone-500 backdrop-blur-sm">
+              flat 2d
+            </div>
+          )}
+        </div>
         <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <button
             onClick={e => { e.preventDefault(); onMoveToBinder(row.displayName) }}
@@ -271,6 +278,9 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl }: { item: SealedR
           <span className={`text-sm font-mono font-semibold ${pctColor(item.pct)}`}>
             {item.currentPrice != null ? `$${item.currentPrice.toFixed(2)}` : item.snapshotPrice > 0 ? `$${item.snapshotPrice.toFixed(2)}` : '—'}
           </span>
+          {item.snapshotPrice > 0 && item.currentPrice != null && item.currentPrice !== item.snapshotPrice && (
+            <span className="text-xs text-stone-600 font-mono">was ${item.snapshotPrice.toFixed(2)}</span>
+          )}
         </div>
         {sparkline && sparkline.length >= 2 && (
           <div className="mt-1">
@@ -635,11 +645,25 @@ export default function WishlistPage() {
     results.get(s.name) ?? { displayName: s.name, snapshotPrice: s.snapshotPrice ?? 0, currentPrice: null, pct: null, imageUrl: null, note: s.note }
   )
 
+  const STALE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
+  const STALE_MOVE_PCT = 2
+
+  function isStaleLoser(row: CardResult): boolean {
+    if (row.currentPrice == null) return false
+    const history = wishlistHistory[row.displayName] ?? []
+    const windowStart = Date.now() - STALE_WINDOW_MS
+    const recent = history.filter(h => new Date(h.date).getTime() >= windowStart)
+    if (recent.length === 0) return false
+    const oldest = recent[0].price
+    if (oldest <= 0) return false
+    return Math.abs((row.currentPrice - oldest) / oldest) * 100 < STALE_MOVE_PCT
+  }
+
   const gainers = rows.filter(r => (r.pct ?? 0) > 0.05)
-  const losers = rows.filter(r => (r.pct ?? 0) < -0.05)
-  const flat = rows.filter(r => r.pct !== null && Math.abs(r.pct) <= 0.05)
+  const losers = rows.filter(r => (r.pct ?? 0) < -0.05 && !isStaleLoser(r))
+  const flat = rows.filter(r => r.pct !== null && (Math.abs(r.pct) <= 0.05 || ((r.pct ?? 0) < -0.05 && isStaleLoser(r))))
   const pending = rows.filter(r => r.pct === null)
-  const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD)
+  const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD && !isStaleLoser(r))
   const sealedBuySuggestions = Array.from(sealedResults.values()).filter(r => r.pct !== null && r.pct <= -10)
   const ATL_WINDOW_MS = 24 * 60 * 60 * 1000
   const atlCutoff = Date.now() - ATL_WINDOW_MS
@@ -896,12 +920,16 @@ export default function WishlistPage() {
             {atlSealedItems.map(item => {
               const name = item.productName.includes(' - ') ? item.productName.slice(item.productName.indexOf(' - ') + 3) : item.productName
               const currentPrice = sealedResults.get(item.id)?.currentPrice
+              const pct = currentPrice != null && item.snapshotPrice > 0 ? (currentPrice - item.snapshotPrice) / item.snapshotPrice * 100 : null
+              const saved = currentPrice != null ? item.snapshotPrice - currentPrice : null
               return (
                 <div key={item.id} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
-                  <p className="text-stone-200 text-sm font-medium">{name}</p>
-                  <p className="text-xs text-stone-500">{item.setName}</p>
+                  <p className="text-stone-200 text-sm font-medium">{item.setName} — {name}</p>
                   {currentPrice != null && (
-                    <p className="text-green-400 text-xs font-mono mt-0.5">${currentPrice.toFixed(2)} — all-time low</p>
+                    <p className="text-green-400 text-xs font-mono mt-0.5">
+                      ${item.snapshotPrice.toFixed(2)} → ${currentPrice.toFixed(2)} ({pctLabel(pct)})
+                      {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
+                    </p>
                   )}
                 </div>
               )
@@ -1061,7 +1089,7 @@ export default function WishlistPage() {
               {watchingOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
                   {[...flat, ...pending].map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} />
                   ))}
                 </div>
               )}
