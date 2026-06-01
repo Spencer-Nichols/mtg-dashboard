@@ -11,6 +11,7 @@ export interface HighlightCard {
   pct: number
   imageUrl: string | null
   isAtl?: boolean
+  productId?: number
 }
 
 export async function GET() {
@@ -127,6 +128,7 @@ export async function GET() {
         pct,
         imageUrl: item.image_url ?? null,
         isAtl,
+        productId: item.tcg_product_id,
       })
     }
   }
