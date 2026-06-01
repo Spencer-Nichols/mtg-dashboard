@@ -213,7 +213,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline }: { row: CardR
   )
 }
 
-function SealedCard({ item, onDelete, sparkline }: { item: SealedResult; onDelete: (id: string) => void; sparkline?: number[] }) {
+function SealedCard({ item, onDelete, sparkline, isAtl }: { item: SealedResult; onDelete: (id: string) => void; sparkline?: number[]; isAtl?: boolean }) {
   const suffix = item.productName.includes(' - ')
     ? item.productName.slice(item.productName.indexOf(' - ') + 3)
     : item.productName
@@ -235,13 +235,22 @@ function SealedCard({ item, onDelete, sparkline }: { item: SealedResult; onDelet
             <span className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/60 text-amber-400 font-medium">View on TCGPlayer</span>
           </div>
         </a>
-        {item.pct != null && (
-          <div className={`absolute top-2 right-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm pointer-events-none ${
-            item.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
-            item.pct < -0.05 ? 'bg-red-900/80 text-red-300' :
-            'bg-stone-800/80 text-stone-400'
-          }`}>
-            {pctLabel(item.pct)}
+        {(isAtl || item.pct != null) && (
+          <div className="absolute top-2 right-2 flex flex-col items-end gap-1 pointer-events-none">
+            {isAtl && (
+              <div className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-900/90 text-green-300 backdrop-blur-sm">
+                ↓ ATL
+              </div>
+            )}
+            {item.pct != null && (
+              <div className={`text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${
+                item.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
+                item.pct < -0.05 ? 'bg-red-900/80 text-red-300' :
+                'bg-stone-800/80 text-stone-400'
+              }`}>
+                {pctLabel(item.pct)}
+              </div>
+            )}
           </div>
         )}
         <div className="absolute bottom-2 left-0 right-0 flex justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
@@ -260,9 +269,6 @@ function SealedCard({ item, onDelete, sparkline }: { item: SealedResult; onDelet
           <span className={`text-sm font-mono font-semibold ${pctColor(item.pct)}`}>
             {item.currentPrice != null ? `$${item.currentPrice.toFixed(2)}` : item.snapshotPrice > 0 ? `$${item.snapshotPrice.toFixed(2)}` : '—'}
           </span>
-          {item.snapshotPrice > 0 && item.currentPrice != null && item.currentPrice !== item.snapshotPrice && (
-            <span className="text-xs text-stone-600 font-mono">was ${item.snapshotPrice.toFixed(2)}</span>
-          )}
         </div>
         {sparkline && sparkline.length >= 2 && (
           <div className="mt-1">
@@ -633,6 +639,12 @@ export default function WishlistPage() {
   const pending = rows.filter(r => r.pct === null)
   const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD)
   const sealedBuySuggestions = Array.from(sealedResults.values()).filter(r => r.pct !== null && r.pct <= -10)
+  const atlSealedItems = sealedItems.filter(item => {
+    const currentPrice = sealedResults.get(item.id)?.currentPrice
+    const history = sealedHistory[item.tcgProductId]?.map(h => h.price) ?? []
+    if (currentPrice == null || history.length < 2) return false
+    return currentPrice <= Math.min(...history)
+  })
   const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
 
   return (
@@ -835,6 +847,7 @@ export default function WishlistPage() {
           </div>
         )}
       </div>
+
       </div>
 
       {addStatus && (
@@ -850,6 +863,27 @@ export default function WishlistPage() {
       {streaming && (
         <div className="mb-6 bg-stone-800 rounded-full overflow-hidden h-1.5">
           <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: total ? `${(progress / total) * 100}%` : '0%' }} />
+        </div>
+      )}
+
+      {atlSealedItems.length > 0 && (
+        <div className="mb-4 bg-green-950/40 border border-green-800/60 rounded-xl p-4">
+          <p className="text-green-400 font-semibold text-sm mb-3">↓ All-time low — lowest price ever recorded</p>
+          <div className="flex flex-wrap gap-3">
+            {atlSealedItems.map(item => {
+              const name = item.productName.includes(' - ') ? item.productName.slice(item.productName.indexOf(' - ') + 3) : item.productName
+              const currentPrice = sealedResults.get(item.id)?.currentPrice
+              return (
+                <div key={item.id} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
+                  <p className="text-stone-200 text-sm font-medium">{name}</p>
+                  <p className="text-xs text-stone-500">{item.setName}</p>
+                  {currentPrice != null && (
+                    <p className="text-green-400 text-xs font-mono mt-0.5">${currentPrice.toFixed(2)} — all-time low</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -888,6 +922,69 @@ export default function WishlistPage() {
           </div>
         </div>
       )}
+
+      {/* Sealed Products */}
+      <div id="wishlist-sealed" className="flex flex-col gap-4 mb-8">
+        <button
+          onClick={() => setSealedOpen(o => !o)}
+          className="w-full flex items-center gap-2 text-left"
+        >
+          <div className="flex-1 min-w-0">
+            <h2 className="text-stone-300 font-semibold">Sealed Products</h2>
+            <p className="text-xs text-stone-600 mt-0.5">
+              {sealedItems.length} {sealedItems.length === 1 ? 'product' : 'products'} tracked
+              {sealedStreaming && ` · loading ${sealedProgress}/${sealedTotal}`}
+              {!sealedStreaming && (() => {
+                const allDates = Object.values(sealedHistory).flat().map(e => e.date)
+                if (allDates.length === 0) return null
+                const latest = new Date(Math.max(...allDates.map(d => new Date(d).getTime())))
+                const mins = Math.floor((Date.now() - latest.getTime()) / 60000)
+                const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`
+                return ` · prices updated ${label}`
+              })()}
+            </p>
+          </div>
+          <span className="text-stone-400 text-sm shrink-0">{sealedOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {sealedStreaming && (
+          <div className="bg-stone-800 rounded-full overflow-hidden h-1">
+            <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: sealedTotal ? `${(sealedProgress / sealedTotal) * 100}%` : '0%' }} />
+          </div>
+        )}
+
+        {sealedOpen && (
+          sealedItems.length > 0 ? (
+            <>
+            <div id="wishlist-sealed-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
+              {sealedItems.map(item => {
+                const result = sealedResults.get(item.id)
+                const display: SealedResult = result ?? {
+                  id: item.id,
+                  productId: item.tcgProductId,
+                  productName: item.productName,
+                  setName: item.setName,
+                  snapshotPrice: item.snapshotPrice,
+                  currentPrice: null,
+                  pct: null,
+                  imageUrl: item.imageUrl,
+                }
+                const history = sealedHistory[item.tcgProductId]?.map(h => h.price) ?? []
+                const atl = history.length >= 2 ? Math.min(...history) : null
+                const isAtl = display.currentPrice != null && atl != null && display.currentPrice <= atl
+                const sparkline = history.length > 0 ? history : undefined
+                return <SealedCard key={item.id} item={display} onDelete={deleteSealedItem} sparkline={sparkline} isAtl={isAtl} />
+              })}
+            </div>
+            </>
+          ) : (
+            <div className="bg-stone-900 border border-stone-800 rounded-xl px-5 py-8 text-center">
+              <p className="text-stone-500 text-sm">No sealed products on your watchlist</p>
+              <p className="text-xs text-stone-600 mt-1">Track booster boxes, bundles, and more</p>
+            </div>
+          )
+        )}
+      </div>
 
       {rows.length > 0 && (
         <div className="flex flex-col gap-6">
@@ -950,56 +1047,6 @@ export default function WishlistPage() {
           <p className="text-sm text-stone-600">Search for a card above to add it and track price drops.</p>
         </div>
       )}
-
-      {/* Sealed Products */}
-      <div id="wishlist-sealed" className="mt-8 flex flex-col gap-4">
-        <button
-          onClick={() => setSealedOpen(o => !o)}
-          className="w-full flex items-center gap-2 text-left"
-        >
-          <div className="flex-1 min-w-0">
-            <h2 className="text-stone-300 font-semibold">Sealed Products</h2>
-            <p className="text-xs text-stone-600 mt-0.5">
-              {sealedItems.length} {sealedItems.length === 1 ? 'product' : 'products'} tracked
-              {sealedStreaming && ` · loading ${sealedProgress}/${sealedTotal}`}
-            </p>
-          </div>
-          <span className="text-stone-400 text-sm shrink-0">{sealedOpen ? '▲' : '▼'}</span>
-        </button>
-
-        {sealedStreaming && (
-          <div className="bg-stone-800 rounded-full overflow-hidden h-1">
-            <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: sealedTotal ? `${(sealedProgress / sealedTotal) * 100}%` : '0%' }} />
-          </div>
-        )}
-
-        {sealedOpen && (
-          sealedItems.length > 0 ? (
-            <div id="wishlist-sealed-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
-              {sealedItems.map(item => {
-                const result = sealedResults.get(item.id)
-                const display: SealedResult = result ?? {
-                  id: item.id,
-                  productId: item.tcgProductId,
-                  productName: item.productName,
-                  setName: item.setName,
-                  snapshotPrice: item.snapshotPrice,
-                  currentPrice: null,
-                  pct: null,
-                  imageUrl: item.imageUrl,
-                }
-                const sparkline = sealedHistory[item.tcgProductId]?.map(h => h.price)
-                return <SealedCard key={item.id} item={display} onDelete={deleteSealedItem} sparkline={sparkline} />
-              })}
-            </div>
-          ) : (
-            <div className="bg-stone-900 border border-stone-800 rounded-xl px-5 py-8 text-center">
-              <p className="text-stone-500 text-sm">No sealed products on your watchlist</p>
-              <p className="text-xs text-stone-600 mt-1">Track booster boxes, bundles, and more</p>
-            </div>
-          )
-        )}
-      </div>
     </div>
   )
 }
