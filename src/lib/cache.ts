@@ -75,3 +75,13 @@ export async function setCronTimestamp() {
 export async function getCronTimestamp(): Promise<number | null> {
   return redis.get<number>(CRON_TIMESTAMP_KEY)
 }
+
+const SEALED_CRON_TIMESTAMP_KEY = 'cron:sealed_last_run'
+
+export async function setSealedCronTimestamp() {
+  await redis.set(SEALED_CRON_TIMESTAMP_KEY, Date.now())
+}
+
+export async function getSealedCronTimestamp(): Promise<number | null> {
+  return redis.get<number>(SEALED_CRON_TIMESTAMP_KEY)
+}
