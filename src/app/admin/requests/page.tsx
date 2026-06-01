@@ -15,6 +15,7 @@ interface AdminUser {
   lastSeen: string | null
   createdAt: string
   cardCount: number
+  sealedCount: number
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -33,8 +34,6 @@ export default function AdminRequestsPage() {
   const [loading, setLoading] = useState(true)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [refreshingSealed, setRefreshingSealed] = useState(false)
-
   useEffect(() => {
     fetch('/api/admin/requests')
       .then(r => r.json())
@@ -74,26 +73,11 @@ export default function AdminRequestsPage() {
   const activeUserEmails = new Set(users.filter(u => u.lastSeen).map(u => u.email.toLowerCase()))
   const handled = requests.filter(r => r.status !== 'pending' && !(r.status === 'approved' && activeUserEmails.has(r.email.toLowerCase())))
 
-  async function triggerSealedRefresh() {
-    setRefreshingSealed(true)
-    await fetch('/api/admin/trigger-sealed-refresh', { method: 'POST' })
-    setRefreshingSealed(false)
-  }
-
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-stone-100">Access Requests</h1>
-          <p className="text-sm text-stone-500 mt-1">Review and approve requests to join TapNTrack.</p>
-        </div>
-        <button
-          onClick={triggerSealedRefresh}
-          disabled={refreshingSealed}
-          className="text-sm px-4 py-2 rounded-lg bg-amber-900/40 border border-amber-700 text-amber-300 hover:bg-amber-900/60 transition-colors disabled:opacity-50 shrink-0"
-        >
-          {refreshingSealed ? 'Triggering…' : '↻ Sealed Prices'}
-        </button>
+      <div>
+        <h1 className="text-xl font-bold text-stone-100">Access Requests</h1>
+        <p className="text-sm text-stone-500 mt-1">Review and approve requests to join TapNTrack.</p>
       </div>
 
       {loading ? (
@@ -171,6 +155,9 @@ export default function AdminRequestsPage() {
               <div key={u.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
                 <p className="text-stone-300 text-sm truncate min-w-0">{u.email}</p>
                 <div className="flex items-center gap-3 shrink-0">
+                  {u.sealedCount > 0 && (
+                    <span className="text-xs text-stone-600 font-mono">{u.sealedCount} sealed</span>
+                  )}
                   {u.cardCount > 0 && (
                     <span className="text-xs text-stone-600 font-mono">{u.cardCount.toLocaleString()} cards</span>
                   )}

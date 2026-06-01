@@ -16,9 +16,10 @@ export async function GET() {
 
   const userIds = data.users.map(u => u.id)
 
-  const [{ data: profiles }, { data: binderCounts }] = await Promise.all([
+  const [{ data: profiles }, { data: binderCounts }, { data: sealedCounts }] = await Promise.all([
     service.from('user_profiles').select('user_id, last_seen').in('user_id', userIds),
     service.from('binder_cards').select('user_id').in('user_id', userIds),
+    service.from('sealed_wishlist').select('user_id').in('user_id', userIds),
   ])
 
   const lastSeenByUser = new Map<string, string>()
@@ -31,12 +32,18 @@ export async function GET() {
     cardCountByUser.set(row.user_id, (cardCountByUser.get(row.user_id) ?? 0) + 1)
   }
 
+  const sealedCountByUser = new Map<string, number>()
+  for (const row of sealedCounts ?? []) {
+    sealedCountByUser.set(row.user_id, (sealedCountByUser.get(row.user_id) ?? 0) + 1)
+  }
+
   const users = data.users.map(u => ({
     id: u.id,
     email: u.email,
     lastSeen: lastSeenByUser.get(u.id) ?? null,
     createdAt: u.created_at,
     cardCount: cardCountByUser.get(u.id) ?? 0,
+    sealedCount: sealedCountByUser.get(u.id) ?? 0,
   }))
 
   return NextResponse.json(users)

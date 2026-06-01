@@ -8,6 +8,8 @@ const supabase = createClient(
 const LISTINGS_URL = (productId) =>
   `https://mp-search-api.tcgplayer.com/v1/product/${productId}/listings?mpfev=5214`
 
+const MAX_SHIPPING = 25
+
 const LISTINGS_BODY = {
   filters: {
     term: {
@@ -18,7 +20,7 @@ const LISTINGS_BODY = {
     range: { quantity: { gte: 1 } },
   },
   from: 0,
-  size: 1,
+  size: 5,
   sort: { field: 'price', order: 'asc' },
 }
 
@@ -40,8 +42,11 @@ async function fetchLowestPrice(productId) {
   const listings = data?.results?.[0]?.results ?? []
   if (listings.length === 0) return null
 
-  const listing = listings[0]
-  return parseFloat((listing.price + (listing.shippingPrice ?? 0)).toFixed(2))
+  const valid = listings.filter(l => (l.shippingPrice ?? 0) <= MAX_SHIPPING)
+  if (valid.length === 0) return null
+
+  const lowest = Math.min(...valid.map(l => l.price))
+  return parseFloat(lowest.toFixed(2))
 }
 
 const PRICE_MIN_DELTA = 0.25
