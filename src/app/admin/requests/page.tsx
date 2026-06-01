@@ -121,10 +121,21 @@ export default function AdminRequestsPage() {
           <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
             {handled.map(r => (
               <div key={r.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
-                <p className="text-stone-500 text-sm">{r.email}</p>
-                <span className={`text-xs px-2 py-0.5 rounded font-mono ${r.status === 'approved' ? 'text-green-400 bg-green-950/40' : 'text-red-400 bg-red-950/40'}`}>
-                  {r.status}
-                </span>
+                <p className="text-stone-500 text-sm truncate min-w-0">{r.email}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  {r.status === 'approved' && (
+                    <button
+                      onClick={() => sendInvite(r.id, r.email)}
+                      disabled={pendingAction === r.id}
+                      className="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 hover:border-amber-700 hover:text-amber-400 transition-colors disabled:opacity-50"
+                    >
+                      {pendingAction === r.id ? 'Sending…' : 'Resend'}
+                    </button>
+                  )}
+                  <span className={`text-xs px-2 py-0.5 rounded font-mono ${r.status === 'approved' ? 'text-green-400 bg-green-950/40' : 'text-red-400 bg-red-950/40'}`}>
+                    {r.status}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
