@@ -106,19 +106,80 @@ async function main() {
 
   if (historyRows.length === 0) {
     console.log('No price changes to write.')
+  } else {
+    const { error: insertError } = await supabase
+      .from('sealed_wishlist_history')
+      .insert(historyRows)
+
+    if (insertError) {
+      console.error('Failed to write history:', insertError.message)
+      process.exit(1)
+    }
+
+    console.log(`Wrote ${historyRows.length} price entries (${sealedRows.length - historyRows.length} unchanged).`)
+  }
+
+  // --- ATL notification dedup ---
+  const ATL_WINDOW_MS = 24 * 60 * 60 * 1000
+  const atlCutoff = new Date(Date.now() - ATL_WINDOW_MS).toISOString()
+
+  const { data: allHistory } = await supabase
+    .from('sealed_wishlist_history')
+    .select('user_id, tcg_product_id, price, recorded_at')
+    .in('tcg_product_id', uniqueProductIds)
+    .lt('recorded_at', atlCutoff)
+
+  const { data: lastNotifications } = await supabase
+    .from('sealed_atl_notifications')
+    .select('user_id, tcg_product_id, notified_price')
+    .in('tcg_product_id', uniqueProductIds)
+    .order('notified_at', { ascending: false })
+
+  const lastNotifMap = new Map()
+  for (const row of lastNotifications ?? []) {
+    const key = `${row.user_id}:${row.tcg_product_id}`
+    if (!lastNotifMap.has(key)) lastNotifMap.set(key, row.notified_price)
+  }
+
+  // Group older history by user+product
+  const olderPricesMap = new Map()
+  for (const row of allHistory ?? []) {
+    const key = `${row.user_id}:${row.tcg_product_id}`
+    const arr = olderPricesMap.get(key) ?? []
+    arr.push(row.price)
+    olderPricesMap.set(key, arr)
+  }
+
+  const atlRows = []
+  for (const row of sealedRows) {
+    const price = priceMap.get(row.tcg_product_id)
+    if (price == null) continue
+    const key = `${row.user_id}:${row.tcg_product_id}`
+    const olderPrices = olderPricesMap.get(key) ?? []
+    if (olderPrices.length === 0) continue
+    const historicLow = Math.min(...olderPrices)
+    if (price >= historicLow) continue
+    const lastNotifPrice = lastNotifMap.get(key)
+    if (lastNotifPrice != null && price >= lastNotifPrice) continue
+    atlRows.push({ user_id: row.user_id, tcg_product_id: row.tcg_product_id, notified_price: price, notified_at: now })
+    console.log(`  ATL: product ${row.tcg_product_id} for user ${row.user_id} at $${price} (historic low was $${historicLow})`)
+  }
+
+  if (atlRows.length === 0) {
+    console.log('No new ATL events.')
     return
   }
 
-  const { error: insertError } = await supabase
-    .from('sealed_wishlist_history')
-    .insert(historyRows)
+  const { error: atlError } = await supabase
+    .from('sealed_atl_notifications')
+    .insert(atlRows)
 
-  if (insertError) {
-    console.error('Failed to write history:', insertError.message)
+  if (atlError) {
+    console.error('Failed to write ATL notifications:', atlError.message)
     process.exit(1)
   }
 
-  console.log(`Wrote ${historyRows.length} price entries (${sealedRows.length - historyRows.length} unchanged).`)
+  console.log(`Recorded ${atlRows.length} ATL notification(s) — ready to send emails when Resend is wired up.`)
 }
 
 main()
