@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/service'
+import { setSealedCronTimestamp } from '@/lib/cache'
 
 const LISTINGS_URL = (productId: number) =>
   `https://mp-search-api.tcgplayer.com/v1/product/${productId}/listings?mpfev=5214`
@@ -144,6 +145,8 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     const { error: atlError } = await supabase.from('sealed_atl_notifications').insert(atlInserts)
     if (atlError) throw new Error(`Failed to write ATL notifications: ${atlError.message}`)
   }
+
+  await setSealedCronTimestamp()
 
   return { products: uniqueProductIds.length, pricesFetched, historyRows: historyInserts.length, atlRows: atlInserts.length }
 }

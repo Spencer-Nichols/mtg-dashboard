@@ -76,7 +76,6 @@ export default function AdminRequestsPage() {
     setSealedTriggerStatus('idle')
     const res = await fetch('/api/admin/trigger-sealed', { method: 'POST' })
     setTriggeringSealed(false)
-    if (res.ok) localStorage.setItem('tnk:sealed:last_triggered', new Date().toISOString())
     setSealedTriggerStatus(res.ok ? 'ok' : 'error')
     setTimeout(() => setSealedTriggerStatus('idle'), 4000)
   }
