@@ -675,6 +675,7 @@ export default function BinderPage() {
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
   const [showBulk, setShowBulk] = useState(false)
   const [bulkText, setBulkText] = useState('')
+  const [bulkMinPrice, setBulkMinPrice] = useState('')
   const [bulkLoading, setBulkLoading] = useState(false)
   const [bulkResults, setBulkResults] = useState<{ name: string; status: 'added' | 'skipped' | 'error'; message?: string; price?: number }[]>([])
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null)
@@ -686,6 +687,7 @@ export default function BinderPage() {
   const [showImportCsv, setShowImportCsv] = useState(false)
   const [importCsvLoading, setImportCsvLoading] = useState(false)
   const [importCsvResults, setImportCsvResults] = useState<{ name: string; status: 'added' | 'skipped' | 'error'; message?: string; price?: number }[]>([])
+  const [csvMinPrice, setCsvMinPrice] = useState('2')
   const [importCsvProgress, setImportCsvProgress] = useState<{ current: number; total: number } | null>(null)
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null)
   const [gainersOpen, setGainersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
@@ -879,7 +881,7 @@ export default function BinderPage() {
     const res = await fetch('/api/binder/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lines }),
+      body: JSON.stringify({ lines, minPrice: bulkMinPrice ? parseFloat(bulkMinPrice) : undefined }),
     })
 
     const reader = res.body!.getReader()
@@ -991,7 +993,7 @@ export default function BinderPage() {
     setImportCsvProgress(null)
 
     const csvText = await selectedCsvFile.text()
-    const res = await fetch('/api/binder/import-csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csvText, minPrice: 2.0 }) })
+    const res = await fetch('/api/binder/import-csv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csvText, minPrice: csvMinPrice ? parseFloat(csvMinPrice) : undefined }) })
     const reader = res.body!.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -1255,7 +1257,7 @@ return (
       {/* Import CSV panel */}
       {showImportCsv && (
         <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
-          <p className="text-stone-500 text-xs">Import a Moxfield haves CSV. Skips proxies, playtests, and cards already in the binder. Only imports cards ≥ $2.00.</p>
+          <p className="text-stone-500 text-xs">Import a Moxfield haves CSV. Skips proxies, playtests, and cards already in the binder.</p>
           <input
             ref={csvFileInputRef}
             type="file"
@@ -1295,7 +1297,19 @@ return (
               ))}
             </div>
           )}
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
+              <span className="text-stone-500 text-sm">Min $</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={csvMinPrice}
+                onChange={e => setCsvMinPrice(e.target.value)}
+                placeholder="0.00"
+                className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
+              />
+            </div>
             <button
               onClick={importFromCsv}
               disabled={importCsvLoading || !selectedCsvFile}
@@ -1376,7 +1390,19 @@ return (
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
+                    <span className="text-stone-500 text-sm">Min $</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={bulkMinPrice}
+                      onChange={e => setBulkMinPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
+                    />
+                  </div>
                   <button
                     onClick={bulkImport}
                     disabled={bulkLoading || !bulkText.trim()}
