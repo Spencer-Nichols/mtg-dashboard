@@ -34,6 +34,8 @@ export default function AdminRequestsPage() {
   const [loading, setLoading] = useState(true)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
+  const [triggeringSealed, setTriggeringSealed] = useState(false)
+  const [sealedTriggerStatus, setSealedTriggerStatus] = useState<'idle' | 'ok' | 'error'>('idle')
   useEffect(() => {
     fetch('/api/admin/requests')
       .then(r => r.json())
@@ -69,15 +71,37 @@ export default function AdminRequestsPage() {
     setPendingAction(null)
   }
 
+  async function triggerSealedAction() {
+    setTriggeringSealed(true)
+    setSealedTriggerStatus('idle')
+    const res = await fetch('/api/admin/trigger-sealed', { method: 'POST' })
+    setTriggeringSealed(false)
+    setSealedTriggerStatus(res.ok ? 'ok' : 'error')
+    setTimeout(() => setSealedTriggerStatus('idle'), 4000)
+  }
+
   const pending = requests.filter(r => r.status === 'pending')
   const activeUserEmails = new Set(users.filter(u => u.lastSeen).map(u => u.email.toLowerCase()))
   const handled = requests.filter(r => r.status !== 'pending' && !(r.status === 'approved' && activeUserEmails.has(r.email.toLowerCase())))
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-bold text-stone-100">Access Requests</h1>
-        <p className="text-sm text-stone-500 mt-1">Review and approve requests to join TapNTrack.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-stone-100">Access Requests</h1>
+          <p className="text-sm text-stone-500 mt-1">Review and approve requests to join TapNTrack.</p>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <button
+            onClick={triggerSealedAction}
+            disabled={triggeringSealed}
+            className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
+          >
+            {triggeringSealed ? 'Triggering…' : 'Run sealed prices'}
+          </button>
+          {sealedTriggerStatus === 'ok' && <p className="text-xs text-green-400">Action triggered</p>}
+          {sealedTriggerStatus === 'error' && <p className="text-xs text-red-400">Failed to trigger</p>}
+        </div>
       </div>
 
       {loading ? (
