@@ -655,6 +655,14 @@ export default function WishlistPage() {
   })
   const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
 
+  const sealedResultsList = Array.from(sealedResults.values())
+  const sealedGainers = sealedResultsList.filter(r => (r.pct ?? 0) > 0.05)
+  const sealedLosers = sealedResultsList.filter(r => (r.pct ?? 0) < -0.05)
+  const sealedTotalValue = sealedItems.reduce((sum, item) => {
+    const r = sealedResults.get(item.id)
+    return sum + (r?.currentPrice ?? item.snapshotPrice)
+  }, 0)
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
@@ -666,6 +674,11 @@ export default function WishlistPage() {
               {gainers.length} up · {losers.length} down · {flat.length} flat
               {pending.length > 0 && ` · ${pending.length} pending`}
               {updatedAt && ` · ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+            </p>
+          )}
+          {sealedItems.length > 0 && (
+            <p className="text-xs text-stone-600 mt-0.5">
+              {sealedItems.length} sealed · {sealedGainers.length} up · {sealedLosers.length} down
             </p>
           )}
         </div>
@@ -933,27 +946,34 @@ export default function WishlistPage() {
 
       {/* Sealed Products */}
       <div id="wishlist-sealed" className="flex flex-col gap-4 mb-8">
-        <button
-          onClick={() => setSealedOpen(o => !o)}
-          className="w-full flex items-center gap-2 text-left"
-        >
-          <div className="flex-1 min-w-0">
-            <h2 className="text-stone-300 font-semibold">Sealed Products</h2>
-            <p className="text-xs text-stone-600 mt-0.5">
-              {sealedItems.length} {sealedItems.length === 1 ? 'product' : 'products'} tracked
-              {sealedStreaming && ` · loading ${sealedProgress}/${sealedTotal}`}
-              {!sealedStreaming && (() => {
-                const allDates = Object.values(sealedHistory).flat().map(e => e.date)
-                if (allDates.length === 0) return null
-                const latest = new Date(Math.max(...allDates.map(d => new Date(d).getTime())))
-                const mins = Math.floor((Date.now() - latest.getTime()) / 60000)
-                const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`
-                return ` · prices updated ${label}`
-              })()}
-            </p>
-          </div>
-          <span className="text-stone-400 text-sm shrink-0">{sealedOpen ? '▲' : '▼'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSealedOpen(o => !o)}
+            className="flex-1 min-w-0 flex items-center gap-2 text-left"
+          >
+            <div className="flex-1 min-w-0">
+              <h2 className="text-stone-300 font-semibold">Sealed Products</h2>
+              <p className="text-xs text-stone-600 mt-0.5">
+                {sealedItems.length} {sealedItems.length === 1 ? 'product' : 'products'} tracked
+                {sealedStreaming && ` · loading ${sealedProgress}/${sealedTotal}`}
+                {!sealedStreaming && (() => {
+                  const allDates = Object.values(sealedHistory).flat().map(e => e.date)
+                  if (allDates.length === 0) return null
+                  const latest = new Date(Math.max(...allDates.map(d => new Date(d).getTime())))
+                  const mins = Math.floor((Date.now() - latest.getTime()) / 60000)
+                  const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`
+                  return ` · updated ${label}`
+                })()}
+              </p>
+            </div>
+            <span className="text-stone-400 text-sm shrink-0">{sealedOpen ? '▲' : '▼'}</span>
+          </button>
+          {sealedTotalValue > 0 && (
+            <span className="text-stone-400 font-mono text-sm shrink-0">
+              ~<span className="text-stone-100 font-semibold">${sealedTotalValue.toFixed(2)}</span>
+            </span>
+          )}
+        </div>
 
         {sealedStreaming && (
           <div className="bg-stone-800 rounded-full overflow-hidden h-1">
