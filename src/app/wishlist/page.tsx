@@ -93,7 +93,7 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
-function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[]; isStale?: boolean }) {
+function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isDismissed, onDismiss }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[]; isStale?: boolean; isDismissed?: boolean; onDismiss?: () => void }) {
   const [editingNote, setEditingNote] = useState(false)
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
@@ -150,6 +150,11 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
               flat 2d
             </div>
           )}
+          {isDismissed && (
+            <div className="text-xs px-2 py-0.5 rounded-full bg-red-950/60 text-red-500 backdrop-blur-sm">
+              dismissed
+            </div>
+          )}
         </div>
         <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <button
@@ -194,6 +199,14 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
             <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
           )}
         </div>
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="self-start text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+          >
+            Dismiss
+          </button>
+        )}
         {editingNote ? (
           <input
             autoFocus
@@ -314,6 +327,39 @@ export default function WishlistPage() {
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
   const [sealedHistory, setSealedHistory] = useState<Record<number, Array<{ date: string; price: number }>>>({})
   const [sealedLastRun, setSealedLastRun] = useState<Date | null>(null)
+  const [dismissedSealed, setDismissedSealed] = useState<Record<number, number>>({})
+  const [dismissedWishlist, setDismissedWishlist] = useState<Record<string, number>>({})
+
+  function getSealedDismissed(): Record<number, number> {
+    try { return JSON.parse(localStorage.getItem('tnk:sealed:dismissed') ?? '{}') } catch { return {} }
+  }
+
+  function getWishlistDismissed(): Record<string, number> {
+    try { return JSON.parse(localStorage.getItem('tnk:wishlist:dismissed') ?? '{}') } catch { return {} }
+  }
+
+  function isSealedDismissed(productId: number, currentPrice: number): boolean {
+    const d = dismissedSealed[productId]
+    return d != null && currentPrice >= d - 0.25
+  }
+
+  function isWishlistCardDismissed(displayName: string, currentPrice: number | null): boolean {
+    if (currentPrice == null) return false
+    const d = dismissedWishlist[displayName]
+    return d != null && currentPrice >= d - 0.25
+  }
+
+  function dismissSealed(productId: number, price: number) {
+    const next = { ...getSealedDismissed(), [productId]: price }
+    localStorage.setItem('tnk:sealed:dismissed', JSON.stringify(next))
+    setDismissedSealed(next)
+  }
+
+  function dismissWishlistCard(displayName: string, price: number) {
+    const next = { ...getWishlistDismissed(), [displayName]: price }
+    localStorage.setItem('tnk:wishlist:dismissed', JSON.stringify(next))
+    setDismissedWishlist(next)
+  }
   const [sealedItems, setSealedItems] = useState<SealedWishlistItem[]>([])
   const [sealedResults, setSealedResults] = useState<Map<string, SealedResult>>(new Map())
   const [sealedStreaming, setSealedStreaming] = useState(false)
@@ -361,6 +407,8 @@ export default function WishlistPage() {
     })
     const cachedSealedHistory = localStorage.getItem(LS_SEALED_HISTORY)
     if (cachedSealedHistory) setSealedHistory(JSON.parse(cachedSealedHistory))
+    setDismissedSealed(getSealedDismissed())
+    setDismissedWishlist(getWishlistDismissed())
     fetch('/api/sealed/last-run').then(r => r.json()).then(d => {
       if (d.lastRun) setSealedLastRun(new Date(d.lastRun))
     })
@@ -664,10 +712,10 @@ export default function WishlistPage() {
   }
 
   const gainers = rows.filter(r => (r.pct ?? 0) > 0.05)
-  const losers = rows.filter(r => (r.pct ?? 0) < -0.05 && !isStaleLoser(r))
-  const flat = rows.filter(r => r.pct !== null && (Math.abs(r.pct) <= 0.05 || ((r.pct ?? 0) < -0.05 && isStaleLoser(r))))
+  const losers = rows.filter(r => (r.pct ?? 0) < -0.05 && !isStaleLoser(r) && !isWishlistCardDismissed(r.displayName, r.currentPrice))
+  const flat = rows.filter(r => r.pct !== null && (Math.abs(r.pct) <= 0.05 || ((r.pct ?? 0) < -0.05 && (isStaleLoser(r) || isWishlistCardDismissed(r.displayName, r.currentPrice)))))
   const pending = rows.filter(r => r.pct === null)
-  const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD && !isStaleLoser(r))
+  const buySuggestions = rows.filter(r => r.pct !== null && r.pct <= BUY_THRESHOLD && !isStaleLoser(r) && !isWishlistCardDismissed(r.displayName, r.currentPrice))
   const sealedBuySuggestions = Array.from(sealedResults.values()).filter(r => r.pct !== null && r.pct <= -10)
   const ATL_WINDOW_MS = 24 * 60 * 60 * 1000
   const atlCutoff = Date.now() - ATL_WINDOW_MS
@@ -917,23 +965,31 @@ export default function WishlistPage() {
         </div>
       )}
 
-      {atlSealedItems.length > 0 && (
+      {atlSealedItems.filter(item => !isSealedDismissed(item.tcgProductId, sealedResults.get(item.id)?.currentPrice ?? Infinity)).length > 0 && (
         <div className="mb-4 bg-green-950/40 border border-green-800/60 rounded-xl p-4">
           <p className="text-green-400 font-semibold text-sm mb-3">↓ All-time low — lowest price ever recorded</p>
           <div className="flex flex-wrap gap-3">
-            {atlSealedItems.map(item => {
+            {atlSealedItems.filter(item => !isSealedDismissed(item.tcgProductId, sealedResults.get(item.id)?.currentPrice ?? Infinity)).map(item => {
               const name = item.productName.includes(' - ') ? item.productName.slice(item.productName.indexOf(' - ') + 3) : item.productName
               const currentPrice = sealedResults.get(item.id)?.currentPrice
               const pct = currentPrice != null && item.snapshotPrice > 0 ? (currentPrice - item.snapshotPrice) / item.snapshotPrice * 100 : null
               const saved = currentPrice != null ? item.snapshotPrice - currentPrice : null
               return (
-                <div key={item.id} className="bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
+                <div key={item.id} className="group relative bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
                   <p className="text-stone-200 text-sm font-medium">{item.setName} — {name}</p>
                   {currentPrice != null && (
                     <p className="text-green-400 text-xs font-mono mt-0.5">
                       ${item.snapshotPrice.toFixed(2)} → ${currentPrice.toFixed(2)} ({pctLabel(pct)})
                       {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
                     </p>
+                  )}
+                  {currentPrice != null && (
+                    <button
+                      onClick={() => dismissSealed(item.tcgProductId, currentPrice)}
+                      className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      Dismiss
+                    </button>
                   )}
                 </div>
               )
@@ -1060,7 +1116,7 @@ export default function WishlistPage() {
               {losersOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
                   {[...losers].sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0)).map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} onDismiss={row.currentPrice != null ? () => dismissWishlistCard(row.displayName, row.currentPrice!) : undefined} />
                   ))}
                 </div>
               )}
@@ -1094,7 +1150,7 @@ export default function WishlistPage() {
               {watchingOpen && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
                   {[...flat, ...pending].map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} />
+                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} isDismissed={isWishlistCardDismissed(row.displayName, row.currentPrice)} />
                   ))}
                 </div>
               )}

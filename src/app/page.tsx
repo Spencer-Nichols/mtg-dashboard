@@ -27,6 +27,39 @@ interface HighlightCard {
   pct: number
   imageUrl: string | null
   isAtl?: boolean
+  productId?: number
+}
+
+const LS_SEALED_DISMISSED = 'tnk:sealed:dismissed'
+const LS_WISHLIST_DISMISSED = 'tnk:wishlist:dismissed'
+const DISMISS_DELTA = 0.25
+
+function getDismissed(): Record<number, number> {
+  try { return JSON.parse(localStorage.getItem(LS_SEALED_DISMISSED) ?? '{}') } catch { return {} }
+}
+
+function isSealedDismissed(productId: number, currentPrice: number): boolean {
+  const d = getDismissed()[productId]
+  return d != null && currentPrice >= d - DISMISS_DELTA
+}
+
+function dismissSealed(productId: number, price: number) {
+  const next = { ...getDismissed(), [productId]: price }
+  localStorage.setItem(LS_SEALED_DISMISSED, JSON.stringify(next))
+}
+
+function getWishlistDismissed(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(LS_WISHLIST_DISMISSED) ?? '{}') } catch { return {} }
+}
+
+function isWishlistDismissed(displayName: string, currentPrice: number): boolean {
+  const d = getWishlistDismissed()[displayName]
+  return d != null && currentPrice >= d - DISMISS_DELTA
+}
+
+function dismissWishlist(displayName: string, price: number) {
+  const next = { ...getWishlistDismissed(), [displayName]: price }
+  localStorage.setItem(LS_WISHLIST_DISMISSED, JSON.stringify(next))
 }
 
 interface HistoryPoint {
@@ -71,6 +104,13 @@ export default function HomePage() {
   const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; purchasePrice: number | null; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
   const [cardFetchedAt, setCardFetchedAt] = useState<Date | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [dismissedSealed, setDismissedSealed] = useState<Record<number, number>>({})
+  const [dismissedWishlist, setDismissedWishlist] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    setDismissedSealed(getDismissed())
+    setDismissedWishlist(getWishlistDismissed())
+  }, [])
 
   function fetchHighlights() {
     const cached = localStorage.getItem(LS_HIGHLIGHTS)
@@ -367,30 +407,69 @@ export default function HomePage() {
             </p>
           )}
 
-          {sealedDrops.length > 0 && (
+          {sealedDrops.filter(c => c.productId != null && !isSealedDismissed(c.productId, c.currentPrice)).length > 0 && (
             <div id="sidebar-sealed-drops">
               <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Sealed All-Time Low</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
-                {sealedDrops.map(c => {
+                {sealedDrops.filter(c => c.productId != null && !isSealedDismissed(c.productId, c.currentPrice)).map(c => {
                   const suffix = c.displayName.includes(' - ') ? c.displayName.slice(c.displayName.indexOf(' - ') + 3) : c.displayName
                   return (
+                    <div key={c.displayName} className="group relative">
+                      <button
+                        onClick={() => router.push('/wishlist#wishlist-sealed')}
+                        className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2 hover:bg-stone-800 transition-colors text-left w-full"
+                      >
+                        {c.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={c.imageUrl} alt={suffix} className="w-7 h-7 object-cover rounded shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-stone-200 font-medium truncate">{suffix}</p>
+                          <p className="text-xs text-stone-600 font-mono">${c.snapshotPrice.toFixed(2)} → ${c.currentPrice.toFixed(2)}</p>
+                        </div>
+                        <span className="hidden sm:block sm:group-hover:opacity-0 transition-opacity text-xs font-bold text-green-400 font-mono shrink-0">↓ ATL</span>
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); dismissSealed(c.productId!, c.currentPrice); setDismissedSealed(getDismissed()) }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {wishlistDrops.filter(c => !isWishlistDismissed(c.displayName, c.currentPrice)).length > 0 && (
+            <div id="sidebar-wishlist-drops">
+              <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Wishlist Drops</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
+                {wishlistDrops.filter(c => !isWishlistDismissed(c.displayName, c.currentPrice)).map(c => (
+                  <div key={c.displayName} className="group relative">
                     <button
-                      key={c.displayName}
-                      onClick={() => router.push('/wishlist#wishlist-sealed')}
+                      onClick={() => router.push('/wishlist')}
                       className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2 hover:bg-stone-800 transition-colors text-left w-full"
                     >
                       {c.imageUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={c.imageUrl} alt={suffix} className="w-7 h-7 object-cover rounded shrink-0" />
+                        <img src={c.imageUrl} alt={c.displayName} className="w-7 rounded shrink-0" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-stone-200 font-medium truncate">{suffix}</p>
+                        <p className="text-xs text-stone-200 font-medium truncate">{c.displayName}</p>
                         <p className="text-xs text-stone-600 font-mono">${c.snapshotPrice.toFixed(2)} → ${c.currentPrice.toFixed(2)}</p>
                       </div>
-                      <span className="text-xs font-bold text-green-400 font-mono shrink-0">↓ ATL</span>
+                      <span className="hidden sm:block sm:group-hover:opacity-0 transition-opacity text-xs font-bold text-red-400 font-mono shrink-0">▼{Math.abs(c.pct).toFixed(1)}%</span>
                     </button>
-                  )
-                })}
+                    <button
+                      onClick={e => { e.stopPropagation(); dismissWishlist(c.displayName, c.currentPrice); setDismissedWishlist(getWishlistDismissed()) }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -414,31 +493,6 @@ export default function HomePage() {
                       <p className="text-xs text-stone-600 font-mono">${c.snapshotPrice.toFixed(2)} → ${c.currentPrice.toFixed(2)}</p>
                     </div>
                     <span className="text-xs font-bold text-green-400 font-mono shrink-0">▲{c.pct.toFixed(1)}%</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {wishlistDrops.length > 0 && (
-            <div id="sidebar-wishlist-drops">
-              <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-widest mb-2">Wishlist Drops</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
-                {wishlistDrops.map(c => (
-                  <button
-                    key={c.displayName}
-                    onClick={() => router.push('/wishlist')}
-                    className="flex items-center gap-2 bg-stone-900 rounded-lg px-2.5 py-2 hover:bg-stone-800 transition-colors text-left w-full"
-                  >
-                    {c.imageUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.imageUrl} alt={c.displayName} className="w-7 rounded shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-stone-200 font-medium truncate">{c.displayName}</p>
-                      <p className="text-xs text-stone-600 font-mono">${c.snapshotPrice.toFixed(2)} → ${c.currentPrice.toFixed(2)}</p>
-                    </div>
-                    <span className="text-xs font-bold text-red-400 font-mono shrink-0">▼{Math.abs(c.pct).toFixed(1)}%</span>
                   </button>
                 ))}
               </div>
