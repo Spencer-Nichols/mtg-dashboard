@@ -102,7 +102,7 @@ function CardImage({ src, alt, className }: { src: string | null | undefined; al
   return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
 }
 
-function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts, labelsOnMobile = false }: {
+function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts, labelsOnMobile = false, labelFontSize = 7 }: {
   values: number[]
   width?: number
   height?: number
@@ -111,6 +111,7 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   showLabels?: boolean
   counts?: (number | null)[]
   labelsOnMobile?: boolean
+  labelFontSize?: number
 }) {
   if (values.length === 0) return null
   const min = Math.min(...values)
@@ -171,11 +172,11 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
         {yLabels.map((v, i) => (
           <g key={i}>
             <line x1={padLeft} y1={y(v)} x2={width - padRight} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
-            <text x={padLeft - 4} y={y(v) + 4} textAnchor="end" fontSize="7" fill="#475569">${Math.round(v)}</text>
+            <text x={padLeft - 4} y={y(v) + 4} textAnchor="end" fontSize={labelFontSize} fill="#475569">${Math.round(v)}</text>
           </g>
         ))}
         {xIndices.map(i => (
-          <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize="7" fill="#475569">
+          <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
             {dates![i].slice(5)}
           </text>
         ))}
@@ -344,6 +345,7 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
 }) {
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [savedNote, setSavedNote] = useState(row.note ?? '')
+  const [flipped, setFlipped] = useState(false)
   const manapoolSlug = row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
   function commitNote() {
@@ -375,15 +377,22 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
             {row.imageUrl && (
               <div className="relative shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={row.imageUrl} alt={row.displayName} className="w-24 rounded-lg shadow-2xl" />
+                <img
+                  src={row.backImageUrl && flipped ? row.backImageUrl : row.imageUrl}
+                  alt={row.displayName}
+                  className="w-24 rounded-lg shadow-2xl"
+                />
                 {row.condition && (
                   <span className={`absolute bottom-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded font-mono leading-none ${CONDITION_COLOR[row.condition] ?? 'bg-black/70 text-stone-300'}`}>{row.condition}</span>
                 )}
+                {row.backImageUrl && (
+                  <button
+                    onClick={() => setFlipped(f => !f)}
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-stone-300 flex items-center justify-center text-xs hover:bg-black/90 transition-colors"
+                    title="Flip card"
+                  >↺</button>
+                )}
               </div>
-            )}
-            {row.backImageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-24 rounded-lg shadow-2xl" />
             )}
           </div>
           <div className="flex flex-col gap-1.5 shrink-0 justify-center">
@@ -396,7 +405,7 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
           <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
             <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
               {sparkline && sparkline.values.length >= 2
-                ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} />
+                ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} />
                 : <SparklinePlaceholder height={80} />}
             </div>
             <input
@@ -467,6 +476,7 @@ function CardRow({
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [savedNote, setSavedNote] = useState(row.note ?? '')
   const [showEdit, setShowEdit] = useState(false)
+  const [flipped, setFlipped] = useState(false)
 
   function commitNote() {
     const trimmed = noteVal.trim()
@@ -529,15 +539,22 @@ function CardRow({
               {row.imageUrl && (
                 <div className="relative shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={row.imageUrl} alt={row.displayName} className="w-28 rounded-xl shadow-2xl" />
+                  <img
+                    src={row.backImageUrl && flipped ? row.backImageUrl : row.imageUrl}
+                    alt={row.displayName}
+                    className="w-28 rounded-xl shadow-2xl"
+                  />
                   {row.condition && (
                     <span className={`absolute bottom-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded font-mono leading-none ${CONDITION_COLOR[row.condition] ?? 'bg-black/70 text-stone-300'}`}>{row.condition}</span>
                   )}
+                  {row.backImageUrl && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setFlipped(f => !f) }}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-stone-300 flex items-center justify-center text-xs hover:bg-black/90 transition-colors"
+                      title="Flip card"
+                    >↺</button>
+                  )}
                 </div>
-              )}
-              {row.backImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-28 rounded-xl shadow-2xl" />
               )}
             </div>
             <div className="flex flex-col gap-1.5 shrink-0">
@@ -574,7 +591,7 @@ function CardRow({
               </div>
               <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
                 {sparkline && sparkline.values.length >= 2
-                  ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} />
+                  ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} />
                   : <SparklinePlaceholder height={80} />}
               </div>
               <input
