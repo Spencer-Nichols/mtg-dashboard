@@ -53,7 +53,7 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
 
   const { data: sealedRows, error } = await supabase
     .from('sealed_wishlist')
-    .select('user_id, tcg_product_id')
+    .select('user_id, tcg_product_id, snapshot_price')
 
   if (error) throw new Error(`Failed to fetch sealed wishlist: ${error.message}`)
   if (!sealedRows || sealedRows.length === 0) {
@@ -133,9 +133,9 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     if (price == null) continue
     const key = `${row.user_id}:${row.tcg_product_id}`
     const olderPrices = olderPricesMap.get(key) ?? []
-    if (olderPrices.length === 0) continue
-    const historicLow = Math.min(...olderPrices)
-    if (price >= historicLow) continue
+    const snapshotPrice = row.snapshot_price ?? 0
+    const baseline = olderPrices.length > 0 ? Math.min(...olderPrices, snapshotPrice) : snapshotPrice
+    if (baseline - price < 2) continue
     const lastNotifPrice = lastNotifMap.get(key)
     if (lastNotifPrice != null && price >= lastNotifPrice) continue
     atlInserts.push({ user_id: row.user_id, tcg_product_id: row.tcg_product_id, notified_price: price, notified_at: now })

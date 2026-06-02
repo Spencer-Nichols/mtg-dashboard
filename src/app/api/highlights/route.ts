@@ -125,7 +125,8 @@ export async function GET() {
     if (snapshotPrice <= 0) continue
     const pct = ((currentPrice - snapshotPrice) / snapshotPrice) * 100
     const olderPrices = sealedOlderPricesMap.get(item.tcg_product_id) ?? []
-    const isAtl = olderPrices.length > 0 && currentPrice < Math.min(...olderPrices)
+    const baseline = olderPrices.length > 0 ? Math.min(...olderPrices, snapshotPrice) : snapshotPrice
+    const isAtl = baseline - currentPrice >= 2
     if (isAtl) {
       sealedDrops.push({
         displayName: item.product_name,
