@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { ScryfallCard, getPrice, getPriceByFoilType, sleep } from '@/lib/scryfall'
 import { getCached, setCached, getCachedPriceByFoilType, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
 
-const STALE_MS = 6 * 60 * 60 * 1000
+const STALE_MS = 4 * 60 * 60 * 1000
 const BATCH_SIZE = 75
 const BATCH_DELAY = 100
 
