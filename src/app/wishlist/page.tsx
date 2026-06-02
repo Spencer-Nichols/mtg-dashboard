@@ -1094,7 +1094,7 @@ export default function WishlistPage() {
                   imageUrl: item.imageUrl,
                 }
                 const history = sealedHistory[item.tcgProductId]?.map(h => h.price) ?? []
-                const isAtl = isAtlPrice(display.currentPrice, item.tcgProductId)
+                const isAtl = isAtlPrice(display.currentPrice, item.tcgProductId, item.snapshotPrice)
                 const sparkline = history.length > 0 ? history : undefined
                 return <SealedProductTile key={item.id} item={display} onDelete={deleteSealedItem} sparkline={sparkline} isAtl={isAtl} />
               })}
