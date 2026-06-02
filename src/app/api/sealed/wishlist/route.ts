@@ -8,7 +8,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('sealed_wishlist')
-    .select('id, tcg_product_id, tcg_group_id, product_name, set_name, snapshot_price, image_url')
+    .select('id, tcg_product_id, tcg_group_id, product_name, set_name, snapshot_price, image_url, target_price')
     .eq('user_id', user.id)
     .order('created_at')
 
@@ -17,7 +17,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { tcgProductId, tcgGroupId, productName, setName, snapshotPrice, imageUrl } = await req.json()
+  const { tcgProductId, tcgGroupId, productName, setName, snapshotPrice, imageUrl, targetPrice } = await req.json()
   if (!tcgProductId || !tcgGroupId || !productName || !setName) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     set_name: setName,
     snapshot_price: snapshotPrice ?? null,
     image_url: imageUrl ?? null,
+    target_price: targetPrice ?? null,
   })
 
   if (error?.code === '23505') return NextResponse.json({ error: 'Already on wishlist' }, { status: 409 })
