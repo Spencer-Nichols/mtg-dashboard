@@ -8,8 +8,8 @@ const BATCH_SIZE = 75
 const BATCH_DELAY = 150
 
 const CONDITION_MAP: Record<string, string> = {
-  'near mint': 'NM', 'lightly played': 'LP', 'moderately played': 'MP',
-  'heavily played': 'HP', 'damaged': 'Damaged',
+  'near mint': 'NM', 'lightly played': 'LP', 'good (lightly played)': 'LP',
+  'moderately played': 'MP', 'played': 'MP', 'heavily played': 'HP', 'damaged': 'Damaged',
 }
 function normalizeCondition(raw: string | undefined): string | null {
   if (!raw?.trim()) return null
