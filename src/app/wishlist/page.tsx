@@ -707,16 +707,18 @@ export default function WishlistPage() {
   const ATL_WINDOW_MS = 24 * 60 * 60 * 1000
   const atlCutoff = Date.now() - ATL_WINDOW_MS
 
-  function isAtlPrice(currentPrice: number | null | undefined, productId: number) {
+  const ATL_MIN_DELTA = 2
+
+  function isAtlPrice(currentPrice: number | null | undefined, productId: number, snapshotPrice: number) {
     if (currentPrice == null) return false
     const older = (sealedHistory[productId] ?? []).filter(h => new Date(h.date).getTime() < atlCutoff)
-    if (older.length === 0) return false
-    return currentPrice < Math.min(...older.map(h => h.price))
+    const baseline = older.length > 0 ? Math.min(...older.map(h => h.price), snapshotPrice) : snapshotPrice
+    return baseline - currentPrice >= ATL_MIN_DELTA
   }
 
   const atlSealedItems = sealedItems.filter(item => {
     const currentPrice = sealedResults.get(item.id)?.currentPrice
-    return isAtlPrice(currentPrice, item.tcgProductId)
+    return isAtlPrice(currentPrice, item.tcgProductId, item.snapshotPrice)
   })
   const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
 
