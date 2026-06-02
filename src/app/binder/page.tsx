@@ -355,7 +355,6 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
       <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-stone-800/60 transition-colors" onClick={onToggleExpand}>
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span className="text-sm text-stone-300 truncate">{row.displayName}</span>
-          {row.condition && row.condition !== 'NM' && <span className="text-xs px-1 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700 shrink-0">{row.condition}</span>}
           {row.foilType && row.foilType !== 'none' && <span className="text-xs px-1 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">{row.foilType}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -366,12 +365,17 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
       {expanded && (
         <div className="px-3 pb-3 pt-2 flex gap-3 border-t border-stone-800">
           {row.imageUrl && (
-            <div className="flex gap-2 shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={row.imageUrl} alt={row.displayName} className="w-24 rounded-lg shadow-2xl" />
-              {row.backImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-24 rounded-lg shadow-2xl" />
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <div className="flex gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={row.imageUrl} alt={row.displayName} className="w-24 rounded-lg shadow-2xl" />
+                {row.backImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-24 rounded-lg shadow-2xl" />
+                )}
+              </div>
+              {row.condition && row.condition !== 'NM' && (
+                <span className="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 font-mono text-center">{row.condition}</span>
               )}
             </div>
           )}
@@ -480,9 +484,6 @@ function CardRow({
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <span className="truncate">{row.displayName}</span>
-            {row.condition && row.condition !== 'NM' && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700">{row.condition}</span>
-            )}
             {row.foilType && row.foilType !== 'none' && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">{row.foilType}</span>
             )}
@@ -518,12 +519,17 @@ function CardRow({
         <td colSpan={5} className="px-4 py-4">
           <div className="flex gap-4 items-center">
             {row.imageUrl && (
-              <div className="flex gap-2 shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={row.imageUrl} alt={row.displayName} className="w-28 rounded-xl shadow-2xl" />
-                {row.backImageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-28 rounded-xl shadow-2xl" />
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <div className="flex gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={row.imageUrl} alt={row.displayName} className="w-28 rounded-xl shadow-2xl" />
+                  {row.backImageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-28 rounded-xl shadow-2xl" />
+                  )}
+                </div>
+                {row.condition && row.condition !== 'NM' && (
+                  <span className="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 font-mono text-center">{row.condition}</span>
                 )}
               </div>
             )}
@@ -692,6 +698,9 @@ export default function BinderPage() {
   const [importCsvLoading, setImportCsvLoading] = useState(false)
   const [importCsvResults, setImportCsvResults] = useState<{ name: string; status: 'added' | 'skipped' | 'error'; message?: string; price?: number }[]>([])
   const [csvMinPrice, setCsvMinPrice] = useState('2')
+  useEffect(() => {
+    if (importLogRef.current) importLogRef.current.scrollTop = importLogRef.current.scrollHeight
+  }, [importCsvResults])
   const [importCsvProgress, setImportCsvProgress] = useState<{ current: number; total: number } | null>(null)
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null)
   const [gainersOpen, setGainersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
@@ -707,6 +716,7 @@ export default function BinderPage() {
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const addInputRef = useRef<HTMLInputElement>(null)
   const csvFileInputRef = useRef<HTMLInputElement>(null)
+  const importLogRef = useRef<HTMLDivElement>(null)
   const expandParamRef = useRef<string | null>(null)
 
   // History state
@@ -1288,7 +1298,7 @@ return (
             </div>
           )}
           {importCsvResults.length > 0 && (
-            <div className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
+            <div ref={importLogRef} className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
               {importCsvResults.map((r, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
                   <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
