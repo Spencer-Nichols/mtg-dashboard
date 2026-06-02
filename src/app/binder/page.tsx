@@ -41,6 +41,13 @@ interface CardResult {
 }
 
 const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'Damaged'] as const
+const CONDITION_COLOR: Record<string, string> = {
+  'NM': 'bg-green-900/80 text-green-300',
+  'LP': 'bg-yellow-900/80 text-yellow-300',
+  'MP': 'bg-orange-900/80 text-orange-300',
+  'HP': 'bg-red-900/80 text-red-400',
+  'Damaged': 'bg-red-950/90 text-red-500',
+}
 type Condition = typeof CONDITIONS[number]
 type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; etchedPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
 
@@ -364,21 +371,21 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
       </div>
       {expanded && (
         <div className="px-3 pb-3 pt-2 flex gap-3 border-t border-stone-800">
-          {row.imageUrl && (
-            <div className="flex flex-col gap-1.5 shrink-0">
-              <div className="flex gap-2">
+          <div className="flex gap-2 shrink-0">
+            {row.imageUrl && (
+              <div className="relative shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={row.imageUrl} alt={row.displayName} className="w-24 rounded-lg shadow-2xl" />
-                {row.backImageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-24 rounded-lg shadow-2xl" />
+                {row.condition && (
+                  <span className={`absolute bottom-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded font-mono leading-none ${CONDITION_COLOR[row.condition] ?? 'bg-black/70 text-stone-300'}`}>{row.condition}</span>
                 )}
               </div>
-              {row.condition && row.condition !== 'NM' && (
-                <span className="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 font-mono text-center">{row.condition}</span>
-              )}
-            </div>
-          )}
+            )}
+            {row.backImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-24 rounded-lg shadow-2xl" />
+            )}
+          </div>
           <div className="flex flex-col gap-1.5 shrink-0 justify-center">
             <a href={`https://manapool.com/card/${manapoolSlug}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors text-center">Manapool ↗</a>
             <button onClick={() => onEdit(row)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors">Edit</button>
@@ -518,21 +525,21 @@ function CardRow({
       <tr className="border-b border-stone-800" style={row.foilType && row.foilType !== 'none' ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.12) 35%, rgba(96, 165, 250, 0.11) 52%, rgba(52, 211, 153, 0.10) 68%, #1c1917 85%)' } : { background: 'rgb(28 25 23 / 0.5)' }}>
         <td colSpan={5} className="px-4 py-4">
           <div className="flex gap-4 items-center">
-            {row.imageUrl && (
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
+              {row.imageUrl && (
+                <div className="relative shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={row.imageUrl} alt={row.displayName} className="w-28 rounded-xl shadow-2xl" />
-                  {row.backImageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-28 rounded-xl shadow-2xl" />
+                  {row.condition && (
+                    <span className={`absolute bottom-1.5 left-1.5 text-xs px-1.5 py-0.5 rounded font-mono leading-none ${CONDITION_COLOR[row.condition] ?? 'bg-black/70 text-stone-300'}`}>{row.condition}</span>
                   )}
                 </div>
-                {row.condition && row.condition !== 'NM' && (
-                  <span className="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 font-mono text-center">{row.condition}</span>
-                )}
-              </div>
-            )}
+              )}
+              {row.backImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={row.backImageUrl} alt={`${row.displayName} back`} className="w-28 rounded-xl shadow-2xl" />
+              )}
+            </div>
             <div className="flex flex-col gap-1.5 shrink-0">
               <a
                 href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`}
