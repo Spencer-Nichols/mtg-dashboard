@@ -38,7 +38,7 @@ async function fetchLowestPrice(productId: number): Promise<number | null> {
   const valid = listings.filter(l => (l.shippingPrice ?? 0) <= MAX_SHIPPING)
   if (valid.length === 0) return null
 
-  return parseFloat(Math.min(...valid.map(l => l.price)).toFixed(2))
+  return parseFloat(Math.min(...valid.map(l => l.price + (l.shippingPrice ?? 0))).toFixed(2))
 }
 
 export interface SealedRefreshResult {
