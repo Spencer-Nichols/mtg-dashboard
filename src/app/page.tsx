@@ -222,14 +222,14 @@ export default function HomePage() {
           <p className="text-2xl font-bold text-stone-100">${currentTotal!.toFixed(2)}</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          {totalDelta != null && (
-            <span className={`text-sm font-mono font-semibold ${totalDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {totalDelta >= 0 ? '▲' : '▼'} ${Math.abs(totalDelta).toFixed(2)} vs cost
+          {totalDiff != null && (
+            <span className={`text-sm font-mono font-semibold ${totalDiff >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {totalDiff >= 0 ? '▲' : '▼'} ${Math.abs(totalDiff).toFixed(2)} all time
             </span>
           )}
-          {totalDiff != null && (
-            <span className="text-xs font-mono text-stone-500">
-              {totalDiff >= 0 ? '▲' : '▼'} ${Math.abs(totalDiff).toFixed(2)} all time
+          {totalDelta != null && (
+            <span className={`text-xs font-mono ${totalDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {totalDelta >= 0 ? '▲' : '▼'} ${Math.abs(totalDelta).toFixed(2)} today
             </span>
           )}
         </div>
