@@ -7,6 +7,15 @@ export const dynamic = 'force-dynamic'
 const BATCH_SIZE = 75
 const BATCH_DELAY = 150
 
+const CONDITION_MAP: Record<string, string> = {
+  'near mint': 'NM', 'lightly played': 'LP', 'moderately played': 'MP',
+  'heavily played': 'HP', 'damaged': 'Damaged',
+}
+function normalizeCondition(raw: string | undefined): string | null {
+  if (!raw?.trim()) return null
+  return CONDITION_MAP[raw.trim().toLowerCase()] ?? raw.trim()
+}
+
 function parseCSV(content: string): Record<string, string>[] {
   const lines = content.split('\n').filter(l => l.trim())
   if (lines.length < 2) return []
@@ -83,7 +92,7 @@ export async function POST(req: NextRequest) {
         foilType: (foilRaw === 'etched' ? 'etched' : foilRaw === 'foil' ? 'foil' : 'none') as FoilType,
         count: parseInt(row['Count'] || '1') || 1,
         purchasePrice: row['Purchase Price']?.trim() ? parseFloat(row['Purchase Price'].trim()) : null,
-        condition: row['Condition']?.trim() || null,
+        condition: normalizeCondition(row['Condition']),
       }
     })
 
