@@ -1,12 +1,26 @@
 import { createServiceClient } from '@/lib/supabase/service'
-import { fetchByName, fetchById, getPrice, getPriceByFoilType, sleep } from '@/lib/scryfall'
+import { ScryfallCard, getPrice, getPriceByFoilType, sleep } from '@/lib/scryfall'
 import { getCached, setCached, getCachedPriceByFoilType, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
 
 const STALE_MS = 6 * 60 * 60 * 1000
+const BATCH_SIZE = 75
+const BATCH_DELAY = 100
 
 function isStale(entry: CacheEntry | null): boolean {
   if (!entry) return true
   return Date.now() - entry.timestamp > STALE_MS
+}
+
+type ScryfallIdentifier = { id: string } | { name: string; set?: string }
+
+async function fetchCollection(identifiers: ScryfallIdentifier[]): Promise<{ data: ScryfallCard[]; not_found: ScryfallIdentifier[] }> {
+  const res = await fetch('https://api.scryfall.com/cards/collection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': 'SpencerMTGDashboard/1.0' },
+    body: JSON.stringify({ identifiers }),
+  })
+  if (!res.ok) return { data: [], not_found: identifiers }
+  return res.json()
 }
 
 export interface RefreshResult {
@@ -26,7 +40,6 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     supabase.from('wishlist_singles').select('user_id, name, set_code, scryfall_id'),
   ])
 
-  // Deduplicate by cache key so each unique card hits Scryfall at most once
   type CardRef = { baseName: string; setCode: string | null; scryfallId: string | null }
   const uniqueCards = new Map<string, CardRef>()
 
@@ -39,25 +52,49 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     if (!uniqueCards.has(key)) uniqueCards.set(key, { baseName: row.name, setCode: row.set_code, scryfallId: row.scryfall_id })
   }
 
-  let fetched = 0
+  // Check cache for all unique cards, collect stale ones
+  const staleEntries: Array<{ key: string; card: CardRef }> = []
   let fromCache = 0
-  let firstFetch = true
 
-  for (const [key, card] of uniqueCards) {
-    const existing = await getCached(key)
-    if (!isStale(existing)) {
-      fromCache++
-      continue
+  await Promise.all(
+    [...uniqueCards.entries()].map(async ([key, card]) => {
+      const existing = await getCached(key)
+      if (isStale(existing)) {
+        staleEntries.push({ key, card })
+      } else {
+        fromCache++
+      }
+    })
+  )
+
+  // Build reverse lookup maps for matching collection results back to cache keys
+  const idToKey = new Map<string, string>()
+  const nameSetToKey = new Map<string, string>()
+  const identifiers: ScryfallIdentifier[] = []
+
+  for (const { key, card } of staleEntries) {
+    if (card.scryfallId) {
+      idToKey.set(card.scryfallId, key)
+      identifiers.push({ id: card.scryfallId })
+    } else {
+      const nsKey = `${card.baseName.toLowerCase()}:${(card.setCode ?? '').toLowerCase()}`
+      nameSetToKey.set(nsKey, key)
+      identifiers.push(card.setCode ? { name: card.baseName, set: card.setCode } : { name: card.baseName })
     }
+  }
 
-    if (!firstFetch) await sleep(card.scryfallId ? 150 : 600)
-    firstFetch = false
+  let fetched = 0
 
-    const scryfallCard = card.scryfallId
-      ? await fetchById(card.scryfallId)
-      : await fetchByName(card.baseName, card.setCode ?? undefined)
+  for (let i = 0; i < identifiers.length; i += BATCH_SIZE) {
+    if (i > 0) await sleep(BATCH_DELAY)
+    const batch = identifiers.slice(i, i + BATCH_SIZE)
+    const { data: cards } = await fetchCollection(batch)
 
-    if (scryfallCard) {
+    for (const scryfallCard of cards) {
+      const key = idToKey.get(scryfallCard.id)
+        ?? nameSetToKey.get(`${scryfallCard.name.toLowerCase()}:${scryfallCard.set.toLowerCase()}`)
+      if (!key) continue
+
       const price = getPrice(scryfallCard, false)
       const foilPrice = getPrice(scryfallCard, true)
       const etchedPrice = getPriceByFoilType(scryfallCard, 'etched')
@@ -73,11 +110,10 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     }
   }
 
-  // Calculate per-user binder totals, card counts, and per-card history
+  // Calculate per-user binder totals and card history
   const userTotals = new Map<string, number>()
   const userCounts = new Map<string, number>()
   const binderCardHistory: { user_id: string; display_name: string; date: string; price: number }[] = []
-
   const today = new Date().toISOString().split('T')[0]
 
   for (const row of binderRows ?? []) {
