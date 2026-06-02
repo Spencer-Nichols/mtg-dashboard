@@ -476,10 +476,10 @@ function CardRow({
       style={row.foilType && row.foilType !== 'none' ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.10) 35%, rgba(96, 165, 250, 0.10) 52%, rgba(52, 211, 153, 0.08) 68%, #1c1917 85%)' } : undefined}
       onClick={onToggleExpand}
     >
-      <td className="px-4 py-3 text-stone-200 font-medium">
+      <td className="px-4 py-3 text-stone-200 font-medium max-w-0 w-full">
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span>{row.displayName}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="truncate">{row.displayName}</span>
             {row.condition && row.condition !== 'NM' && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800 text-stone-500 font-mono border border-stone-700">{row.condition}</span>
             )}
@@ -503,7 +503,7 @@ function CardRow({
           </p>
         )}
       </td>
-      <td className={`px-4 py-3.5 text-right font-mono ${
+      <td className={`px-4 py-3.5 text-right font-mono whitespace-nowrap ${
         diff != null && diff < 0 && (row.dailyPct ?? 0) > 0 ? 'text-amber-500' :
         diff != null && diff < 0 ? 'text-red-400' :
         diff != null && diff > 0 && (row.dailyPct ?? 0) < 0 ? 'text-amber-500' :
@@ -555,6 +555,10 @@ function CardRow({
               </button>
             </div>
             <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
+              <div className="md:hidden flex items-baseline gap-2">
+                <span className="text-stone-200 font-mono font-semibold">{row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}</span>
+                <span className="text-stone-500 font-mono text-xs">{row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}</span>
+              </div>
               <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
                 {sparkline && sparkline.values.length >= 2
                   ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} />
