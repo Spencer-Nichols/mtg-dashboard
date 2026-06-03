@@ -5,7 +5,7 @@ const LISTINGS_URL = (productId: number) =>
   `https://mp-search-api.tcgplayer.com/v1/product/${productId}/listings?mpfev=5214`
 
 const MANAPOOL_URL = (ids: number[]) =>
-  `https://manapool.com/api/v1/products/sealed?tcgplayer_ids=${ids.join(',')}`
+  `https://manapool.com/api/v1/products/sealed?${ids.map(id => `tcgplayer_ids=${id}`).join('&')}`
 
 const MAX_SHIPPING = 25
 const PRICE_MIN_DELTA = 0.25
