@@ -98,11 +98,12 @@ export async function GET() {
     .eq('user_id', user.id)
 
   const atlCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { data: sealedHistoryRows } = await supabase
+  const sealedProductIds = (sealedRows ?? []).map(r => r.tcg_product_id as number)
+  const { data: sealedHistoryRows } = sealedProductIds.length > 0 ? await supabase
     .from('sealed_wishlist_history')
     .select('tcg_product_id, recorded_at, price')
-    .eq('user_id', user.id)
-    .order('recorded_at', { ascending: false })
+    .in('tcg_product_id', sealedProductIds)
+    .order('recorded_at', { ascending: false }) : { data: [] }
 
   const latestSealedPriceMap = new Map<number, number>()
   const sealedOlderPricesMap = new Map<number, number[]>()
