@@ -625,8 +625,17 @@ export default function WishlistPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
-    setSealedItems(prev => prev.filter(s => s.id !== id))
-    setSealedResults(prev => { const next = new Map(prev); next.delete(id); return next })
+    setSealedItems(prev => {
+      const next = prev.filter(s => s.id !== id)
+      localStorage.setItem(LS_SEALED_ITEMS, JSON.stringify(next))
+      return next
+    })
+    setSealedResults(prev => {
+      const next = new Map(prev)
+      next.delete(id)
+      localStorage.setItem(LS_SEALED_RESULTS, JSON.stringify(Array.from(next.entries())))
+      return next
+    })
   }
 
   async function loadSealedGroups() {
@@ -1152,7 +1161,7 @@ export default function WishlistPage() {
         </div>
       )}
 
-      {(buySuggestions.length > 0 || sealedBuySuggestions.length > 0) && (
+      {buySuggestions.length > 0 && (
         <div className="mb-6 bg-green-950/40 border border-green-800/60 rounded-xl p-4">
           <p className="text-green-400 font-semibold text-sm mb-3">
             Good Time to Buy — down {Math.abs(BUY_THRESHOLD)}%+ from when you started watching
@@ -1170,28 +1179,6 @@ export default function WishlistPage() {
                   {r.currentPrice != null && (
                     <button
                       onClick={() => dismissWishlistCard(r.displayName, r.currentPrice!)}
-                      className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
-                    >
-                      Dismiss
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-            {sealedBuySuggestions.map(r => {
-              const suffix = r.productName.includes(' - ') ? r.productName.slice(r.productName.indexOf(' - ') + 3) : r.productName
-              const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
-              return (
-                <div key={r.id} className="group relative bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
-                  <p className="text-stone-200 text-sm font-medium">{suffix}</p>
-                  <p className="text-xs text-stone-500">{r.setName}</p>
-                  <p className="text-green-400 text-xs font-mono mt-0.5">
-                    ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
-                    {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
-                  </p>
-                  {r.currentPrice != null && (
-                    <button
-                      onClick={() => dismissSealed(r.productId, r.currentPrice!)}
                       className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                     >
                       Dismiss
