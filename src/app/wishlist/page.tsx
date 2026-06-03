@@ -51,6 +51,8 @@ interface CardResult {
   setCode?: string
   rarity?: string
   typeLine?: string
+  priceSource?: 'manapool' | 'scryfall' | null
+  manapoolUrl?: string | null
 }
 
 type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
@@ -125,17 +127,25 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
     <div className="group relative flex flex-col gap-1.5">
       <div className="relative rounded-xl overflow-hidden shadow-lg">
         <a
-          href={`https://manapool.com/card/${manapoolSlug}`}
+          href={row.priceSource === 'manapool'
+            ? (row.manapoolUrl ?? `https://manapool.com/card/${manapoolSlug}`)
+            : `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(row.displayName)}`}
           target="_blank"
           rel="noopener noreferrer"
           className="block"
-          title="View on Manapool"
+          title={row.priceSource === 'manapool' ? 'View on Manapool' : 'View on TCGPlayer'}
         >
           {row.imageUrl
             ? <img src={row.imageUrl} alt={row.displayName} className="w-full block group-hover:brightness-110 transition-all" />
             : <div className="aspect-[5/7] bg-stone-800 rounded-xl animate-pulse" />}
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-10 pointer-events-none">
-            <span className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/60 text-amber-400 font-medium">View on Manapool</span>
+            <span className={`text-xs px-3 py-1 rounded-full font-medium border-2 bg-stone-900/90 ${
+              row.priceSource === 'manapool'
+                ? 'border-blue-600/60 text-blue-400'
+                : 'border-amber-700/60 text-amber-400'
+            }`}>
+              {row.priceSource === 'manapool' ? 'View on Manapool' : 'View on TCGPlayer'}
+            </span>
           </div>
         </a>
         <div className="absolute top-2 right-2 flex flex-col items-end gap-1 pointer-events-none">
@@ -193,6 +203,15 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
           <span className={`text-sm font-mono font-semibold ${pctColor(row.pct)}`}>
             ${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}
           </span>
+          {row.priceSource && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${
+              row.priceSource === 'manapool'
+                ? 'bg-blue-950/50 text-blue-400 border-blue-800/40'
+                : 'bg-amber-950/50 text-amber-400 border-amber-800/40'
+            }`}>
+              {row.priceSource === 'manapool' ? 'MP' : 'TCG'}
+            </span>
+          )}
           {row.snapshotPrice > 0 && row.currentPrice != null && row.currentPrice !== row.snapshotPrice && (
             <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
           )}
@@ -234,9 +253,9 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
   const [editingAlert, setEditingAlert] = useState(false)
   const [alertValue, setAlertValue] = useState('')
 
-  const suffix = item.productName.includes(' - ')
+  const suffix = (item.productName.includes(' - ')
     ? item.productName.slice(item.productName.indexOf(' - ') + 3)
-    : item.productName
+    : item.productName).replace(/\s+Display$/i, '')
 
   function openAlert() {
     setAlertValue(targetPrice != null ? targetPrice.toFixed(2) : '')
@@ -272,6 +291,7 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
                 ? 'border-blue-600/60 text-blue-400'
                 : 'border-amber-700/60 text-amber-400'
             }`}>
+
               {item.priceSource === 'manapool' ? 'View on Manapool' : 'View on TCGPlayer'}
             </span>
           </div>
@@ -304,45 +324,58 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
         </div>
       </div>
       <div className="px-0.5 flex flex-col gap-0.5">
-        <p className="text-sm text-stone-200 font-semibold leading-tight">{suffix}</p>
-        <p className="text-xs text-stone-500">{item.setName}</p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <p className="text-xs sm:text-sm font-semibold leading-tight">
+          {item.setName && <span className="text-stone-200 font-normal">{item.setName} · </span>}
+          <span className="text-stone-200">{suffix}</span>
+        </p>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className={`text-sm font-mono font-semibold ${pctColor(item.pct)}`}>
             {item.currentPrice != null ? `$${item.currentPrice.toFixed(2)}` : item.snapshotPrice > 0 ? `$${item.snapshotPrice.toFixed(2)}` : '—'}
           </span>
-
+          {item.priceSource && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${
+              item.priceSource === 'manapool'
+                ? 'bg-blue-950/50 text-blue-400 border-blue-800/40'
+                : 'bg-amber-950/50 text-amber-400 border-amber-800/40'
+            }`}>
+              {item.priceSource === 'manapool' ? 'MP' : 'TCG'}
+            </span>
+          )}
           {item.snapshotPrice > 0 && item.currentPrice != null && item.currentPrice !== item.snapshotPrice && (
-            <span className="text-xs text-stone-600 font-mono">was ${item.snapshotPrice.toFixed(2)}</span>
+            <span className="hidden sm:inline text-xs text-stone-600 font-mono">was ${item.snapshotPrice.toFixed(2)}</span>
+          )}
+          {onSetTargetPrice && (
+            editingAlert ? (
+              <div className="flex items-center gap-1">
+                <span className="text-stone-500 text-xs">Alert &lt; $</span>
+                <input
+                  autoFocus
+                  type="number"
+                  step="0.01"
+                  value={alertValue}
+                  onChange={e => setAlertValue(e.target.value)}
+                  onBlur={saveAlert}
+                  onKeyDown={e => { if (e.key === 'Enter') saveAlert(); if (e.key === 'Escape') setEditingAlert(false) }}
+                  className="w-16 bg-stone-800 border border-stone-600 rounded px-1.5 py-0.5 text-xs text-stone-100 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={openAlert}
+                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                  targetPrice != null
+                    ? 'bg-orange-950/40 border-orange-800/50 text-orange-400 hover:bg-orange-900/40'
+                    : 'bg-stone-800/60 border-stone-700 text-stone-500 hover:text-stone-300'
+                }`}
+              >
+                {targetPrice != null
+                  ? <><span>⚑ alert</span><span className="hidden sm:inline"> &lt; ${targetPrice.toFixed(2)}</span></>
+                  : <><span>+ alert</span><span className="hidden sm:inline"> price</span></>
+                }
+              </button>
+            )
           )}
         </div>
-        {onSetTargetPrice && (
-          editingAlert ? (
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-stone-500 text-xs">Alert &lt; $</span>
-              <input
-                autoFocus
-                type="number"
-                step="0.01"
-                value={alertValue}
-                onChange={e => setAlertValue(e.target.value)}
-                onBlur={saveAlert}
-                onKeyDown={e => { if (e.key === 'Enter') saveAlert(); if (e.key === 'Escape') setEditingAlert(false) }}
-                className="w-16 bg-stone-800 border border-stone-600 rounded px-1.5 py-0.5 text-xs text-stone-100 focus:outline-none focus:border-amber-600"
-              />
-            </div>
-          ) : (
-            <button
-              onClick={openAlert}
-              className={`self-start mt-1 text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                targetPrice != null
-                  ? 'bg-amber-950/40 border-amber-800/50 text-amber-400 hover:bg-amber-900/40'
-                  : 'bg-stone-800/60 border-stone-700 text-stone-500 hover:text-stone-300'
-              }`}
-            >
-              {targetPrice != null ? `⚑ alert < $${targetPrice.toFixed(2)}` : '+ set alert'}
-            </button>
-          )
-        )}
         {sparkline && sparkline.length >= 2 && (
           <div className="mt-1">
             <Sparkline values={sparkline} />
@@ -522,6 +555,8 @@ export default function WishlistPage() {
             setCode: msg.setCode,
             rarity: msg.rarity,
             typeLine: msg.typeLine,
+            priceSource: msg.priceSource ?? null,
+            manapoolUrl: msg.manapoolUrl ?? null,
           })
           return next
         })
