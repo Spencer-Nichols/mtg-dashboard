@@ -41,11 +41,11 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   if (snapshotPrice != null) {
-    const today = new Date().toISOString().slice(0, 10)
-    await supabase.from('sealed_wishlist_history').upsert(
-      { user_id: user.id, tcg_product_id: tcgProductId, date: today, price: parseFloat(snapshotPrice.toFixed(2)) },
-      { onConflict: 'user_id,tcg_product_id,date' }
-    )
+    await supabase.from('sealed_wishlist_history').insert({
+      tcg_product_id: tcgProductId,
+      recorded_at: new Date().toISOString(),
+      price: parseFloat(snapshotPrice.toFixed(2)),
+    })
   }
 
   return NextResponse.json({ ok: true })

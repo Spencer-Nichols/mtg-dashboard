@@ -25,7 +25,6 @@ export async function GET(_req: NextRequest) {
       .from('sealed_wishlist_history')
       .select('tcg_product_id, price')
       .in('tcg_product_id', productIds)
-      .eq('user_id', user.id)
       .order('recorded_at', { ascending: false })
 
     for (const row of history ?? []) {

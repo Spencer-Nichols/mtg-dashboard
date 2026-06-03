@@ -6,10 +6,18 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({}, { status: 401 })
 
+  const { data: wishlistItems } = await supabase
+    .from('sealed_wishlist')
+    .select('tcg_product_id')
+    .eq('user_id', user.id)
+
+  const productIds = (wishlistItems ?? []).map(i => i.tcg_product_id as number)
+  if (productIds.length === 0) return NextResponse.json({})
+
   const { data, error } = await supabase
     .from('sealed_wishlist_history')
     .select('tcg_product_id, recorded_at, price')
-    .eq('user_id', user.id)
+    .in('tcg_product_id', productIds)
     .order('recorded_at')
 
   if (error) return NextResponse.json({}, { status: 500 })

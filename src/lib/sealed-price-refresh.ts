@@ -73,24 +73,24 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
 
   const { data: lastPrices } = await supabase
     .from('sealed_wishlist_history')
-    .select('user_id, tcg_product_id, price')
+    .select('tcg_product_id, price')
     .in('tcg_product_id', uniqueProductIds)
     .order('recorded_at', { ascending: false })
 
-  const lastPriceMap = new Map<string, number>()
+  const lastPriceMap = new Map<number, number>()
   for (const row of lastPrices ?? []) {
-    const key = `${row.user_id}:${row.tcg_product_id}`
-    if (!lastPriceMap.has(key)) lastPriceMap.set(key, row.price)
+    if (!lastPriceMap.has(row.tcg_product_id)) lastPriceMap.set(row.tcg_product_id, row.price)
   }
 
-  const historyInserts: { user_id: string; tcg_product_id: number; recorded_at: string; price: number }[] = []
-  for (const row of sealedRows) {
-    const price = priceMap.get(row.tcg_product_id)
+  const historyInserts: { tcg_product_id: number; recorded_at: string; price: number }[] = []
+  const insertedProducts = new Set<number>()
+  for (const productId of uniqueProductIds) {
+    const price = priceMap.get(productId)
     if (price == null) continue
-    const key = `${row.user_id}:${row.tcg_product_id}`
-    const lastPrice = lastPriceMap.get(key)
+    const lastPrice = lastPriceMap.get(productId)
     if (lastPrice != null && Math.abs(price - lastPrice) < PRICE_MIN_DELTA) continue
-    historyInserts.push({ user_id: row.user_id, tcg_product_id: row.tcg_product_id, recorded_at: now, price })
+    historyInserts.push({ tcg_product_id: productId, recorded_at: now, price })
+    insertedProducts.add(productId)
   }
 
   if (historyInserts.length > 0) {
@@ -103,7 +103,7 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
 
   const { data: allHistory } = await supabase
     .from('sealed_wishlist_history')
-    .select('user_id, tcg_product_id, price, recorded_at')
+    .select('tcg_product_id, price, recorded_at')
     .in('tcg_product_id', uniqueProductIds)
     .lt('recorded_at', atlCutoff)
 
@@ -119,12 +119,11 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     if (!lastNotifMap.has(key)) lastNotifMap.set(key, row.notified_price)
   }
 
-  const olderPricesMap = new Map<string, number[]>()
+  const olderPricesMap = new Map<number, number[]>()
   for (const row of allHistory ?? []) {
-    const key = `${row.user_id}:${row.tcg_product_id}`
-    const arr = olderPricesMap.get(key) ?? []
+    const arr = olderPricesMap.get(row.tcg_product_id) ?? []
     arr.push(row.price)
-    olderPricesMap.set(key, arr)
+    olderPricesMap.set(row.tcg_product_id, arr)
   }
 
   const atlInserts: { user_id: string; tcg_product_id: number; notified_price: number; notified_at: string }[] = []
@@ -132,7 +131,7 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     const price = priceMap.get(row.tcg_product_id)
     if (price == null) continue
     const key = `${row.user_id}:${row.tcg_product_id}`
-    const olderPrices = olderPricesMap.get(key) ?? []
+    const olderPrices = olderPricesMap.get(row.tcg_product_id) ?? []
     const snapshotPrice = row.snapshot_price ?? 0
     const targetPrice = row.target_price as number | null
     const baseline = olderPrices.length > 0 ? Math.min(...olderPrices, snapshotPrice) : snapshotPrice
