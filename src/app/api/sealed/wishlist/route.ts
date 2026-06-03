@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET() {
   const supabase = await createClient()
@@ -41,7 +42,8 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   if (snapshotPrice != null) {
-    await supabase.from('sealed_wishlist_history').insert({
+    const service = createServiceClient()
+    await service.from('sealed_wishlist_history').insert({
       tcg_product_id: tcgProductId,
       recorded_at: new Date().toISOString(),
       price: parseFloat(snapshotPrice.toFixed(2)),
