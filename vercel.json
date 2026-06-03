@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/refresh-sealed",
-      "schedule": "0 * * * *"
+      "schedule": "*/30 * * * *"
     }
   ]
 }
