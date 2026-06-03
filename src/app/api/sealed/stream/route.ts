@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest) {
     for (const row of history ?? []) {
       if (!latestPrices.has(row.tcg_product_id)) {
         latestPrices.set(row.tcg_product_id, row.price)
-        if (row.price_source) latestSources.set(row.tcg_product_id, row.price_source)
+        latestSources.set(row.tcg_product_id, row.price_source ?? 'tcgplayer')
       }
     }
   }

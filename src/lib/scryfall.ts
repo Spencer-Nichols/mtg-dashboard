@@ -132,6 +132,32 @@ export function getPriceByFoilType(card: ScryfallCard, foilType: FoilType): numb
   return card.prices.usd ? parseFloat(card.prices.usd) : null
 }
 
+export async function fetchCollection(scryfallIds: string[]): Promise<Map<string, ScryfallCard>> {
+  const result = new Map<string, ScryfallCard>()
+  if (scryfallIds.length === 0) return result
+
+  const BATCH = 75
+  for (let i = 0; i < scryfallIds.length; i += BATCH) {
+    if (i > 0) await sleep(1100)
+    const batch = scryfallIds.slice(i, i + BATCH)
+    try {
+      const res = await fetch(`${BASE}/cards/collection`, {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiers: batch.map(id => ({ id })) }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      for (const card of data?.data ?? []) {
+        result.set(card.id, card)
+      }
+    } catch {
+      // non-fatal — individual fetches still available as fallback
+    }
+  }
+  return result
+}
+
 export function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
