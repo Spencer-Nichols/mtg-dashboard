@@ -396,7 +396,10 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
             )}
           </div>
           <div className="flex flex-col gap-1.5 shrink-0 justify-center">
-            <a href={`https://manapool.com/card/${manapoolSlug}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors text-center">Manapool ↗</a>
+            <div className="flex gap-1.5">
+              <a href={`https://manapool.com/card/${manapoolSlug}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2.5 py-1 rounded border border-blue-800/60 text-blue-400 hover:border-blue-500 hover:text-blue-300 transition-colors text-center flex-1">MP</a>
+              <a href={`https://www.tcgplayer.com/search/magic/product?productLineName=magic&q=${encodeURIComponent(row.displayName.replace(/\s*\/\/.*$/, '').trim())}&view=grid`} target="_blank" rel="noopener noreferrer" className="text-xs px-2.5 py-1 rounded border border-amber-800/60 text-amber-500 hover:border-amber-500 hover:text-amber-300 transition-colors text-center flex-1">TCG</a>
+            </div>
             <button onClick={() => onEdit(row)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors">Edit</button>
             <button onClick={() => onDelete(row.displayName, row.rowKey ?? row.displayName)} className={`text-xs px-2.5 py-1 rounded border transition-colors ${pendingDelete === (row.rowKey ?? row.displayName) ? 'border-red-600 text-red-400 bg-red-900/30' : 'border-red-800/50 text-red-400 hover:bg-red-900/30'}`}>
               {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
@@ -558,15 +561,26 @@ function CardRow({
               )}
             </div>
             <div className="flex flex-col gap-1.5 shrink-0">
-              <a
-                href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="text-xs px-3 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors text-center"
-              >
-                Manapool ↗
-              </a>
+              <div className="flex gap-1.5">
+                <a
+                  href={`https://manapool.com/card/${row.displayName.replace(/\s*\/\/.*$/, '').replace(/\s*\(?(full art|showcase|extended art|borderless|etched|gilded|retro frame|promo pack|buy-a-box|surge foil|textured foil|foil etched|galaxy foil)\)?\s*$/i, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="text-xs px-3 py-1 rounded border border-blue-800/60 text-blue-400 hover:border-blue-500 hover:text-blue-300 transition-colors text-center flex-1"
+                >
+                  MP
+                </a>
+                <a
+                  href={`https://www.tcgplayer.com/search/magic/product?productLineName=magic&q=${encodeURIComponent(row.displayName.replace(/\s*\/\/.*$/, '').trim())}&view=grid`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="text-xs px-3 py-1 rounded border border-amber-800/60 text-amber-500 hover:border-amber-500 hover:text-amber-300 transition-colors text-center flex-1"
+                >
+                  TCG
+                </a>
+              </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowEdit(true) }}
                 className="text-xs px-3 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-500 hover:text-stone-200 transition-colors"
