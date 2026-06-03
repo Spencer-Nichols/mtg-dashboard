@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({}, { status: 401 })
+
+  const service = createServiceClient()
 
   const { data: wishlistItems } = await supabase
     .from('sealed_wishlist')
@@ -14,7 +17,7 @@ export async function GET() {
   const productIds = (wishlistItems ?? []).map(i => i.tcg_product_id as number)
   if (productIds.length === 0) return NextResponse.json({})
 
-  const { data, error } = await supabase
+  const { data, error } = await service
     .from('sealed_wishlist_history')
     .select('tcg_product_id, recorded_at, price')
     .in('tcg_product_id', productIds)
