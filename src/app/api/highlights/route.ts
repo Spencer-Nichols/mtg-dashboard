@@ -77,7 +77,8 @@ export async function GET() {
     const cached = await getCached(key)
     const snapshotPrice = single.snapshot_price ?? 0
     if (!cached || snapshotPrice <= 0) continue
-    const currentPrice = cached.price
+    const prices = [cached.price, cached.manapoolPrice].filter((p): p is number => p != null)
+    const currentPrice = prices.length > 0 ? Math.min(...prices) : null
     if (currentPrice == null) continue
     const pct = ((currentPrice - snapshotPrice) / snapshotPrice) * 100
     if (pct < 0) {
