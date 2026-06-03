@@ -47,7 +47,7 @@ const STEPS: Step[] = [
     callout: {
       label: 'NEW',
       title: 'Sealed Products',
-      body: 'Track booster boxes, collector boxes, bundles, and more! Search any set and add sealed products to your watchlist an alert will appear when prices drop 10%+.',
+      body: 'Track booster boxes, collector boxes, bundles, and more! Prices are pulled from both TCGPlayer and Manapool — whichever is lower wins. Set a target price or get alerted when prices hit an all-time low.',
     },
   },
 ]
