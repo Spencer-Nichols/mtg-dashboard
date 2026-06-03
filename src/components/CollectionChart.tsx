@@ -65,16 +65,31 @@ export default function CollectionChart({
   const gradId = `collectionChart-${width}-${height}`
 
   const yLabels = [min, (min + max) / 2, max]
-  const xIndices = data.length <= 5
+  const MIN_LABEL_GAP = 40
+  const candidateIndices = data.length <= 5
     ? data.map((_, i) => i)
     : [0, Math.floor(data.length / 3), Math.floor((2 * data.length) / 3), data.length - 1]
+  const xIndices: number[] = []
+  for (const i of candidateIndices) {
+    const last = xIndices[xIndices.length - 1]
+    if (last === undefined || x(i) - x(last) >= MIN_LABEL_GAP) xIndices.push(i)
+  }
 
-  const countMarkers: { i: number; delta: number }[] = []
+  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
+  const countMarkers: { x: number; delta: number; lastTs: number }[] = []
   for (let k = 1; k < data.length; k++) {
     const prev = data[k - 1].card_count
     const curr = data[k].card_count
     if (curr != null && prev != null && curr !== prev) {
-      countMarkers.push({ i: k, delta: curr - prev })
+      const ts = new Date(data[k].date).getTime()
+      const last = countMarkers[countMarkers.length - 1]
+      if (last && ts - last.lastTs <= FOUR_HOURS_MS) {
+        last.delta += curr - prev
+        last.x = x(k)
+        last.lastTs = ts
+      } else {
+        countMarkers.push({ x: x(k), delta: curr - prev, lastTs: ts })
+      }
     }
   }
 
@@ -100,13 +115,12 @@ export default function CollectionChart({
         ))}
       </g>
       <g>
-        {countMarkers.map(({ i, delta }) => {
-          const cx = x(i)
+        {countMarkers.map(({ x: cx, delta }, idx) => {
           const isAdd = delta > 0
           const markerColor = isAdd ? '#4ade80' : '#f87171'
           const label = isAdd ? `+${delta}` : `${delta}`
           return (
-            <g key={i}>
+            <g key={idx}>
               <line x1={cx} y1={padY} x2={cx} y2={height - padY} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
               <text x={cx} y={padY - 3} textAnchor="middle" fontSize={countFontSize} fontWeight="600" fill={markerColor}>{label}</text>
             </g>
