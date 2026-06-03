@@ -719,8 +719,7 @@ export default function BinderPage() {
   const [addLoading, setAddLoading] = useState(false)
   const [addCandidates, setAddCandidates] = useState<Candidate[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
-  const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
-  const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
+  const [showManage, setShowManage] = useState(false)
   const [showBulk, setShowBulk] = useState(false)
   const [bulkText, setBulkText] = useState('')
   const [bulkMinPrice, setBulkMinPrice] = useState('')
@@ -821,8 +820,6 @@ export default function BinderPage() {
   function handleAddInput(value: string) {
     setAddQuery(value)
     setAddCandidates([])
-    setAddPrintings([])
-    setAddPrintingName(null)
     setShowDropdown(false)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (value.trim().length < 2) return
@@ -838,19 +835,6 @@ export default function BinderPage() {
     }, 400)
   }
 
-  async function selectNameForPrinting(name: string) {
-    setAddCandidates([])
-    setAddPrintingName(name)
-    setAddPrintings([])
-    const res = await fetch(`/api/card?q=${encodeURIComponent(name)}&prints=true`)
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data) && data.length > 0) {
-        setAddPrintings(data)
-        setShowDropdown(true)
-      }
-    }
-  }
 
   async function deleteCard(name: string, rKey: string) {
     const entry = entries.find(e => makeRowKey(e.displayName, e.setCode, e.foilType) === rKey)
@@ -895,8 +879,6 @@ export default function BinderPage() {
     setAddLoading(true)
     setAddStatus(null)
     setAddCandidates([])
-    setAddPrintings([])
-    setAddPrintingName(null)
     setShowDropdown(false)
     const res = await fetch('/api/binder/add', {
       method: 'POST',
@@ -1256,133 +1238,8 @@ return (
         )}
       </div>
 
-      {/* Search + Export toolbar */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <div className="relative flex-1">
-          <input
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search binder..."
-            className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 transition-colors px-1"
-            >×</button>
-          )}
-        </div>
-        <button
-          onClick={() => { setShowExport(b => !b); setExportStatus(null); setShowImportCsv(false) }}
-          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showExport ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-800'}`}
-        >
-          Export
-        </button>
-        <button
-          onClick={() => { setShowImportCsv(b => !b); setImportCsvResults([]); setImportCsvProgress(null); setShowExport(false) }}
-          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showImportCsv ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-800'}`}
-        >
-          Import CSV
-        </button>
-      </div>
-
-      {/* Export panel */}
-      {showExport && (
-        <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex items-center gap-3 flex-wrap">
-          <span className="text-stone-500 text-sm">Cards added since</span>
-          <input
-            type="date"
-            value={exportSince}
-            onChange={e => { setExportSince(e.target.value); setExportStatus(null) }}
-            className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-100 focus:outline-none focus:border-amber-600 transition-colors"
-          />
-          <button
-            onClick={downloadExport}
-            className="px-4 py-1.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 rounded-lg text-sm font-medium transition-colors"
-          >
-            Download CSV
-          </button>
-          {exportStatus && <span className="text-sm text-stone-400">{exportStatus}</span>}
-        </div>
-      )}
-
-      {/* Import CSV panel */}
-      {showImportCsv && (
-        <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
-          <p className="text-stone-500 text-xs">Import a Moxfield haves CSV. Skips proxies, playtests, and cards already in the binder.</p>
-          <input
-            ref={csvFileInputRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={e => setSelectedCsvFile(e.target.files?.[0] ?? null)}
-          />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => csvFileInputRef.current?.click()}
-              disabled={importCsvLoading}
-              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-40 border border-stone-600 rounded-lg text-sm text-stone-300 transition-colors"
-            >
-              Choose file
-            </button>
-            <span className="text-xs text-stone-500 truncate">{selectedCsvFile ? selectedCsvFile.name : 'No file chosen'}</span>
-          </div>
-          {importCsvProgress && (
-            <div className="flex items-center gap-3">
-              <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
-                <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(importCsvProgress.current / importCsvProgress.total) * 100}%` }} />
-              </div>
-              <span className="text-stone-500 text-xs shrink-0">{importCsvProgress.current}/{importCsvProgress.total}</span>
-            </div>
-          )}
-          {importCsvResults.length > 0 && (
-            <div ref={importLogRef} className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
-              {importCsvResults.map((r, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs">
-                  <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
-                    {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
-                  </span>
-                  <span className="text-stone-300">{r.name}</span>
-                  {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
-                  {r.message && <span className="text-stone-600">{r.message}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
-              <span className="text-stone-500 text-sm">Min $</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={csvMinPrice}
-                onChange={e => setCsvMinPrice(e.target.value)}
-                placeholder="0.00"
-                className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
-              />
-            </div>
-            <button
-              onClick={importFromCsv}
-              disabled={importCsvLoading || !selectedCsvFile}
-              className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
-            >
-              {importCsvLoading ? 'Importing...' : 'Import'}
-            </button>
-            {!importCsvLoading && importCsvResults.length > 0 && (
-              <button
-                onClick={() => { setImportCsvResults([]); setImportCsvProgress(null); setShowImportCsv(false); setSelectedCsvFile(null) }}
-                className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
-              >
-                Done
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Add card input */}
-          <div className="relative mb-6">
+      <div className="relative mb-4">
             <div className="flex gap-2">
               <input
                 ref={addInputRef}
@@ -1392,94 +1249,16 @@ return (
                 onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
                 onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
                 placeholder="Add a card to binder..."
-                className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+                className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
               />
-              <button
-                onClick={() => addCard()}
-                disabled={addLoading}
-                className="px-4 py-2.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-              >
-                {addLoading ? 'Adding...' : 'Add'}
-              </button>
-              <button
-                onClick={() => { setShowBulk(b => !b); setBulkResults([]); setBulkProgress(null) }}
-                className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border ${showBulk ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-800'}`}
-              >
-                Bulk
-              </button>
             </div>
 
-            {/* Bulk import panel */}
-            {showBulk && (
-              <div className="mt-2 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
-                <p className="text-stone-500 text-xs">One card per line. Supports: <span className="text-stone-400 font-mono">Card Name</span>, <span className="text-stone-400 font-mono">1x Card Name</span>, <span className="text-stone-400 font-mono">Card Name (SET)</span>, <span className="text-stone-400 font-mono">Card Name // note</span></p>
-                <textarea
-                  value={bulkText}
-                  onChange={e => setBulkText(e.target.value)}
-                  rows={6}
-                  placeholder={"Format: Card Name (set) collector# // foil\nArcane Signet (cmm) 273\nSheoldred, the Apocalypse (dmu) 107 // foil\nSol Ring"}
-                  className="w-full bg-stone-950 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 font-mono placeholder-stone-700 focus:outline-none focus:border-amber-600 resize-none overflow-y-scroll transition-colors"
-                />
-                {bulkProgress && (
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
-                      <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }} />
-                    </div>
-                    <span className="text-stone-500 text-xs shrink-0">{bulkProgress.current}/{bulkProgress.total}</span>
-                  </div>
-                )}
-                {bulkResults.length > 0 && (
-                  <div className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
-                    {bulkResults.map((r, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
-                          {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
-                        </span>
-                        <span className="text-stone-300">{r.name}</span>
-                        {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
-                        {r.message && <span className="text-stone-600">{r.message}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
-                    <span className="text-stone-500 text-sm">Min $</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={bulkMinPrice}
-                      onChange={e => setBulkMinPrice(e.target.value)}
-                      placeholder="0.00"
-                      className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
-                    />
-                  </div>
-                  <button
-                    onClick={bulkImport}
-                    disabled={bulkLoading || !bulkText.trim()}
-                    className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
-                  >
-                    {bulkLoading ? 'Importing...' : 'Import'}
-                  </button>
-                  {!bulkLoading && bulkResults.length > 0 && (
-                    <button
-                      onClick={() => { setBulkText(''); setBulkResults([]); setBulkProgress(null); setShowBulk(false) }}
-                      className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
-                    >
-                      Done
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
             {showDropdown && addCandidates.length > 0 && (
-              <div className="absolute z-40 top-full left-0 right-12 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl">
+              <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl">
                 {addCandidates.map(c => (
                   <button
                     key={`${c.name}-${c.setCode}`}
-                    onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); selectNameForPrinting(c.name) }}
+                    onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); addCard(c.name) }}
                     className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
                   >
                     <div>
@@ -1491,49 +1270,216 @@ return (
                 ))}
               </div>
             )}
-            {showDropdown && addPrintings.length > 0 && (
-              <div className="absolute z-40 top-full left-0 right-12 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl max-h-80 overflow-y-auto">
-                <div className="px-4 py-2 border-b border-stone-800 flex items-center gap-2 sticky top-0 bg-stone-900">
-                  <button
-                    onMouseDown={(e) => { e.preventDefault(); setAddPrintings([]); setAddPrintingName(null); setShowDropdown(false) }}
-                    className="text-stone-500 hover:text-stone-300 text-xs"
-                  >← Back</button>
-                  <span className="text-stone-400 text-xs font-medium">{addPrintingName} — choose printing</span>
-                </div>
-                {addPrintings.map(c => (
-                  <button
-                    key={`${c.name}-${c.setCode}-${c.collectorNumber}`}
-                    onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); addCard(c.name, c.setCode, c.scryfallId) }}
-                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
-                  >
-                    <CardImage src={c.imageUrl} alt={c.name} className="w-[146px] rounded-lg shrink-0" />
-                    <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                      <p className="text-stone-100 text-sm font-semibold leading-snug">{c.setName}</p>
-                      <p className="text-stone-500 text-xs">{c.setCode.toUpperCase()} · #{c.collectorNumber}</p>
-                      {c.rarity && (
-                        <p className={`text-xs capitalize font-medium ${
-                          c.rarity === 'mythic' ? 'text-orange-400' :
-                          c.rarity === 'rare' ? 'text-yellow-400' :
-                          c.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
-                        }`}>{c.rarity}</p>
-                      )}
-                      {c.releasedAt && (
-                        <p className="text-stone-600 text-xs">{c.releasedAt.slice(0, 4)}</p>
-                      )}
-                      <div className="mt-auto pt-2 flex flex-col gap-0.5">
-                        {c.price != null
-                          ? <span className="text-green-400 font-mono text-sm font-semibold">${c.price.toFixed(2)}</span>
-                          : <span className="text-stone-600 font-mono text-sm">—</span>}
-                        {c.foilPrice != null && (
-                          <span className="text-amber-500 font-mono text-xs">${c.foilPrice.toFixed(2)} foil</span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
+
+          {/* Search + Manage toolbar */}
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search binder..."
+                className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 transition-colors px-1"
+                >×</button>
+              )}
+            </div>
+            <button
+              onClick={() => { setShowManage(b => !b); if (showManage) { setShowBulk(false); setShowImportCsv(false); setShowExport(false) } }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showManage ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-amber-800/60 text-amber-500 hover:border-amber-700 hover:text-amber-400 bg-stone-800'}`}
+            >
+              Manage
+            </button>
+          </div>
+
+          {/* Manage sub-buttons */}
+          {showManage && (
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => { setShowBulk(b => !b); setBulkResults([]); setBulkProgress(null); setShowImportCsv(false); setShowExport(false) }}
+                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showBulk ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
+              >
+                Bulk add
+              </button>
+              <button
+                onClick={() => { setShowImportCsv(b => !b); setImportCsvResults([]); setImportCsvProgress(null); setShowBulk(false); setShowExport(false) }}
+                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showImportCsv ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
+              >
+                Import CSV
+              </button>
+              <button
+                onClick={() => { setShowExport(b => !b); setExportStatus(null); setShowBulk(false); setShowImportCsv(false) }}
+                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showExport ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
+              >
+                Export CSV
+              </button>
+            </div>
+          )}
+
+          {/* Bulk add panel */}
+          {showBulk && (
+            <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
+              <p className="text-stone-500 text-xs">One card per line. Supports: <span className="text-stone-400 font-mono">Card Name</span>, <span className="text-stone-400 font-mono">1x Card Name</span>, <span className="text-stone-400 font-mono">Card Name (SET)</span>, <span className="text-stone-400 font-mono">Card Name // note</span></p>
+              <textarea
+                value={bulkText}
+                onChange={e => setBulkText(e.target.value)}
+                rows={6}
+                placeholder={"Format: Card Name (set) collector# // foil\nArcane Signet (cmm) 273\nSheoldred, the Apocalypse (dmu) 107 // foil\nSol Ring"}
+                className="w-full bg-stone-950 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 font-mono placeholder-stone-700 focus:outline-none focus:border-amber-600 resize-none overflow-y-scroll transition-colors"
+              />
+              {bulkProgress && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
+                    <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }} />
+                  </div>
+                  <span className="text-stone-500 text-xs shrink-0">{bulkProgress.current}/{bulkProgress.total}</span>
+                </div>
+              )}
+              {bulkResults.length > 0 && (
+                <div className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
+                  {bulkResults.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
+                        {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
+                      </span>
+                      <span className="text-stone-300">{r.name}</span>
+                      {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
+                      {r.message && <span className="text-stone-600">{r.message}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
+                  <span className="text-stone-500 text-sm">Min $</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={bulkMinPrice}
+                    onChange={e => setBulkMinPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={bulkImport}
+                  disabled={bulkLoading || !bulkText.trim()}
+                  className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
+                >
+                  {bulkLoading ? 'Importing...' : 'Import'}
+                </button>
+                {!bulkLoading && bulkResults.length > 0 && (
+                  <button
+                    onClick={() => { setBulkText(''); setBulkResults([]); setBulkProgress(null); setShowBulk(false) }}
+                    className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
+                  >
+                    Done
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Import CSV panel */}
+          {showImportCsv && (
+            <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
+              <p className="text-stone-500 text-xs">Import a Moxfield haves CSV. Skips proxies, playtests, and cards already in the binder.</p>
+              <input
+                ref={csvFileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={e => setSelectedCsvFile(e.target.files?.[0] ?? null)}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => csvFileInputRef.current?.click()}
+                  disabled={importCsvLoading}
+                  className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-40 border border-stone-600 rounded-lg text-sm text-stone-300 transition-colors"
+                >
+                  Choose file
+                </button>
+                <span className="text-xs text-stone-500 truncate">{selectedCsvFile ? selectedCsvFile.name : 'No file chosen'}</span>
+              </div>
+              {importCsvProgress && (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
+                    <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(importCsvProgress.current / importCsvProgress.total) * 100}%` }} />
+                  </div>
+                  <span className="text-stone-500 text-xs shrink-0">{importCsvProgress.current}/{importCsvProgress.total}</span>
+                </div>
+              )}
+              {importCsvResults.length > 0 && (
+                <div ref={importLogRef} className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
+                  {importCsvResults.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
+                        {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
+                      </span>
+                      <span className="text-stone-300">{r.name}</span>
+                      {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
+                      {r.message && <span className="text-stone-600">{r.message}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
+                  <span className="text-stone-500 text-sm">Min $</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={csvMinPrice}
+                    onChange={e => setCsvMinPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={importFromCsv}
+                  disabled={importCsvLoading || !selectedCsvFile}
+                  className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
+                >
+                  {importCsvLoading ? 'Importing...' : 'Import'}
+                </button>
+                {!importCsvLoading && importCsvResults.length > 0 && (
+                  <button
+                    onClick={() => { setImportCsvResults([]); setImportCsvProgress(null); setShowImportCsv(false); setSelectedCsvFile(null) }}
+                    className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
+                  >
+                    Done
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Export panel */}
+          {showExport && (
+            <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex items-center gap-3 flex-wrap">
+              <span className="text-stone-500 text-sm">Cards added since</span>
+              <input
+                type="date"
+                value={exportSince}
+                onChange={e => { setExportSince(e.target.value); setExportStatus(null) }}
+                className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-100 focus:outline-none focus:border-amber-600 transition-colors"
+              />
+              <button
+                onClick={downloadExport}
+                className="px-4 py-1.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 rounded-lg text-sm font-medium transition-colors"
+              >
+                Download CSV
+              </button>
+              {exportStatus && <span className="text-sm text-stone-400">{exportStatus}</span>}
+            </div>
+          )}
+
           {addStatus && (
             <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm ${
               addStatus.type === 'success'
