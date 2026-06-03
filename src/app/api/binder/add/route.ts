@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchByName, fetchById, searchCards, getPrice, frameSuffix } from '@/lib/scryfall'
 
 export async function POST(req: NextRequest) {
-  const { name, setCode: forcedSet, scryfallId, note } = await req.json()
+  const { name, setCode: forcedSet, scryfallId, note, foilType, purchasePrice, condition } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Missing card name' }, { status: 400 })
 
   const supabase = await createClient()
@@ -49,9 +49,11 @@ export async function POST(req: NextRequest) {
     base_name: resolved.name,
     set_code: resolved.set ?? null,
     scryfall_id: resolved.id ?? null,
-    foil_type: 'none',
+    foil_type: foilType ?? 'none',
     count: 1,
     snapshot_price: price,
+    purchase_price: typeof purchasePrice === 'number' ? purchasePrice : null,
+    condition: condition ?? null,
     note: note?.trim() || null,
     date_added: new Date().toISOString().slice(0, 10),
   }

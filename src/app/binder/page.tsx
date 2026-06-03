@@ -143,15 +143,24 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
     ? (values.length <= 5 ? values.map((_, i) => i) : [0, Math.floor(values.length / 3), Math.floor(2 * values.length / 3), values.length - 1])
     : []
 
-  // Event markers: vertical lines where card count changed
-  const countMarkers: { i: number; delta: number }[] = []
-  if (counts) {
+  // Event markers: vertical lines where card count changed, grouped by date
+  const countByDate = new Map<string, { x: number; delta: number }>()
+  if (counts && dates) {
     for (let k = 1; k < counts.length; k++) {
       if (counts[k] != null && counts[k - 1] != null && counts[k] !== counts[k - 1]) {
-        countMarkers.push({ i: k, delta: (counts[k] as number) - (counts[k - 1] as number) })
+        const date = dates[k].slice(0, 10)
+        const delta = (counts[k] as number) - (counts[k - 1] as number)
+        const existing = countByDate.get(date)
+        if (existing) {
+          existing.delta += delta
+          existing.x = x(k)
+        } else {
+          countByDate.set(date, { x: x(k), delta })
+        }
       }
     }
   }
+  const countMarkers = [...countByDate.values()].filter(m => m.delta !== 0)
 
   return (
     <svg
@@ -182,13 +191,12 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
         ))}
       </g>
       <g>
-        {countMarkers.map(({ i, delta }) => {
-          const cx = x(i)
+        {countMarkers.map(({ x: cx, delta }, idx) => {
           const isAdd = delta > 0
           const markerColor = isAdd ? '#4ade80' : '#f87171'
           const label = isAdd ? `+${delta}` : `${delta}`
           return (
-            <g key={i}>
+            <g key={idx}>
               <line x1={cx} y1={padY} x2={cx} y2={height - padBottom} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
               <text x={cx} y={padY - 3} textAnchor="middle" fontSize={labelsOnMobile ? "14" : "7"} fontWeight="600" fill={markerColor}>{label}</text>
             </g>
@@ -212,7 +220,7 @@ function SparklinePlaceholder({ height = 100 }: { height?: number }) {
   )
 }
 
-function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
+function EditModal({ row, onClose, isNew = false, onAdded }: { row: CardResult; onClose: () => void; isNew?: boolean; onAdded?: () => void }) {
   const [editPrints, setEditPrints] = useState<Candidate[]>([])
   const [editPrintsLoading, setEditPrintsLoading] = useState(true)
   const [editFoilType, setEditFoilType] = useState<FoilType>(row.foilType ?? 'none')
@@ -248,6 +256,24 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
     }
     onClose()
     window.location.reload()
+  }
+
+  async function addNew(scryfallId?: string, setCode?: string) {
+    setEditSaving(true)
+    const purchasePrice = editPurchasePrice.trim() === '' ? null : parseFloat(editPurchasePrice)
+    const res = await fetch('/api/binder/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: row.displayName, scryfallId, setCode, foilType: editFoilType, purchasePrice, condition: editCondition, note: editNote.trim() || null }),
+    })
+    setEditSaving(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(`Failed to add: ${data.error ?? res.statusText}`)
+      return
+    }
+    onClose()
+    onAdded?.()
   }
 
   return (
@@ -309,7 +335,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {editPrints.map(p => (
-                  <button key={p.scryfallId ?? p.setCode} onClick={() => saveEdit(p.scryfallId, p.setCode)} disabled={editSaving} className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50">
+                  <button key={p.scryfallId ?? p.setCode} onClick={() => isNew ? addNew(p.scryfallId, p.setCode) : saveEdit(p.scryfallId, p.setCode)} disabled={editSaving} className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50">
                     <CardImage src={p.imageUrl} alt={p.name} className="w-full" />
                     <div className="px-2 py-1.5 bg-stone-800 w-full flex-1">
                       <p className="text-xs text-stone-300 font-medium">{p.setName}</p>
@@ -327,7 +353,7 @@ function EditModal({ row, onClose }: { row: CardResult; onClose: () => void }) {
 
         <div className="flex gap-2 justify-end px-5 py-4 border-t border-stone-800">
           <button onClick={onClose} className="text-sm px-4 py-1.5 rounded border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors">Cancel</button>
-          <button onClick={() => saveEdit()} disabled={editSaving} className="text-sm px-4 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50">{editSaving ? 'Saving…' : 'Save'}</button>
+          <button onClick={() => isNew ? addNew() : saveEdit()} disabled={editSaving} className="text-sm px-4 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50">{editSaving ? (isNew ? 'Adding…' : 'Saving…') : (isNew ? 'Add to binder' : 'Save')}</button>
         </div>
       </div>
     </div>
@@ -715,8 +741,6 @@ export default function BinderPage() {
   const [total, setTotal] = useState(0)
   const [addQuery, setAddQuery] = useState('')
   const [addNote, setAddNote] = useState('')
-  const [addStatus, setAddStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-  const [addLoading, setAddLoading] = useState(false)
   const [addCandidates, setAddCandidates] = useState<Candidate[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [showManage, setShowManage] = useState(false)
@@ -746,7 +770,7 @@ export default function BinderPage() {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [clearConfirm, setClearConfirm] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
-  const [postAddRow, setPostAddRow] = useState<CardResult | null>(null)
+  const [pendingAddName, setPendingAddName] = useState<string | null>(null)
   const [autoExpandName, setAutoExpandName] = useState<string | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -874,35 +898,27 @@ export default function BinderPage() {
     setClearConfirm(false)
   }
 
-  async function addCard(name = addQuery, setCode?: string, scryfallId?: string) {
+  function addCard(name = addQuery) {
     if (!name.trim()) return
-    setAddLoading(true)
-    setAddStatus(null)
     setAddCandidates([])
     setShowDropdown(false)
-    const res = await fetch('/api/binder/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), setCode, scryfallId }),
-    })
-    const data = await res.json()
-    if (data.candidates) {
-      setAddCandidates(data.candidates)
-      setShowDropdown(true)
-    } else if (!res.ok) {
-      setAddStatus({ type: 'error', message: data.error })
-    } else {
-      setAddStatus({ type: 'success', message: `Added ${data.name} (${data.setCode}) — $${data.price.toFixed(2)}` })
-      setAddQuery('')
-      setResults(prev => {
-        const next = new Map(prev)
-        next.set(makeRowKey(data.name, data.setCode, 'none'), { displayName: data.name, snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, imageUrl: data.imageUrl ?? null, fromCache: false })
-        return next
+    setAddQuery('')
+    setPendingAddName(name.trim())
+  }
+
+  function handleAddedFromModal() {
+    fetch('/api/binder').then(r => r.json()).then(d => {
+      setEntries(d.entries)
+      const lastTotal = binderHistory[binderHistory.length - 1]?.total ?? 0
+      fetch('/api/binder/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total: lastTotal, card_count: d.entries.length }),
+      }).then(r => r.json()).then(h => {
+        if (Array.isArray(h)) { setBinderHistory(h); localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h)) }
       })
-      fetch('/api/binder').then(r => r.json()).then(d => setEntries(d.entries))
-      setPostAddRow({ displayName: data.name, setCode: data.setCode, foilType: 'none', snapshotPrice: data.price, currentPrice: data.price, pct: 0, dailyPct: null, dailyBaseline: null, purchasePrice: null, condition: null, imageUrl: data.imageUrl ?? null, fromCache: false })
-    }
-    setAddLoading(false)
+      startStream()
+    })
   }
 
   async function bulkImport() {
@@ -937,7 +953,18 @@ export default function BinderPage() {
           setBulkResults(prev => [...prev, msg])
           setBulkProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null)
         } else if (msg.type === 'done') {
-          fetch('/api/binder').then(r => r.json()).then(d => { setEntries(d.entries); startStream() })
+          fetch('/api/binder').then(r => r.json()).then(d => {
+            setEntries(d.entries)
+            const lastTotal = binderHistory[binderHistory.length - 1]?.total ?? 0
+            fetch('/api/binder/history', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ total: lastTotal, card_count: d.entries.length }),
+            }).then(r => r.json()).then(h => {
+              if (Array.isArray(h)) { setBinderHistory(h); localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h)) }
+            })
+            startStream()
+          })
         }
       }
     }
@@ -1047,7 +1074,18 @@ export default function BinderPage() {
           setImportCsvResults(prev => [...prev, msg])
           setImportCsvProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null)
         } else if (msg.type === 'done') {
-          fetch('/api/binder').then(r => r.json()).then(d => { setEntries(d.entries); startStream() })
+          fetch('/api/binder').then(r => r.json()).then(d => {
+            setEntries(d.entries)
+            const lastTotal = binderHistory[binderHistory.length - 1]?.total ?? 0
+            fetch('/api/binder/history', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ total: lastTotal, card_count: d.entries.length }),
+            }).then(r => r.json()).then(h => {
+              if (Array.isArray(h)) { setBinderHistory(h); localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h)) }
+            })
+            startStream()
+          })
         }
       }
     }
@@ -1115,7 +1153,14 @@ export default function BinderPage() {
 
 return (
     <div>
-      {postAddRow && <EditModal row={postAddRow} onClose={() => setPostAddRow(null)} />}
+      {pendingAddName && (
+        <EditModal
+          row={{ displayName: pendingAddName, snapshotPrice: 0, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, imageUrl: null, fromCache: false }}
+          isNew
+          onAdded={handleAddedFromModal}
+          onClose={() => setPendingAddName(null)}
+        />
+      )}
 
       {/* Desktop header */}
       <div className="hidden lg:block mb-6">
@@ -1240,255 +1285,245 @@ return (
 
       {/* Add card input */}
       <div className="relative mb-4">
-            <div className="flex gap-2">
-              <input
-                ref={addInputRef}
-                value={addQuery}
-                onChange={e => handleAddInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-                onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
-                placeholder="Add a card to binder..."
-                className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
-              />
-            </div>
+        <div className="flex gap-2">
+          <input
+            ref={addInputRef}
+            value={addQuery}
+            onChange={e => handleAddInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
+            onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+            onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
+            placeholder="Add a card to binder..."
+            className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+          />
+        </div>
 
-            {showDropdown && addCandidates.length > 0 && (
-              <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl">
-                {addCandidates.map(c => (
-                  <button
-                    key={`${c.name}-${c.setCode}`}
-                    onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); addCard(c.name) }}
-                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
-                  >
-                    <div>
-                      <p className="text-stone-200 text-sm font-medium">{c.name}</p>
-                      <p className="text-stone-500 text-xs">{c.type_line}</p>
-                    </div>
-                    {c.price && <span className="text-green-400 font-mono text-sm ml-4">${c.price.toFixed(2)}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
+        {showDropdown && addCandidates.length > 0 && (
+          <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl">
+            {addCandidates.map(c => (
+              <button
+                key={`${c.name}-${c.setCode}`}
+                onMouseDown={(e) => { e.preventDefault(); addInputRef.current?.blur(); addCard(c.name) }}
+                className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
+              >
+                <div>
+                  <p className="text-stone-200 text-sm font-medium">{c.name}</p>
+                  <p className="text-stone-500 text-xs">{c.type_line}</p>
+                </div>
+                {c.price && <span className="text-green-400 font-mono text-sm ml-4">${c.price.toFixed(2)}</span>}
+              </button>
+            ))}
           </div>
+        )}
+      </div>
 
-          {/* Search + Manage toolbar */}
-          <div className="flex gap-2 mb-4">
-            <div className="relative flex-1">
+      {/* Search + Manage toolbar */}
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-1">
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search binder..."
+            className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 transition-colors px-1"
+            >×</button>
+          )}
+        </div>
+        <button
+          onClick={() => { setShowManage(b => !b); if (showManage) { setShowBulk(false); setShowImportCsv(false); setShowExport(false) } }}
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showManage ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-amber-800/60 text-amber-500 hover:border-amber-700 hover:text-amber-400 bg-stone-800'}`}
+        >
+          Manage
+        </button>
+      </div>
+
+      {/* Manage sub-buttons */}
+      {showManage && (
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => { setShowBulk(b => !b); setBulkResults([]); setBulkProgress(null); setShowImportCsv(false); setShowExport(false) }}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showBulk ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
+          >
+            Bulk add
+          </button>
+          <button
+            onClick={() => { setShowImportCsv(b => !b); setImportCsvResults([]); setImportCsvProgress(null); setShowBulk(false); setShowExport(false) }}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showImportCsv ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
+          >
+            Import CSV
+          </button>
+          <button
+            onClick={() => { setShowExport(b => !b); setExportStatus(null); setShowBulk(false); setShowImportCsv(false) }}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showExport ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
+          >
+            Export CSV
+          </button>
+        </div>
+      )}
+
+      {/* Bulk add panel */}
+      {showBulk && (
+        <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
+          <p className="text-stone-500 text-xs">One card per line. Supports: <span className="text-stone-400 font-mono">Card Name</span>, <span className="text-stone-400 font-mono">1x Card Name</span>, <span className="text-stone-400 font-mono">Card Name (SET)</span>, <span className="text-stone-400 font-mono">Card Name // note</span></p>
+          <textarea
+            value={bulkText}
+            onChange={e => setBulkText(e.target.value)}
+            rows={6}
+            placeholder={"Format: Card Name (set) collector# // foil\nArcane Signet (cmm) 273\nSheoldred, the Apocalypse (dmu) 107 // foil\nSol Ring"}
+            className="w-full bg-stone-950 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 font-mono placeholder-stone-700 focus:outline-none focus:border-amber-600 resize-none overflow-y-scroll transition-colors"
+          />
+          {bulkProgress && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
+                <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }} />
+              </div>
+              <span className="text-stone-500 text-xs shrink-0">{bulkProgress.current}/{bulkProgress.total}</span>
+            </div>
+          )}
+          {bulkResults.length > 0 && (
+            <div className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
+              {bulkResults.map((r, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
+                    {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
+                  </span>
+                  <span className="text-stone-300">{r.name}</span>
+                  {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
+                  {r.message && <span className="text-stone-600">{r.message}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
+              <span className="text-stone-500 text-sm">Min $</span>
               <input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search binder..."
-                className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+                type="number"
+                min="0"
+                step="0.01"
+                value={bulkMinPrice}
+                onChange={e => setBulkMinPrice(e.target.value)}
+                placeholder="0.00"
+                className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
               />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 transition-colors px-1"
-                >×</button>
-              )}
             </div>
             <button
-              onClick={() => { setShowManage(b => !b); if (showManage) { setShowBulk(false); setShowImportCsv(false); setShowExport(false) } }}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showManage ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-amber-800/60 text-amber-500 hover:border-amber-700 hover:text-amber-400 bg-stone-800'}`}
+              onClick={bulkImport}
+              disabled={bulkLoading || !bulkText.trim()}
+              className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
             >
-              Manage
+              {bulkLoading ? 'Importing...' : 'Import'}
             </button>
+            {!bulkLoading && bulkResults.length > 0 && (
+              <button
+                onClick={() => { setBulkText(''); setBulkResults([]); setBulkProgress(null); setShowBulk(false) }}
+                className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
+              >
+                Done
+              </button>
+            )}
           </div>
+        </div>
+      )}
 
-          {/* Manage sub-buttons */}
-          {showManage && (
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => { setShowBulk(b => !b); setBulkResults([]); setBulkProgress(null); setShowImportCsv(false); setShowExport(false) }}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showBulk ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
-              >
-                Bulk add
-              </button>
-              <button
-                onClick={() => { setShowImportCsv(b => !b); setImportCsvResults([]); setImportCsvProgress(null); setShowBulk(false); setShowExport(false) }}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showImportCsv ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
-              >
-                Import CSV
-              </button>
-              <button
-                onClick={() => { setShowExport(b => !b); setExportStatus(null); setShowBulk(false); setShowImportCsv(false) }}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showExport ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
-              >
-                Export CSV
-              </button>
-            </div>
-          )}
-
-          {/* Bulk add panel */}
-          {showBulk && (
-            <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
-              <p className="text-stone-500 text-xs">One card per line. Supports: <span className="text-stone-400 font-mono">Card Name</span>, <span className="text-stone-400 font-mono">1x Card Name</span>, <span className="text-stone-400 font-mono">Card Name (SET)</span>, <span className="text-stone-400 font-mono">Card Name // note</span></p>
-              <textarea
-                value={bulkText}
-                onChange={e => setBulkText(e.target.value)}
-                rows={6}
-                placeholder={"Format: Card Name (set) collector# // foil\nArcane Signet (cmm) 273\nSheoldred, the Apocalypse (dmu) 107 // foil\nSol Ring"}
-                className="w-full bg-stone-950 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 font-mono placeholder-stone-700 focus:outline-none focus:border-amber-600 resize-none overflow-y-scroll transition-colors"
-              />
-              {bulkProgress && (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }} />
-                  </div>
-                  <span className="text-stone-500 text-xs shrink-0">{bulkProgress.current}/{bulkProgress.total}</span>
-                </div>
-              )}
-              {bulkResults.length > 0 && (
-                <div className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
-                  {bulkResults.map((r, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
-                        {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
-                      </span>
-                      <span className="text-stone-300">{r.name}</span>
-                      {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
-                      {r.message && <span className="text-stone-600">{r.message}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
-                  <span className="text-stone-500 text-sm">Min $</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={bulkMinPrice}
-                    onChange={e => setBulkMinPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
-                  />
-                </div>
-                <button
-                  onClick={bulkImport}
-                  disabled={bulkLoading || !bulkText.trim()}
-                  className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
-                >
-                  {bulkLoading ? 'Importing...' : 'Import'}
-                </button>
-                {!bulkLoading && bulkResults.length > 0 && (
-                  <button
-                    onClick={() => { setBulkText(''); setBulkResults([]); setBulkProgress(null); setShowBulk(false) }}
-                    className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
-                  >
-                    Done
-                  </button>
-                )}
+      {/* Import CSV panel */}
+      {showImportCsv && (
+        <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
+          <p className="text-stone-500 text-xs">Import a Moxfield haves CSV. Skips proxies, playtests, and cards already in the binder.</p>
+          <input
+            ref={csvFileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={e => setSelectedCsvFile(e.target.files?.[0] ?? null)}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => csvFileInputRef.current?.click()}
+              disabled={importCsvLoading}
+              className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-40 border border-stone-600 rounded-lg text-sm text-stone-300 transition-colors"
+            >
+              Choose file
+            </button>
+            <span className="text-xs text-stone-500 truncate">{selectedCsvFile ? selectedCsvFile.name : 'No file chosen'}</span>
+          </div>
+          {importCsvProgress && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
+                <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(importCsvProgress.current / importCsvProgress.total) * 100}%` }} />
               </div>
+              <span className="text-stone-500 text-xs shrink-0">{importCsvProgress.current}/{importCsvProgress.total}</span>
             </div>
           )}
-
-          {/* Import CSV panel */}
-          {showImportCsv && (
-            <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
-              <p className="text-stone-500 text-xs">Import a Moxfield haves CSV. Skips proxies, playtests, and cards already in the binder.</p>
+          {importCsvResults.length > 0 && (
+            <div ref={importLogRef} className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
+              {importCsvResults.map((r, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
+                    {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
+                  </span>
+                  <span className="text-stone-300">{r.name}</span>
+                  {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
+                  {r.message && <span className="text-stone-600">{r.message}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
+              <span className="text-stone-500 text-sm">Min $</span>
               <input
-                ref={csvFileInputRef}
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={e => setSelectedCsvFile(e.target.files?.[0] ?? null)}
+                type="number"
+                min="0"
+                step="0.01"
+                value={csvMinPrice}
+                onChange={e => setCsvMinPrice(e.target.value)}
+                placeholder="0.00"
+                className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
               />
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => csvFileInputRef.current?.click()}
-                  disabled={importCsvLoading}
-                  className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 disabled:opacity-40 border border-stone-600 rounded-lg text-sm text-stone-300 transition-colors"
-                >
-                  Choose file
-                </button>
-                <span className="text-xs text-stone-500 truncate">{selectedCsvFile ? selectedCsvFile.name : 'No file chosen'}</span>
-              </div>
-              {importCsvProgress && (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 bg-stone-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${(importCsvProgress.current / importCsvProgress.total) * 100}%` }} />
-                  </div>
-                  <span className="text-stone-500 text-xs shrink-0">{importCsvProgress.current}/{importCsvProgress.total}</span>
-                </div>
-              )}
-              {importCsvResults.length > 0 && (
-                <div ref={importLogRef} className="max-h-40 overflow-y-auto flex flex-col gap-0.5">
-                  {importCsvResults.map((r, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className={r.status === 'added' ? 'text-green-400' : r.status === 'skipped' ? 'text-stone-500' : 'text-red-400'}>
-                        {r.status === 'added' ? '✓' : r.status === 'skipped' ? '–' : '✗'}
-                      </span>
-                      <span className="text-stone-300">{r.name}</span>
-                      {r.price != null && <span className="text-stone-500 font-mono">${r.price.toFixed(2)}</span>}
-                      {r.message && <span className="text-stone-600">{r.message}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center gap-1.5 bg-stone-950 border border-stone-700 rounded-lg px-3 py-2">
-                  <span className="text-stone-500 text-sm">Min $</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={csvMinPrice}
-                    onChange={e => setCsvMinPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="w-16 bg-transparent text-sm text-stone-200 placeholder-stone-600 focus:outline-none"
-                  />
-                </div>
-                <button
-                  onClick={importFromCsv}
-                  disabled={importCsvLoading || !selectedCsvFile}
-                  className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
-                >
-                  {importCsvLoading ? 'Importing...' : 'Import'}
-                </button>
-                {!importCsvLoading && importCsvResults.length > 0 && (
-                  <button
-                    onClick={() => { setImportCsvResults([]); setImportCsvProgress(null); setShowImportCsv(false); setSelectedCsvFile(null) }}
-                    className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
-                  >
-                    Done
-                  </button>
-                )}
-              </div>
             </div>
-          )}
-
-          {/* Export panel */}
-          {showExport && (
-            <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex items-center gap-3 flex-wrap">
-              <span className="text-stone-500 text-sm">Cards added since</span>
-              <input
-                type="date"
-                value={exportSince}
-                onChange={e => { setExportSince(e.target.value); setExportStatus(null) }}
-                className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-100 focus:outline-none focus:border-amber-600 transition-colors"
-              />
+            <button
+              onClick={importFromCsv}
+              disabled={importCsvLoading || !selectedCsvFile}
+              className="px-4 py-2 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors"
+            >
+              {importCsvLoading ? 'Importing...' : 'Import'}
+            </button>
+            {!importCsvLoading && importCsvResults.length > 0 && (
               <button
-                onClick={downloadExport}
-                className="px-4 py-1.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 rounded-lg text-sm font-medium transition-colors"
+                onClick={() => { setImportCsvResults([]); setImportCsvProgress(null); setShowImportCsv(false); setSelectedCsvFile(null) }}
+                className="px-4 py-2 text-stone-500 hover:text-stone-300 text-sm transition-colors"
               >
-                Download CSV
+                Done
               </button>
-              {exportStatus && <span className="text-sm text-stone-400">{exportStatus}</span>}
-            </div>
-          )}
+            )}
+          </div>
+        </div>
+      )}
 
-          {addStatus && (
-            <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm ${
-              addStatus.type === 'success'
-                ? 'bg-green-900/30 border border-green-800 text-green-300'
-                : 'bg-red-900/30 border border-red-800 text-red-300'
-            }`}>
-              {addStatus.message}
-            </div>
-          )}
+      {/* Export panel */}
+      {showExport && (
+        <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex items-center gap-3 flex-wrap">
+          <span className="text-stone-500 text-sm">Cards added since</span>
+          <input
+            type="date"
+            value={exportSince}
+            onChange={e => { setExportSince(e.target.value); setExportStatus(null) }}
+            className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-100 focus:outline-none focus:border-amber-600 transition-colors"
+          />
+          <button
+            onClick={downloadExport}
+            className="px-4 py-1.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 rounded-lg text-sm font-medium transition-colors"
+          >
+            Download CSV
+          </button>
+          {exportStatus && <span className="text-sm text-stone-400">{exportStatus}</span>}
+        </div>
+      )}
 
           {/* Progress bar */}
           {streaming && (
