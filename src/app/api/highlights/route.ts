@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { getCached, getCachedPriceByFoilType, getCronTimestamp, cacheKey } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
@@ -99,7 +100,8 @@ export async function GET() {
 
   const atlCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const sealedProductIds = (sealedRows ?? []).map(r => r.tcg_product_id as number)
-  const { data: sealedHistoryRows } = sealedProductIds.length > 0 ? await supabase
+  const service = createServiceClient()
+  const { data: sealedHistoryRows } = sealedProductIds.length > 0 ? await service
     .from('sealed_wishlist_history')
     .select('tcg_product_id, recorded_at, price')
     .in('tcg_product_id', sealedProductIds)

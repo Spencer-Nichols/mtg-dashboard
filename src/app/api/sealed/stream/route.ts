@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,8 @@ export async function GET(_req: NextRequest) {
   const latestPrices = new Map<number, number | null>()
 
   if (productIds.length > 0) {
-    const { data: history } = await supabase
+    const service = createServiceClient()
+    const { data: history } = await service
       .from('sealed_wishlist_history')
       .select('tcg_product_id, price')
       .in('tcg_product_id', productIds)
