@@ -85,7 +85,7 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     return { products: 0, pricesFetched: 0, historyRows: 0, atlRows: 0 }
   }
 
-  const uniqueProductIds = [...new Set(sealedRows.map(r => r.tcg_product_id))] as number[]
+  const uniqueProductIds = [...new Set(sealedRows.map(r => Number(r.tcg_product_id)))]
   const now = new Date().toISOString()
 
   // Fetch Manapool prices (one batch request) and TCGPlayer prices (sequential) in parallel
