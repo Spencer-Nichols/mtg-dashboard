@@ -22,6 +22,8 @@ interface SealedResult {
   currentPrice: number | null
   pct: number | null
   imageUrl: string | null
+  priceSource?: 'manapool' | 'tcgplayer' | null
+  manapoolUrl?: string | null
 }
 
 interface TcgGroup {
@@ -251,11 +253,13 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
     <div className="group relative flex flex-col gap-1.5">
       <div className="relative rounded-xl overflow-hidden shadow-lg bg-stone-800">
         <a
-          href={`https://www.tcgplayer.com/product/${item.productId}`}
+          href={item.priceSource === 'manapool'
+            ? (item.manapoolUrl ?? `https://manapool.com`) // TEST — replace with real manapoolUrl
+            : `https://www.tcgplayer.com/product/${item.productId}`}
           target="_blank"
           rel="noopener noreferrer"
           className="block"
-          title="View on TCGPlayer"
+          title={item.priceSource === 'manapool' ? 'View on Manapool' : 'View on TCGPlayer'}
         >
           <div className="aspect-[4/3] bg-white flex items-center justify-center">
             {item.imageUrl
@@ -263,7 +267,13 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
               : null}
           </div>
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-10 pointer-events-none">
-            <span className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/60 text-amber-400 font-medium">View on TCGPlayer</span>
+            <span className={`text-xs px-3 py-1 rounded-full font-medium border-2 bg-stone-900/90 ${
+              item.priceSource === 'manapool'
+                ? 'border-blue-600/60 text-blue-400'
+                : 'border-amber-700/60 text-amber-400'
+            }`}>
+              {item.priceSource === 'manapool' ? 'View on Manapool' : 'View on TCGPlayer'}
+            </span>
           </div>
         </a>
         {(isAtl || item.pct != null) && (
@@ -300,6 +310,7 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
           <span className={`text-sm font-mono font-semibold ${pctColor(item.pct)}`}>
             {item.currentPrice != null ? `$${item.currentPrice.toFixed(2)}` : item.snapshotPrice > 0 ? `$${item.snapshotPrice.toFixed(2)}` : '—'}
           </span>
+
           {item.snapshotPrice > 0 && item.currentPrice != null && item.currentPrice !== item.snapshotPrice && (
             <span className="text-xs text-stone-600 font-mono">was ${item.snapshotPrice.toFixed(2)}</span>
           )}
@@ -555,6 +566,7 @@ export default function WishlistPage() {
             currentPrice: msg.currentPrice,
             pct: msg.pct,
             imageUrl: msg.imageUrl,
+            priceSource: msg.priceSource ?? null,
           })
           return next
         })
@@ -1201,15 +1213,18 @@ export default function WishlistPage() {
             <div id="wishlist-sealed-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
               {sealedItems.map(item => {
                 const result = sealedResults.get(item.id)
-                const display: SealedResult = result ?? {
-                  id: item.id,
-                  productId: item.tcgProductId,
-                  productName: item.productName,
-                  setName: item.setName,
-                  snapshotPrice: item.snapshotPrice,
-                  currentPrice: null,
-                  pct: null,
-                  imageUrl: item.imageUrl,
+                const display: SealedResult = {
+                  ...(result ?? {
+                    id: item.id,
+                    productId: item.tcgProductId,
+                    productName: item.productName,
+                    setName: item.setName,
+                    snapshotPrice: item.snapshotPrice,
+                    currentPrice: null,
+                    pct: null,
+                    imageUrl: item.imageUrl,
+                  }),
+                  priceSource: 'manapool', // TEST — remove after verifying badge
                 }
                 const history = sealedHistory[item.tcgProductId]?.map(h => h.price) ?? []
                 const isAtl = isAtlPrice(display.currentPrice, item.tcgProductId, item.snapshotPrice, item.targetPrice)

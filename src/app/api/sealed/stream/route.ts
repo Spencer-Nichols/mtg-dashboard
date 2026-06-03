@@ -20,18 +20,20 @@ export async function GET(_req: NextRequest) {
   // Fetch latest price per product from history (written by cron via TCGPlayer API)
   const productIds = items.map(i => i.tcg_product_id)
   const latestPrices = new Map<number, number | null>()
+  const latestSources = new Map<number, string>()
 
   if (productIds.length > 0) {
     const service = createServiceClient()
     const { data: history } = await service
       .from('sealed_wishlist_history')
-      .select('tcg_product_id, price')
+      .select('tcg_product_id, price, price_source')
       .in('tcg_product_id', productIds)
       .order('recorded_at', { ascending: false })
 
     for (const row of history ?? []) {
       if (!latestPrices.has(row.tcg_product_id)) {
         latestPrices.set(row.tcg_product_id, row.price)
+        if (row.price_source) latestSources.set(row.tcg_product_id, row.price_source)
       }
     }
   }
@@ -61,6 +63,7 @@ export async function GET(_req: NextRequest) {
           currentPrice,
           pct,
           imageUrl: item.image_url,
+          priceSource: latestSources.get(item.tcg_product_id) ?? null,
         })
       }
 

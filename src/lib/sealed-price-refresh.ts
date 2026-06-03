@@ -4,6 +4,9 @@ import { setSealedCronTimestamp } from '@/lib/cache'
 const LISTINGS_URL = (productId: number) =>
   `https://mp-search-api.tcgplayer.com/v1/product/${productId}/listings?mpfev=5214`
 
+const MANAPOOL_URL = (ids: number[]) =>
+  `https://manapool.com/api/v1/products/sealed?tcgplayer_ids=${ids.join(',')}`
+
 const MAX_SHIPPING = 25
 const PRICE_MIN_DELTA = 0.25
 
@@ -17,7 +20,7 @@ const LISTINGS_BODY = {
   sort: { field: 'price', order: 'asc' },
 }
 
-async function fetchLowestPrice(productId: number): Promise<number | null> {
+async function fetchTcgPlayerPrice(productId: number): Promise<number | null> {
   const res = await fetch(LISTINGS_URL(productId), {
     method: 'POST',
     headers: {
@@ -41,6 +44,28 @@ async function fetchLowestPrice(productId: number): Promise<number | null> {
   return parseFloat(Math.min(...valid.map(l => l.price + (l.shippingPrice ?? 0))).toFixed(2))
 }
 
+async function fetchManaPoolPrices(productIds: number[]): Promise<Map<number, number>> {
+  const map = new Map<number, number>()
+  if (productIds.length === 0) return map
+
+  for (let i = 0; i < productIds.length; i += 100) {
+    const batch = productIds.slice(i, i + 100)
+    try {
+      const res = await fetch(MANAPOOL_URL(batch))
+      if (!res.ok) continue
+      const data = await res.json()
+      for (const item of data?.data ?? []) {
+        if (item.tcgplayer_product_id != null && item.low_price != null) {
+          map.set(item.tcgplayer_product_id, parseFloat((item.low_price / 100).toFixed(2)))
+        }
+      }
+    } catch {
+      // non-fatal — TCGPlayer will cover missing products
+    }
+  }
+  return map
+}
+
 export interface SealedRefreshResult {
   products: number
   pricesFetched: number
@@ -61,12 +86,40 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
   }
 
   const uniqueProductIds = [...new Set(sealedRows.map(r => r.tcg_product_id))] as number[]
-  const priceMap = new Map<number, number | null>()
   const now = new Date().toISOString()
 
+  // Fetch Manapool prices (one batch request) and TCGPlayer prices (sequential) in parallel
+  const [manapoolPrices, tcgPrices] = await Promise.all([
+    fetchManaPoolPrices(uniqueProductIds),
+    (async () => {
+      const map = new Map<number, number | null>()
+      for (const productId of uniqueProductIds) {
+        map.set(productId, await fetchTcgPlayerPrice(productId))
+        await new Promise(r => setTimeout(r, 300))
+      }
+      return map
+    })(),
+  ])
+
+  // For each product, take the lower of the two prices and track the source
+  const priceMap = new Map<number, number | null>()
+  const sourceMap = new Map<number, 'manapool' | 'tcgplayer'>()
   for (const productId of uniqueProductIds) {
-    priceMap.set(productId, await fetchLowestPrice(productId))
-    await new Promise(r => setTimeout(r, 300))
+    const mp = manapoolPrices.get(productId) ?? null
+    const tcg = tcgPrices.get(productId) ?? null
+    if (mp == null && tcg == null) {
+      priceMap.set(productId, null)
+    } else if (mp == null) {
+      priceMap.set(productId, tcg)
+      sourceMap.set(productId, 'tcgplayer')
+    } else if (tcg == null) {
+      priceMap.set(productId, mp)
+      sourceMap.set(productId, 'manapool')
+    } else {
+      const lower = Math.min(mp, tcg)
+      priceMap.set(productId, lower)
+      sourceMap.set(productId, lower === mp ? 'manapool' : 'tcgplayer')
+    }
   }
 
   const pricesFetched = [...priceMap.values()].filter(p => p != null).length
@@ -82,15 +135,18 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     if (!lastPriceMap.has(row.tcg_product_id)) lastPriceMap.set(row.tcg_product_id, row.price)
   }
 
-  const historyInserts: { tcg_product_id: number; recorded_at: string; price: number }[] = []
-  const insertedProducts = new Set<number>()
+  const historyInserts: { tcg_product_id: number; recorded_at: string; price: number; price_source: string }[] = []
   for (const productId of uniqueProductIds) {
     const price = priceMap.get(productId)
     if (price == null) continue
     const lastPrice = lastPriceMap.get(productId)
     if (lastPrice != null && Math.abs(price - lastPrice) < PRICE_MIN_DELTA) continue
-    historyInserts.push({ tcg_product_id: productId, recorded_at: now, price })
-    insertedProducts.add(productId)
+    historyInserts.push({
+      tcg_product_id: productId,
+      recorded_at: now,
+      price,
+      price_source: sourceMap.get(productId) ?? 'tcgplayer',
+    })
   }
 
   if (historyInserts.length > 0) {
