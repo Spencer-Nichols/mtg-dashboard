@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { ScryfallCard, getPrice, getPriceByFoilType, sleep } from '@/lib/scryfall'
-import { getCached, setCached, getCachedPriceByFoilType, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
+import { getCached, setCached, setManapoolPrice, getCachedPriceByFoilType, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
+import { fetchManapoolSinglePrices } from '@/lib/manapool'
 
 const STALE_MS = 4 * 60 * 60 * 1000
 const BATCH_SIZE = 75
@@ -165,6 +166,23 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
 
   if (wishlistCardHistory.length > 0) {
     await supabase.from('wishlist_card_history').upsert(wishlistCardHistory, { onConflict: 'user_id,card_name,date' })
+  }
+
+  // Fetch Manapool prices for all wishlisted cards and store in cache
+  const wishlistScryfallIds = [...new Set(
+    (wishlistRows ?? []).filter(r => r.scryfall_id).map(r => r.scryfall_id as string)
+  )]
+  if (wishlistScryfallIds.length > 0) {
+    const manapoolPrices = await fetchManapoolSinglePrices(wishlistScryfallIds)
+    await Promise.all(
+      wishlistScryfallIds.map(async scryfallId => {
+        const row = (wishlistRows ?? []).find(r => r.scryfall_id === scryfallId)
+        if (!row) return
+        const key = cacheKey(row.name, scryfallId)
+        const mp = manapoolPrices.get(scryfallId)
+        await setManapoolPrice(key, mp?.price ?? null, mp?.url ?? null)
+      })
+    )
   }
 
   await setCronTimestamp()

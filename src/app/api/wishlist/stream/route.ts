@@ -41,14 +41,20 @@ export async function GET(req: NextRequest) {
       }
 
       // Scryfall_ids split: all (for Manapool) vs cache misses (for Scryfall batch)
-      const allScryfallIds = singles.filter(s => s.scryfall_id).map(s => s.scryfall_id as string)
       const missIds = singles
         .filter(s => s.scryfall_id && !cacheMap.has(cacheKey(s.name, s.scryfall_id as string)))
         .map(s => s.scryfall_id as string)
 
-      // Fetch Manapool (all ids) and Scryfall batch (misses only) in parallel
+      // Cards missing Manapool price in cache need a live fetch
+      const manapoolMissIds = singles
+        .filter(s => s.scryfall_id && !(cacheMap.get(cacheKey(s.name, s.scryfall_id as string))?.manapoolPrice != null))
+        .map(s => s.scryfall_id as string)
+
+      // Fetch Manapool (misses only) and Scryfall batch (misses only) in parallel
       const [manapoolPrices, scryfallBatch] = await Promise.all([
-        fetchManapoolSinglePrices(allScryfallIds),
+        manapoolMissIds.length > 0 || bust ? fetchManapoolSinglePrices(
+          bust ? singles.filter(s => s.scryfall_id).map(s => s.scryfall_id as string) : manapoolMissIds
+        ) : Promise.resolve(new Map()),
         fetchCollection(missIds),
       ])
 
@@ -107,7 +113,8 @@ export async function GET(req: NextRequest) {
 
         const scryfallPrice = cached?.price ?? null
         const mp = s.scryfall_id ? manapoolPrices.get(s.scryfall_id) ?? null : null
-        const manapoolPrice = mp?.price ?? null
+        const manapoolPrice = mp?.price ?? cached?.manapoolPrice ?? null
+        const manapoolUrl = mp?.url ?? cached?.manapoolUrl ?? null
 
         let currentPrice: number | null = null
         let priceSource: 'manapool' | 'scryfall' | null = null
@@ -146,7 +153,7 @@ export async function GET(req: NextRequest) {
           rarity: cached?.rarity ?? null,
           typeLine: cached?.typeLine ?? null,
           priceSource,
-          manapoolUrl: mp?.url ?? null,
+          manapoolUrl,
         })
       }
 

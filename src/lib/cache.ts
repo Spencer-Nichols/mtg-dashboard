@@ -18,6 +18,8 @@ export interface CacheEntry {
   setCode?: string
   rarity?: string
   typeLine?: string
+  manapoolPrice?: number | null
+  manapoolUrl?: string | null
 }
 
 export async function getCached(key: string): Promise<CacheEntry | null> {
@@ -34,6 +36,12 @@ export async function setCached(
   const { etchedPrice = null, ...rest } = meta ?? {}
   const entry: CacheEntry = { price, foilPrice, etchedPrice, imageUrl, timestamp: Date.now(), ...rest }
   await redis.set(key, entry, { ex: TTL_SECONDS })
+}
+
+export async function setManapoolPrice(key: string, price: number | null, url: string | null) {
+  const existing = await redis.get<CacheEntry>(key)
+  if (!existing) return
+  await redis.set(key, { ...existing, manapoolPrice: price, manapoolUrl: url }, { ex: TTL_SECONDS })
 }
 
 export function getCachedPriceByFoilType(cached: CacheEntry, foilType: string): number | null {
