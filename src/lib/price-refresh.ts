@@ -155,34 +155,39 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     await supabase.from('binder_card_history').upsert(binderCardHistory, { onConflict: 'user_id,display_name,date' })
   }
 
-  // Per-card wishlist history
-  const wishlistCardHistory: { user_id: string; card_name: string; date: string; price: number }[] = []
-  for (const row of wishlistRows ?? []) {
-    const key = cacheKey(row.name, row.scryfall_id ?? row.set_code ?? '')
-    const cached = await getCached(key)
-    if (!cached || cached.price == null) continue
-    wishlistCardHistory.push({ user_id: row.user_id, card_name: row.name, date: today, price: parseFloat(cached.price.toFixed(2)) })
-  }
-
-  if (wishlistCardHistory.length > 0) {
-    await supabase.from('wishlist_card_history').upsert(wishlistCardHistory, { onConflict: 'user_id,card_name,date' })
-  }
-
   // Fetch Manapool prices for all wishlisted cards and store in cache
   const wishlistScryfallIds = [...new Set(
     (wishlistRows ?? []).filter(r => r.scryfall_id).map(r => r.scryfall_id as string)
   )]
+  const manapoolPrices = new Map<string, { price: number | null; url: string }>()
   if (wishlistScryfallIds.length > 0) {
-    const manapoolPrices = await fetchManapoolSinglePrices(wishlistScryfallIds)
+    const fetched = await fetchManapoolSinglePrices(wishlistScryfallIds)
     await Promise.all(
       wishlistScryfallIds.map(async scryfallId => {
         const row = (wishlistRows ?? []).find(r => r.scryfall_id === scryfallId)
         if (!row) return
         const key = cacheKey(row.name, scryfallId)
-        const mp = manapoolPrices.get(scryfallId)
+        const mp = fetched.get(scryfallId)
+        manapoolPrices.set(scryfallId, { price: mp?.price ?? null, url: mp?.url ?? '' })
         await setManapoolPrice(key, mp?.price ?? null, mp?.url ?? null)
       })
     )
+  }
+
+  // Per-card wishlist history — use lower of Scryfall vs Manapool
+  const wishlistCardHistory: { user_id: string; card_name: string; date: string; price: number }[] = []
+  for (const row of wishlistRows ?? []) {
+    const key = cacheKey(row.name, row.scryfall_id ?? row.set_code ?? '')
+    const cached = await getCached(key)
+    if (!cached || cached.price == null) continue
+    const scryfallPrice = cached.price
+    const manapoolPrice = row.scryfall_id ? (manapoolPrices.get(row.scryfall_id)?.price ?? null) : null
+    const price = manapoolPrice != null && manapoolPrice < scryfallPrice ? manapoolPrice : scryfallPrice
+    wishlistCardHistory.push({ user_id: row.user_id, card_name: row.name, date: today, price: parseFloat(price.toFixed(2)) })
+  }
+
+  if (wishlistCardHistory.length > 0) {
+    await supabase.from('wishlist_card_history').upsert(wishlistCardHistory, { onConflict: 'user_id,card_name,date' })
   }
 
   await setCronTimestamp()
