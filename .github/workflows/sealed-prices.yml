@@ -1,9 +1,7 @@
 name: Sealed Product Prices
 
 on:
-  schedule:
-    - cron: '0 * * * *'  # every hour
-  workflow_dispatch:      # manual trigger for testing
+  workflow_dispatch:      # manual trigger only — scheduled runs handled by Vercel cron
 
 jobs:
   fetch-prices:
