@@ -1,5 +1,5 @@
 const SINGLES_URL = (ids: string[]) =>
-  `https://manapool.com/api/v1/products/singles?scryfall_ids=${ids.join(',')}`
+  `https://manapool.com/api/v1/products/singles?${ids.map(id => `scryfall_ids=${id}`).join('&')}`
 
 export interface ManapoolSinglePrice {
   price: number | null
@@ -17,7 +17,10 @@ export async function fetchManapoolSinglePrices(scryfallIds: string[]): Promise<
     const batch = scryfallIds.slice(i, i + BATCH)
     try {
       const res = await fetch(SINGLES_URL(batch))
-      if (!res.ok) continue
+      if (!res.ok) {
+        console.error(`Manapool singles API error: ${res.status}`, await res.text().catch(() => ''))
+        continue
+      }
       const data = await res.json()
       for (const item of data?.data ?? []) {
         if (!item.scryfall_id) continue

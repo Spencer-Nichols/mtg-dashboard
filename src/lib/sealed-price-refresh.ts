@@ -52,7 +52,10 @@ async function fetchManaPoolPrices(productIds: number[]): Promise<Map<number, nu
     const batch = productIds.slice(i, i + 100)
     try {
       const res = await fetch(MANAPOOL_URL(batch))
-      if (!res.ok) continue
+      if (!res.ok) {
+        console.error(`Manapool sealed API error: ${res.status}`, await res.text().catch(() => ''))
+        continue
+      }
       const data = await res.json()
       for (const item of data?.data ?? []) {
         if (item.tcgplayer_product_id != null && item.low_price != null) {
