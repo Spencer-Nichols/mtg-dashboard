@@ -740,7 +740,7 @@ export default function BinderPage() {
   const [progress, setProgress] = useState(0)
   const [total, setTotal] = useState(0)
   const [addQuery, setAddQuery] = useState('')
-  const [addNote, setAddNote] = useState('')
+
   const [addCandidates, setAddCandidates] = useState<Candidate[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [showManage, setShowManage] = useState(false)
@@ -779,6 +779,7 @@ export default function BinderPage() {
   const csvFileInputRef = useRef<HTMLInputElement>(null)
   const importLogRef = useRef<HTMLDivElement>(null)
   const expandParamRef = useRef<string | null>(null)
+  const seedCardRef = useRef<string | null>(null)
 
   // History state
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
@@ -832,7 +833,7 @@ export default function BinderPage() {
     })
 
     const INTERVAL = 60 * 60 * 1000
-    const interval = setInterval(() => startStream(true), INTERVAL)
+    const interval = setInterval(() => startStream(), INTERVAL)
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -907,16 +908,9 @@ export default function BinderPage() {
   }
 
   function handleAddedFromModal() {
+    if (pendingAddName) seedCardRef.current = pendingAddName
     fetch('/api/binder').then(r => r.json()).then(d => {
       setEntries(d.entries)
-      const lastTotal = binderHistory[binderHistory.length - 1]?.total ?? 0
-      fetch('/api/binder/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ total: lastTotal, card_count: d.entries.length }),
-      }).then(r => r.json()).then(h => {
-        if (Array.isArray(h)) { setBinderHistory(h); localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h)) }
-      })
       startStream()
     })
   }
@@ -955,14 +949,6 @@ export default function BinderPage() {
         } else if (msg.type === 'done') {
           fetch('/api/binder').then(r => r.json()).then(d => {
             setEntries(d.entries)
-            const lastTotal = binderHistory[binderHistory.length - 1]?.total ?? 0
-            fetch('/api/binder/history', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ total: lastTotal, card_count: d.entries.length }),
-            }).then(r => r.json()).then(h => {
-              if (Array.isArray(h)) { setBinderHistory(h); localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h)) }
-            })
             startStream()
           })
         }
@@ -972,14 +958,13 @@ export default function BinderPage() {
     setBulkLoading(false)
   }
 
-  function startStream(bust = false) {
+  function startStream() {
     if (streaming) return
     esRef.current?.close()
-    if (bust) setResults(new Map())
     setProgress(0)
     setStreaming(true)
 
-    const es = new EventSource(`/api/binder/stream${bust ? '?bust=true' : ''}`)
+    const es = new EventSource('/api/binder/stream')
     esRef.current = es
 
     es.onmessage = e => {
@@ -999,7 +984,6 @@ export default function BinderPage() {
         es.close()
         setResults(prev => {
           localStorage.setItem(LS_BINDER_RESULTS, JSON.stringify(Array.from(prev.entries())))
-          const total = Array.from(prev.values()).reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
 
           // Keep homepage highlights cache in sync with fresh binder prices
           const totalDelta = parseFloat(Array.from(prev.values()).reduce((sum, r) => {
@@ -1011,31 +995,25 @@ export default function BinderPage() {
             const highlights = cached ? JSON.parse(cached) : {}
             localStorage.setItem(LS_HIGHLIGHTS, JSON.stringify({ ...highlights, totalDelta }))
           } catch { /* ignore */ }
-          fetch('/api/binder/history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total, card_count: prev.size }),
-          }).then(r => r.json()).then(h => {
-            if (Array.isArray(h)) {
-              setBinderHistory(h)
-              localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h))
-              localStorage.setItem(LS_HISTORY, JSON.stringify(h))
+
+          if (seedCardRef.current) {
+            const seedName = seedCardRef.current
+            seedCardRef.current = null
+            const seedResult = prev.get(Array.from(prev.keys()).find(k => k.startsWith(seedName + '||')) ?? '')
+            if (seedResult?.currentPrice != null) {
+              fetch('/api/binder/card-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prices: { [seedName]: seedResult.currentPrice } }),
+              }).then(r => r.json()).then(h => {
+                if (h && typeof h === 'object' && !h.error) {
+                  setCardHistory(h)
+                  localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
+                }
+              })
             }
-          })
-          const prices: Record<string, number> = {}
-          prev.forEach(r => { if (r.currentPrice != null) prices[r.displayName] = r.currentPrice })
-          if (Object.keys(prices).length > 0) {
-            fetch('/api/binder/card-history', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prices }),
-            }).then(r => r.json()).then(h => {
-              if (h && typeof h === 'object' && !h.error) {
-                setCardHistory(h)
-                localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
-              }
-            })
           }
+
           return prev
         })
       }
@@ -1076,14 +1054,6 @@ export default function BinderPage() {
         } else if (msg.type === 'done') {
           fetch('/api/binder').then(r => r.json()).then(d => {
             setEntries(d.entries)
-            const lastTotal = binderHistory[binderHistory.length - 1]?.total ?? 0
-            fetch('/api/binder/history', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ total: lastTotal, card_count: d.entries.length }),
-            }).then(r => r.json()).then(h => {
-              if (Array.isArray(h)) { setBinderHistory(h); localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h)) }
-            })
             startStream()
           })
         }
@@ -1112,6 +1082,7 @@ export default function BinderPage() {
 
   // --- Binder derived data ---
   const todayStr = new Date().toISOString().split('T')[0]
+  const twoDaysAgoStr = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const rows: CardResult[] = entries.map(e => {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foilType)
@@ -1121,7 +1092,10 @@ export default function BinderPage() {
     const pct = currentPrice != null && costBasis > 0
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
-    const priorEntries = (cardHistory[e.displayName] ?? []).filter(h => h.date.split('T')[0] < todayStr)
+    const priorEntries = (cardHistory[e.displayName] ?? []).filter(h => {
+      const d = h.date.split('T')[0]
+      return d >= twoDaysAgoStr && d < todayStr
+    })
     const dailyBaseline = priorEntries.length > 0 ? priorEntries[priorEntries.length - 1].price : null
     const dailyPct = currentPrice != null && dailyBaseline != null && dailyBaseline > 0
       ? ((currentPrice - dailyBaseline) / dailyBaseline) * 100
@@ -1166,15 +1140,7 @@ return (
       <div className="hidden lg:block mb-6">
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold text-stone-100">Binder</h1>
-          {streaming
-            ? <span className="text-sm text-stone-500">Refreshing… {progress}/{total}</span>
-            : <button
-                onClick={() => startStream(true)}
-                className="text-xs text-stone-500 hover:text-stone-300 transition-colors"
-              >
-                ↻ refresh
-              </button>
-          }
+          {streaming && <span className="text-sm text-stone-500">Loading… {progress}/{total}</span>}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {results.size > 0 ? (
@@ -1236,15 +1202,7 @@ return (
               <p className="text-sm text-stone-600">{entries.length} cards</p>
             )}
           </div>
-          {streaming
-            ? <span className="text-xs text-stone-500 shrink-0 mt-1">Refreshing… {progress}/{total}</span>
-            : <button
-                onClick={() => startStream(true)}
-                className="text-xs text-stone-500 hover:text-stone-300 transition-colors shrink-0"
-              >
-                ↻ refresh
-              </button>
-          }
+          {streaming && <span className="text-xs text-stone-500 shrink-0 mt-1">Loading… {progress}/{total}</span>}
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">

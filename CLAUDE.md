@@ -17,9 +17,9 @@ Next.js App Router, Supabase (auth + DB), Tailwind CSS. Spencer's personal MTG c
 
 **Price %**: Always recalculate `pct` on the frontend from `purchasePrice` (not the cached stream value). `costBasis = purchasePrice ?? snapshotPrice`. If `purchasePrice === 0`, show dollar gain instead of %.
 
-**Caching**: localStorage stale-while-revalidate. `CACHE_VERSION = '2'` — bump this to bust all caches. Keys: `tnk:binder:entries`, `tnk:binder:results`, `tnk:binder:history`, `tnk:highlights`, `tnk:history`.
+**Caching**: localStorage stale-while-revalidate. `CACHE_VERSION = '3'` — bump this to bust all caches. Keys: `tnk:binder:entries`, `tnk:binder:results`, `tnk:binder:history`, `tnk:highlights`, `tnk:history`.
 
-**Binder stream**: SSE at `/api/binder/stream`. Emits `{type:'total'}`, `{type:'card', displayName, setCode, foil, currentPrice, ...}`, `{type:'done'}`. On `done`, saves to localStorage and POSTs to `/api/binder/history`.
+**Binder stream**: SSE at `/api/binder/stream`. Emits `{type:'total'}`, `{type:'card', displayName, setCode, foil, currentPrice, ...}`, `{type:'done'}`. On `done`, saves to localStorage. History (both binder_history and binder_card_history) is written exclusively by the cron job — NOT by the client stream.
 
 **Add card flow**: After successful add, set `postAddRow` state → opens `EditModal` for condition/foil/purchasePrice/note. Same `EditModal` used for editing existing cards.
 

@@ -102,6 +102,8 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
   const [editingNote, setEditingNote] = useState(false)
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
+  const [showMenu, setShowMenu] = useState(false)
+  const [menuNote, setMenuNote] = useState('')
   const cancelNoteRef = useRef(false)
 
   function commitNote() {
@@ -110,6 +112,23 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
     const trimmed = noteVal.trim()
     if (trimmed === currentNote) return
     setCurrentNote(trimmed)
+    fetch('/api/wishlist/note', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: row.displayName, note: trimmed }),
+    })
+  }
+
+  function openMenu() {
+    setMenuNote(currentNote)
+    setShowMenu(true)
+  }
+
+  function saveMenuNote() {
+    const trimmed = menuNote.trim()
+    if (trimmed === currentNote) return
+    setCurrentNote(trimmed)
+    setNoteVal(trimmed)
     fetch('/api/wishlist/note', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -160,11 +179,11 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
           )}
           {isStale && (
             <div className="text-xs px-2 py-0.5 rounded-full bg-stone-800/80 text-stone-500 backdrop-blur-sm">
-              flat 2d
+              Stale
             </div>
           )}
         </div>
-        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-2 left-0 right-0 hidden sm:flex justify-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <button
             onClick={e => { e.preventDefault(); onMoveToBinder(row.displayName) }}
             className="whitespace-nowrap text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/50 text-amber-400 hover:bg-amber-900/40 transition-colors"
@@ -180,20 +199,28 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
         </div>
       </div>
       <div className="px-0.5 flex flex-col gap-0.5">
-        <p className="text-sm text-stone-200 font-semibold leading-tight" title={row.displayName}>{row.displayName}</p>
-        {row.typeLine && <p className="text-xs text-stone-500 leading-tight">{row.typeLine}</p>}
-        {(row.setName || row.setCode) && (
-          <p className="text-xs text-stone-500">
-            {row.setName ?? ''}{row.setCode ? ` (${row.setCode.toUpperCase()})` : ''}
-          </p>
-        )}
-        {row.rarity && (
-          <p className={`text-xs font-medium capitalize ${
-            row.rarity === 'mythic' ? 'text-orange-400' :
-            row.rarity === 'rare' ? 'text-yellow-400' :
-            row.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
-          }`}>{row.rarity}</p>
-        )}
+        <div className="flex items-start justify-between gap-1">
+          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+            <p className="text-sm text-stone-200 font-semibold leading-tight" title={row.displayName}>{row.displayName}</p>
+            {row.typeLine && <p className="text-xs text-stone-500 leading-tight">{row.typeLine}</p>}
+            {(row.setName || row.setCode) && (
+              <p className="text-xs text-stone-500">
+                {row.setName ?? ''}{row.setCode ? ` (${row.setCode.toUpperCase()})` : ''}
+              </p>
+            )}
+            {row.rarity && (
+              <p className={`text-xs font-medium capitalize ${
+                row.rarity === 'mythic' ? 'text-orange-400' :
+                row.rarity === 'rare' ? 'text-yellow-400' :
+                row.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
+              }`}>{row.rarity}</p>
+            )}
+          </div>
+          <button
+            onClick={openMenu}
+            className="sm:hidden shrink-0 text-stone-400 border border-stone-700 bg-stone-800 rounded-full px-2 py-0.5 text-sm leading-none transition-colors active:bg-stone-700"
+          >⋯</button>
+        </div>
         {sparkline && sparkline.length >= 2 && (
           <div className="mt-1">
             <Sparkline values={sparkline} />
@@ -216,6 +243,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
             <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
           )}
         </div>
+        {currentNote && <span className="sm:hidden text-xs text-stone-500 px-0.5">{currentNote}</span>}
         {editingNote ? (
           <input
             autoFocus
@@ -226,18 +254,51 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
               if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
               if (e.key === 'Escape') { cancelNoteRef.current = true; (e.target as HTMLInputElement).blur() }
             }}
-            className="text-xs px-1.5 py-0.5 rounded bg-stone-800 border-2 border-amber-700 text-stone-200 placeholder-stone-600 focus:outline-none w-full"
+            className="hidden sm:block text-xs px-1.5 py-0.5 rounded bg-stone-800 border-2 border-amber-700 text-stone-200 placeholder-stone-600 focus:outline-none w-full"
             placeholder="Add a note..."
           />
         ) : (
           <span
             onClick={() => { setNoteVal(currentNote); setEditingNote(true) }}
-            className={`text-xs cursor-text px-1 rounded hover:bg-stone-700 transition-colors ${currentNote ? 'text-stone-400' : 'opacity-0 group-hover:opacity-100 text-stone-600'}`}
+            className={`hidden sm:block text-xs cursor-text px-1 rounded hover:bg-stone-700 transition-colors ${currentNote ? 'text-stone-400' : 'opacity-0 group-hover:opacity-100 text-stone-600'}`}
           >
             {currentNote || '+ note'}
           </span>
         )}
       </div>
+
+      {showMenu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:hidden bg-black/60 backdrop-blur-sm" onClick={() => setShowMenu(false)}>
+          <div className="w-full bg-stone-900 border border-stone-700 rounded-2xl p-5 flex flex-col gap-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="text-stone-200 font-semibold text-sm truncate pr-4">{row.displayName}</p>
+              <button onClick={() => setShowMenu(false)} className="text-stone-500 hover:text-stone-300 text-2xl leading-none">×</button>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-stone-500">Note</label>
+              <input
+                value={menuNote}
+                onChange={e => setMenuNote(e.target.value)}
+                placeholder="Add a note..."
+                className="w-full bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+                onKeyDown={e => { if (e.key === 'Enter') { saveMenuNote(); setShowMenu(false) } }}
+              />
+            </div>
+            <button
+              onClick={() => { saveMenuNote(); onMoveToBinder(row.displayName); setShowMenu(false) }}
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-stone-800 border border-amber-700/50 text-amber-400 active:bg-stone-700 transition-colors"
+            >
+              → Move to Binder
+            </button>
+            <button
+              onClick={() => { saveMenuNote(); onDelete(row.displayName); setShowMenu(false) }}
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-red-950/40 border border-red-800/50 text-red-400 active:bg-red-900/40 transition-colors"
+            >
+              Remove from Wishlist
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -252,6 +313,8 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
 }) {
   const [editingAlert, setEditingAlert] = useState(false)
   const [alertValue, setAlertValue] = useState('')
+  const [showMenu, setShowMenu] = useState(false)
+  const [menuAlertValue, setMenuAlertValue] = useState('')
 
   const suffix = (item.productName.includes(' - ')
     ? item.productName.slice(item.productName.indexOf(' - ') + 3)
@@ -266,6 +329,16 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
     const parsed = alertValue.trim() ? parseFloat(alertValue) : null
     onSetTargetPrice?.(item.id, parsed && !isNaN(parsed) ? parsed : null)
     setEditingAlert(false)
+  }
+
+  function openMenu() {
+    setMenuAlertValue(targetPrice != null ? targetPrice.toFixed(2) : '')
+    setShowMenu(true)
+  }
+
+  function saveMenuAlert() {
+    const parsed = menuAlertValue.trim() ? parseFloat(menuAlertValue) : null
+    onSetTargetPrice?.(item.id, parsed && !isNaN(parsed) ? parsed : null)
   }
 
   return (
@@ -314,7 +387,7 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
             )}
           </div>
         )}
-        <div className="absolute bottom-2 left-0 right-0 flex justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-2 left-0 right-0 hidden sm:flex justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onDelete(item.id)}
             className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border border-red-800/50 text-red-400 hover:bg-red-900/40 transition-colors"
@@ -324,10 +397,16 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
         </div>
       </div>
       <div className="px-0.5 flex flex-col gap-0.5">
-        <p className="text-xs sm:text-sm font-semibold leading-tight">
-          {item.setName && <span className="text-stone-200 font-normal">{item.setName} · </span>}
-          <span className="text-stone-200">{suffix}</span>
-        </p>
+        <div className="flex items-start justify-between gap-1">
+          <p className="text-xs sm:text-sm font-semibold leading-tight min-w-0 flex-1">
+            {item.setName && <span className="text-stone-200 font-normal">{item.setName} · </span>}
+            <span className="text-stone-200">{suffix}</span>
+          </p>
+          <button
+            onClick={openMenu}
+            className="sm:hidden shrink-0 text-stone-400 border border-stone-700 bg-stone-800 rounded-full px-2 py-0.5 text-sm leading-none transition-colors active:bg-stone-700"
+          >⋯</button>
+        </div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className={`text-sm font-mono font-semibold ${pctColor(item.pct)}`}>
             {item.currentPrice != null ? `$${item.currentPrice.toFixed(2)}` : item.snapshotPrice > 0 ? `$${item.snapshotPrice.toFixed(2)}` : '—'}
@@ -346,7 +425,7 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
           )}
           {onSetTargetPrice && (
             editingAlert ? (
-              <div className="flex items-center gap-1">
+              <div className="hidden sm:flex items-center gap-1">
                 <span className="text-stone-500 text-xs">Alert &lt; $</span>
                 <input
                   autoFocus
@@ -362,26 +441,72 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
             ) : (
               <button
                 onClick={openAlert}
-                className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                className={`hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full border transition-colors ${
                   targetPrice != null
                     ? 'bg-orange-950/40 border-orange-800/50 text-orange-400 hover:bg-orange-900/40'
                     : 'bg-stone-800/60 border-stone-700 text-stone-500 hover:text-stone-300'
                 }`}
               >
                 {targetPrice != null
-                  ? <><span>⚑ alert</span><span className="hidden sm:inline"> &lt; ${targetPrice.toFixed(2)}</span></>
-                  : <><span>+ alert</span><span className="hidden sm:inline"> price</span></>
+                  ? <>⚑ alert &lt; ${targetPrice.toFixed(2)}</>
+                  : <>+ alert price</>
                 }
               </button>
             )
           )}
         </div>
+        {targetPrice != null && (
+          <span className="sm:hidden text-xs text-orange-400">⚑ alert &lt; ${targetPrice.toFixed(2)}</span>
+        )}
         {sparkline && sparkline.length >= 2 && (
           <div className="mt-1">
             <Sparkline values={sparkline} />
           </div>
         )}
       </div>
+
+      {showMenu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:hidden bg-black/60 backdrop-blur-sm" onClick={() => setShowMenu(false)}>
+          <div className="w-full bg-stone-900 border border-stone-700 rounded-2xl p-5 flex flex-col gap-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-stone-200 font-semibold text-sm">{suffix}</p>
+                {item.setName && <p className="text-xs text-stone-500 mt-0.5">{item.setName}</p>}
+              </div>
+              <button onClick={() => setShowMenu(false)} className="text-stone-500 hover:text-stone-300 text-2xl leading-none">×</button>
+            </div>
+            {onSetTargetPrice && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-stone-500">Alert price</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-stone-500 text-sm shrink-0">Alert &lt; $</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={menuAlertValue}
+                    onChange={e => setMenuAlertValue(e.target.value)}
+                    placeholder="0.00"
+                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+                    onKeyDown={e => { if (e.key === 'Enter') { saveMenuAlert(); setShowMenu(false) } }}
+                  />
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => { saveMenuAlert(); setShowMenu(false) }}
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-stone-800 border border-stone-700 text-stone-300 active:bg-stone-700 transition-colors"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => { onDelete(item.id); setShowMenu(false) }}
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-red-950/40 border border-red-800/50 text-red-400 active:bg-red-900/40 transition-colors"
+            >
+              Remove from Wishlist
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -399,10 +524,10 @@ export default function WishlistPage() {
   const [addCandidates, setAddCandidates] = useState<Candidate[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024
-  const [gainersOpen, setGainersOpen] = useState(isDesktop)
-  const [losersOpen, setLosersOpen] = useState(true)
-  const [watchingOpen, setWatchingOpen] = useState(isDesktop)
+  const [addMode, setAddMode] = useState<'single' | 'sealed'>('single')
   const [sealedOpen, setSealedOpen] = useState(isDesktop)
+  const [cardsOpen, setCardsOpen] = useState(isDesktop)
+  const [staleResetLoading, setStaleResetLoading] = useState(false)
   const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
@@ -461,6 +586,7 @@ export default function WishlistPage() {
   const esRef = useRef<EventSource | null>(null)
   const sealedEsRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const staleResetRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     const cachedSingles = localStorage.getItem(LS_WISHLIST_SINGLES)
@@ -526,6 +652,22 @@ export default function WishlistPage() {
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (streaming) return
+    rows.forEach(row => {
+      if (!isStaleFor4Days(row) || row.currentPrice == null) return
+      if (staleResetRef.current.has(row.displayName)) return
+      staleResetRef.current.add(row.displayName)
+      fetch('/api/wishlist/snapshot', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: row.displayName, snapshotPrice: row.currentPrice }),
+      })
+      setSingles(prev => prev.map(s => s.name === row.displayName ? { ...s, snapshotPrice: row.currentPrice! } : s))
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streaming])
 
   function startStream(bust = false) {
     if (streaming) return
@@ -799,6 +941,25 @@ export default function WishlistPage() {
     setAddLoading(false)
   }
 
+  async function resetStaleBaselines() {
+    const staleRows = rows.filter(r => (r.pct ?? 0) < -0.05 && isStaleLoser(r) && r.currentPrice != null)
+    if (!staleRows.length) return
+    setStaleResetLoading(true)
+    await Promise.all(staleRows.map(row =>
+      fetch('/api/wishlist/snapshot', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: row.displayName, snapshotPrice: row.currentPrice }),
+      })
+    ))
+    setSingles(prev => prev.map(s => {
+      const match = staleRows.find(r => r.displayName === s.name)
+      return match ? { ...s, snapshotPrice: match.currentPrice! } : s
+    }))
+    staleRows.forEach(r => staleResetRef.current.add(r.displayName))
+    setStaleResetLoading(false)
+  }
+
   async function deleteCard(name: string) {
     await fetch('/api/wishlist/remove', {
       method: 'POST',
@@ -826,6 +987,7 @@ export default function WishlistPage() {
   )
 
   const STALE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
+  const STALE_RESET_WINDOW_MS = 4 * 24 * 60 * 60 * 1000
   const STALE_MOVE_PCT = 2
 
   function isStaleLoser(row: CardResult): boolean {
@@ -839,6 +1001,20 @@ export default function WishlistPage() {
     return Math.abs((row.currentPrice - oldest) / oldest) * 100 < STALE_MOVE_PCT
   }
 
+  function isStaleFor4Days(row: CardResult): boolean {
+    if (row.currentPrice == null) return false
+    const history = wishlistHistory[row.displayName] ?? []
+    const windowStart = Date.now() - STALE_RESET_WINDOW_MS
+    const recent = history.filter(h => new Date(h.date).getTime() >= windowStart)
+    if (recent.length < 2) return false
+    const earliest = new Date(recent[0].date).getTime()
+    if (Date.now() - earliest < STALE_RESET_WINDOW_MS * 0.75) return false
+    const oldest = recent[0].price
+    if (oldest <= 0) return false
+    return Math.abs((row.currentPrice - oldest) / oldest) * 100 < STALE_MOVE_PCT
+  }
+
+  const staleRows = rows.filter(r => (r.pct ?? 0) < -0.05 && isStaleLoser(r) && r.currentPrice != null)
   const gainers = rows.filter(r => (r.pct ?? 0) > 0.05)
   const losers = rows.filter(r => (r.pct ?? 0) < -0.05 && !isStaleLoser(r) && !isWishlistCardDismissed(r.displayName, r.currentPrice))
   const flat = rows.filter(r => r.pct !== null && (Math.abs(r.pct) <= 0.05 || ((r.pct ?? 0) < -0.05 && (isStaleLoser(r) || isWishlistCardDismissed(r.displayName, r.currentPrice)))))
@@ -863,6 +1039,8 @@ export default function WishlistPage() {
     return isAtlPrice(currentPrice, item.tcgProductId, item.snapshotPrice, item.targetPrice)
   })
   const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
+  const totalSnapshot = rows.reduce((sum, r) => sum + r.snapshotPrice, 0)
+  const totalDelta = results.size > 0 ? totalValue - totalSnapshot : null
 
   const sealedResultsList = Array.from(sealedResults.values())
   const sealedGainers = sealedResultsList.filter(r => (r.pct ?? 0) > 0.05)
@@ -871,6 +1049,8 @@ export default function WishlistPage() {
     const r = sealedResults.get(item.id)
     return sum + (r?.currentPrice ?? item.snapshotPrice)
   }, 0)
+  const sealedTotalSnapshot = sealedItems.reduce((sum, item) => sum + item.snapshotPrice, 0)
+  const sealedTotalDelta = sealedResults.size > 0 ? sealedTotalValue - sealedTotalSnapshot : null
 
   return (
     <div>
@@ -878,40 +1058,51 @@ export default function WishlistPage() {
         <div>
           <h1 className="text-2xl font-bold text-stone-100">Wishlist</h1>
           <p className="text-sm text-stone-500 mt-1">{singles.length} cards on your radar</p>
-          {results.size > 0 && (
-            <p className="text-xs text-stone-600 mt-0.5">
-              {gainers.length} up · {losers.length} down · {flat.length} flat
-              {pending.length > 0 && ` · ${pending.length} pending`}
-              {updatedAt && ` · ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-            </p>
-          )}
           {sealedItems.length > 0 && (
             <p className="text-xs text-stone-600 mt-0.5">
               {sealedItems.length} sealed · {sealedGainers.length} up · {sealedLosers.length} down
             </p>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          {results.size > 0 && (
-            <span className="text-stone-400 font-mono text-sm">
-              ~<span className="text-stone-100 font-semibold">${totalValue.toFixed(2)}</span> to buy all
-            </span>
-          )}
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-3">
           {streaming
-            ? <span className="text-sm text-stone-500">Refreshing… {progress}/{total}</span>
+            ? <span className="text-xs px-2.5 py-1 rounded-lg border border-stone-800 text-stone-500">Refreshing… {progress}/{total}</span>
             : <button
                 onClick={() => startStream(true)}
-                className="text-xs text-stone-500 hover:text-stone-300 transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-stone-700 text-stone-500 hover:text-stone-300 hover:border-stone-500 transition-colors"
               >
-                ↻ refresh
+                ↻ Refresh
               </button>
           }
+          {staleRows.length > 0 && !streaming && (
+            <button
+              onClick={() => resetStaleBaselines()}
+              disabled={staleResetLoading}
+              className="text-xs px-2.5 py-1 rounded-lg border border-stone-700 text-stone-500 hover:text-stone-300 hover:border-stone-500 transition-colors shrink-0 disabled:opacity-50"
+            >
+              {staleResetLoading ? 'Resetting…' : `Reset ${staleRows.length} stale cards`}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Add inputs */}
       <div className="flex flex-col gap-2 mb-6">
-      <div className="relative">
+        <div className="flex gap-1 bg-stone-900 border border-stone-700 rounded-lg p-1 w-fit">
+          <button
+            onClick={() => setAddMode('single')}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${addMode === 'single' ? 'bg-stone-700 text-stone-100' : 'text-stone-500 hover:text-stone-300'}`}
+          >
+            Singles
+          </button>
+          <button
+            onClick={() => setAddMode('sealed')}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${addMode === 'sealed' ? 'bg-stone-700 text-stone-100' : 'text-stone-500 hover:text-stone-300'}`}
+          >
+            Sealed product
+          </button>
+        </div>
+      {addMode === 'single' && <div className="relative">
         <div className="flex gap-2">
           <input
             value={addQuery}
@@ -922,13 +1113,6 @@ export default function WishlistPage() {
             placeholder="Add a card to wishlist..."
             className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
           />
-          <button
-            onClick={() => addCard()}
-            disabled={addLoading}
-            className="px-4 py-2.5 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            {addLoading ? 'Adding...' : 'Add'}
-          </button>
         </div>
         {showDropdown && addCandidates.length > 0 && (
           <div className="absolute z-40 top-full left-0 right-12 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl">
@@ -989,8 +1173,8 @@ export default function WishlistPage() {
         )}
       </div>
 
-      {/* Add sealed input */}
-      <div id="wishlist-sealed-add" className="relative">
+      }
+      {addMode === 'sealed' && <div id="wishlist-sealed-add" className="relative">
         <input
           value={sealedQuery}
           onChange={e => { setSealedQuery(e.target.value); setSealedShowDropdown(true) }}
@@ -1026,7 +1210,7 @@ export default function WishlistPage() {
             })()}
           </div>
         )}
-      </div>
+      </div>}
 
       </div>
 
@@ -1217,8 +1401,15 @@ export default function WishlistPage() {
             <span className="text-stone-400 text-sm shrink-0">{sealedOpen ? '▲' : '▼'}</span>
           </button>
           {sealedTotalValue > 0 && (
-            <span className="text-stone-400 font-mono text-sm shrink-0">
-              ~<span className="text-stone-100 font-semibold">${sealedTotalValue.toFixed(2)}</span>
+            <span className="flex items-center gap-2 font-mono text-sm shrink-0">
+              <span className={`font-semibold ${sealedTotalDelta == null ? 'text-stone-100' : sealedTotalDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                ~${sealedTotalValue.toFixed(2)}
+              </span>
+              {sealedTotalDelta != null && sealedTotalDelta !== 0 && (
+                <span className={`text-xs ${sealedTotalDelta > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {sealedTotalDelta > 0 ? '+' : ''}${sealedTotalDelta.toFixed(2)}
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -1262,55 +1453,39 @@ export default function WishlistPage() {
       </div>
 
       {rows.length > 0 && (
-        <div className="flex flex-col gap-6">
-          {losers.length > 0 && (
-            <div>
-              <button onClick={() => setLosersOpen(o => !o)} className="w-full flex items-center gap-2 mb-3 text-left">
-                <span className="text-red-400 font-semibold">▼ Drops</span>
-                <span className="text-stone-600 font-normal text-sm">{losers.length} cards</span>
-                <span className="text-stone-400 text-sm ml-auto">{losersOpen ? '▲' : '▼'}</span>
-              </button>
-              {losersOpen && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
-                  {[...losers].sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0)).map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
-                  ))}
-                </div>
-              )}
+        <div id="wishlist-cards" className="flex flex-col gap-4 mb-8">
+          <button
+            onClick={() => setCardsOpen(o => !o)}
+            className="flex items-center gap-2 text-left"
+          >
+            <div className="flex-1 min-w-0">
+              <h2 className="text-stone-300 font-semibold">Singles</h2>
+              <p className="text-xs text-stone-600 mt-0.5">
+                {rows.length} {rows.length === 1 ? 'card' : 'cards'} tracked
+                {results.size > 0 && ` · ${gainers.length} up · ${losers.length} down · ${flat.length} flat`}
+                {pending.length > 0 && ` · ${pending.length} pending`}
+                {updatedAt && ` · updated ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+              </p>
             </div>
-          )}
-
-          {gainers.length > 0 && (
-            <div>
-              <button onClick={() => setGainersOpen(o => !o)} className="w-full flex items-center gap-2 mb-3 text-left">
-                <span className="text-green-400 font-semibold">▲ Rising</span>
-                <span className="text-stone-600 font-normal text-sm">{gainers.length} cards</span>
-                <span className="text-stone-400 text-sm ml-auto">{gainersOpen ? '▲' : '▼'}</span>
-              </button>
-              {gainersOpen && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
-                  {[...gainers].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0)).map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {(flat.length > 0 || pending.length > 0) && (
-            <div>
-              <button onClick={() => setWatchingOpen(o => !o)} className="w-full flex items-center gap-2 mb-3 text-left">
-                <span className="text-stone-400 font-semibold">— Watching</span>
-                <span className="text-stone-600 font-normal text-sm">{flat.length + pending.length} cards</span>
-                <span className="text-stone-400 text-sm ml-auto">{watchingOpen ? '▲' : '▼'}</span>
-              </button>
-              {watchingOpen && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
-                  {[...flat, ...pending].map(row => (
-                    <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} />
-                  ))}
-                </div>
-              )}
+            <span className="text-stone-400 text-sm shrink-0">{cardsOpen ? '▲' : '▼'}</span>
+            {totalValue > 0 && (
+              <span className="flex items-center gap-2 font-mono text-sm shrink-0">
+                <span className={`font-semibold ${totalDelta == null ? 'text-stone-100' : totalDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ~${totalValue.toFixed(2)}
+                </span>
+                {totalDelta != null && totalDelta !== 0 && (
+                  <span className={`text-xs ${totalDelta > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {totalDelta > 0 ? '+' : ''}${totalDelta.toFixed(2)}
+                  </span>
+                )}
+              </span>
+            )}
+          </button>
+          {cardsOpen && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
+              {[...rows].sort((a, b) => (a.pct ?? 1) - (b.pct ?? 1)).map(row => (
+                <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} />
+              ))}
             </div>
           )}
         </div>

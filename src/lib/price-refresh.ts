@@ -115,7 +115,12 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
   const userTotals = new Map<string, number>()
   const userCounts = new Map<string, number>()
   const binderCardHistory: { user_id: string; display_name: string; date: string; price: number }[] = []
-  const today = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  const bucket12h = now.getUTCHours() < 12 ? '00' : '12'
+  const dateBucket = `${today}T${bucket12h}`
+  const bucket4h = String(Math.floor(now.getUTCHours() / 4) * 4).padStart(2, '0')
+  const dateBucket4h = `${today}T${bucket4h}`
 
   for (const row of binderRows ?? []) {
     userCounts.set(row.user_id, (userCounts.get(row.user_id) ?? 0) + 1)
@@ -125,7 +130,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     const price = getCachedPriceByFoilType(cached, row.foil_type ?? 'none')
     if (price == null) continue
     userTotals.set(row.user_id, (userTotals.get(row.user_id) ?? 0) + price)
-    binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: today, price: parseFloat(price.toFixed(2)) })
+    binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: dateBucket, price: parseFloat(price.toFixed(2)) })
   }
 
   const HISTORY_MIN_DELTA = 0.25
@@ -183,7 +188,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     const scryfallPrice = cached.price
     const manapoolPrice = row.scryfall_id ? (manapoolPrices.get(row.scryfall_id)?.price ?? null) : null
     const price = manapoolPrice != null && manapoolPrice < scryfallPrice ? manapoolPrice : scryfallPrice
-    wishlistCardHistory.push({ user_id: row.user_id, card_name: row.name, date: today, price: parseFloat(price.toFixed(2)) })
+    wishlistCardHistory.push({ user_id: row.user_id, card_name: row.name, date: dateBucket4h, price: parseFloat(price.toFixed(2)) })
   }
 
   if (wishlistCardHistory.length > 0) {
