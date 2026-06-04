@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     foil_type: foilType ?? 'none',
     count: 1,
     snapshot_price: price,
+    added_price: price,
     purchase_price: typeof purchasePrice === 'number' ? purchasePrice : null,
     condition: condition ?? null,
     note: note?.trim() || null,
