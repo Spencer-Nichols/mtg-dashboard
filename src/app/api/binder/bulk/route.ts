@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
           foil_type: foilType,
           count: 1,
           snapshot_price: price,
+          added_price: price,
           note: foilType !== 'none' ? null : (note || null),
           date_added: new Date().toISOString().slice(0, 10),
         }

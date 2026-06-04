@@ -26,6 +26,7 @@ export async function GET() {
       foilType: row.foil_type ?? 'none',
       count: row.count,
       snapshotPrice: row.snapshot_price ?? 0,
+      addedPrice: row.added_price ?? null,
       purchasePrice: row.purchase_price ?? null,
       condition: row.condition ?? null,
       note: row.note,

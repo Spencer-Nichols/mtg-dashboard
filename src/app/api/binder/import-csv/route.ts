@@ -161,6 +161,7 @@ export async function POST(req: NextRequest) {
             foil_type: candidate.foilType,
             count: candidate.count,
             snapshot_price: price,
+            added_price: price,
             purchase_price: candidate.purchasePrice,
             condition: candidate.condition,
             note: null,

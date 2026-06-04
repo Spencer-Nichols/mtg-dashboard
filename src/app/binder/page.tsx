@@ -13,6 +13,7 @@ interface BinderEntry {
   foilType: FoilType
   count: number
   snapshotPrice: number
+  addedPrice: number | null
   purchasePrice: number | null
   condition: string | null
   note: string | null
@@ -1089,7 +1090,7 @@ export default function BinderPage() {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foilType)
     const result = results.get(rKey)
     const currentPrice = result?.currentPrice ?? null
-    const costBasis = e.purchasePrice != null ? e.purchasePrice : e.snapshotPrice
+    const costBasis = e.purchasePrice != null ? e.purchasePrice : (e.addedPrice ?? e.snapshotPrice)
     const pct = currentPrice != null && costBasis > 0
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
