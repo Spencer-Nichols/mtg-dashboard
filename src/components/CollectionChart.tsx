@@ -93,6 +93,8 @@ export default function CollectionChart({
     }
   }
 
+  const visibleCountMarkers = countMarkers.filter(m => m.delta !== 0)
+
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
       <defs>
@@ -108,14 +110,18 @@ export default function CollectionChart({
             <text x={padX - 4} y={y(v) + 4} textAnchor="end" fontSize={labelFontSize} fill="#475569">${Math.round(v)}</text>
           </g>
         ))}
-        {xIndices.map(i => (
-          <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
-            {data[i].date.slice(5, 10)}
-          </text>
-        ))}
+        {xIndices.map(i => {
+          const d = data[i].date
+          const label = d.length > 10 ? `${d.slice(5, 10)} ${d.slice(11, 13)}h` : d.slice(5, 10)
+          return (
+            <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
+              {label}
+            </text>
+          )
+        })}
       </g>
       <g>
-        {countMarkers.map(({ x: cx, delta }, idx) => {
+        {visibleCountMarkers.map(({ x: cx, delta }, idx) => {
           const isAdd = delta > 0
           const markerColor = isAdd ? '#4ade80' : '#f87171'
           const label = isAdd ? `+${delta}` : `${delta}`
