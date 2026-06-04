@@ -33,6 +33,8 @@ export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<AccessRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [triggeringSealed, setTriggeringSealed] = useState(false)
   const [sealedTriggerStatus, setSealedTriggerStatus] = useState<'idle' | 'ok' | 'error'>('idle')
@@ -47,6 +49,8 @@ export default function AdminRequestsPage() {
 
   async function sendInvite(id: string, email: string) {
     setPendingAction(id)
+    setInviteError(null)
+    setInviteSuccess(null)
     const res = await fetch('/api/admin/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -54,6 +58,11 @@ export default function AdminRequestsPage() {
     })
     if (res.ok) {
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'approved' } : r))
+      setInviteSuccess(`Invite sent to ${email}`)
+      setTimeout(() => setInviteSuccess(null), 4000)
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setInviteError(data.error ?? 'Failed to send invite')
     }
     setPendingAction(null)
   }
@@ -90,6 +99,8 @@ export default function AdminRequestsPage() {
         <div>
           <h1 className="text-xl font-bold text-stone-100">Access Requests</h1>
           <p className="text-sm text-stone-500 mt-1">Review and approve requests to join TapNTrack.</p>
+          {inviteError && <p className="text-xs text-red-400 mt-1">{inviteError}</p>}
+          {inviteSuccess && <p className="text-xs text-green-400 mt-1">{inviteSuccess}</p>}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           <button
