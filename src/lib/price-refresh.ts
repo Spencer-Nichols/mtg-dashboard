@@ -117,8 +117,8 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
   const binderCardHistory: { user_id: string; display_name: string; date: string; price: number }[] = []
   const now = new Date()
   const today = now.toISOString().split('T')[0]
-  const bucket12h = now.getUTCHours() < 12 ? '00' : '12'
-  const dateBucket = `${today}T${bucket12h}`
+  const bucket8h = String(Math.floor(now.getUTCHours() / 8) * 8).padStart(2, '0')
+  const dateBucket = `${today}T${bucket8h}`
   const bucket4h = String(Math.floor(now.getUTCHours() / 4) * 4).padStart(2, '0')
   const dateBucket4h = `${today}T${bucket4h}`
 

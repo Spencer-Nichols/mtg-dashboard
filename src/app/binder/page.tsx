@@ -121,11 +121,12 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   const padRight = showLabels ? 8 : 1.5
   const padY = showLabels ? 16 : 1.5
   const padBottom = showLabels ? 16 : 1.5
-  const firstTs = dates && dates.length > 1 ? new Date(dates[0]).getTime() : 0
-  const lastTs = dates && dates.length > 1 ? new Date(dates[dates.length - 1]).getTime() : 0
+  const parseTs = (d: string) => new Date(d.length === 13 ? d + ':00:00Z' : d).getTime()
+  const firstTs = dates && dates.length > 1 ? parseTs(dates[0]) : 0
+  const lastTs = dates && dates.length > 1 ? parseTs(dates[dates.length - 1]) : 0
   const x = (i: number) => {
     if (dates && dates.length > 1 && lastTs !== firstTs) {
-      const t = new Date(dates[i]).getTime()
+      const t = parseTs(dates[i])
       return padLeft + ((t - firstTs) / (lastTs - firstTs)) * (width - padLeft - padRight)
     }
     return padLeft + (values.length > 1 ? (i / (values.length - 1)) : 0) * (width - padLeft - padRight)
@@ -186,7 +187,7 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
         ))}
         {xIndices.map(i => (
           <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
-            {dates![i].slice(5)}
+            {dates![i].slice(5, 10)}
           </text>
         ))}
       </g>
