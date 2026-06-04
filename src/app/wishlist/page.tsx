@@ -956,6 +956,14 @@ export default function WishlistPage() {
       const match = staleRows.find(r => r.displayName === s.name)
       return match ? { ...s, snapshotPrice: match.currentPrice! } : s
     }))
+    setResults(prev => {
+      const next = new Map(prev)
+      staleRows.forEach(r => {
+        const existing = next.get(r.displayName)
+        if (existing) next.set(r.displayName, { ...existing, pct: 0, snapshotPrice: r.currentPrice! })
+      })
+      return next
+    })
     staleRows.forEach(r => staleResetRef.current.add(r.displayName))
     setStaleResetLoading(false)
   }
@@ -1484,7 +1492,7 @@ export default function WishlistPage() {
           {cardsOpen && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
               {[...rows].sort((a, b) => (a.pct ?? 1) - (b.pct ?? 1)).map(row => (
-                <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row)} />
+                <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row) && (row.pct ?? 0) < -0.05} />
               ))}
             </div>
           )}
