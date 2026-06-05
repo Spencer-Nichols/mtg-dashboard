@@ -793,6 +793,8 @@ export default function BinderPage() {
   useEffect(() => {
     expandParamRef.current = new URLSearchParams(window.location.search).get('expand')
 
+    fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'binder' }) })
+
     if (localStorage.getItem(LS_CACHE_VERSION) !== CACHE_VERSION) {
       localStorage.removeItem(LS_BINDER_ENTRIES)
       localStorage.removeItem(LS_BINDER_RESULTS)

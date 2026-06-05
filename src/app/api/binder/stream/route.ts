@@ -12,9 +12,7 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
 
-  supabase.from('user_profiles').upsert({ user_id: user.id, last_seen: new Date().toISOString(), last_seen_page: 'binder' }, { onConflict: 'user_id' }).then(() => {})
-
-  const { data, error } = await supabase
+const { data, error } = await supabase
     .from('binder_cards')
     .select('display_name, base_name, set_code, scryfall_id, foil_type, snapshot_price, purchase_price, condition')
     .eq('user_id', user.id)
