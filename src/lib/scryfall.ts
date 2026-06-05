@@ -16,6 +16,7 @@ export interface ScryfallCard {
   rarity: string
   released_at: string
   full_art?: boolean
+  textless?: boolean
   border_color?: string
   frame_effects?: string[]
   image_uris?: { normal: string; art_crop: string; small: string }
@@ -32,13 +33,18 @@ export interface ScryfallCard {
   }
 }
 
+const SECRET_LAIR_SETS = new Set(['slp', 'sld'])
+
 export function frameSuffix(card: ScryfallCard): string {
+  if (SECRET_LAIR_SETS.has(card.set)) return ' (secret lair)'
   if (card.full_art) return ' (full art)'
   if (card.frame_effects?.includes('showcase')) return ' (showcase)'
   if (card.frame_effects?.includes('extendedart')) return ' (extended art)'
   if (card.frame_effects?.includes('poster')) return ' (poster)'
   if (card.border_color === 'borderless') return ' (borderless)'
   if (card.frame_effects?.includes('etched')) return ' (etched)'
+  if (card.frame_effects?.includes('inverted')) return ' (inverted)'
+  if (card.textless) return ' (textless)'
   return ''
 }
 

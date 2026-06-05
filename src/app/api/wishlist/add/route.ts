@@ -10,13 +10,6 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: existing } = await supabase
-    .from('wishlist_singles')
-    .select('name')
-    .ilike('name', name.trim())
-    .maybeSingle()
-  if (existing) return NextResponse.json({ error: `${name} is already on the wishlist` }, { status: 409 })
-
   const card = scryfallId
     ? await fetchById(scryfallId)
     : await fetchByName(name.trim(), setCode || undefined)
@@ -39,6 +32,13 @@ export async function POST(req: NextRequest) {
 
   const price = getPrice(resolved)
   const cardName = resolved.name + frameSuffix(resolved)
+
+  const { data: existing } = await supabase
+    .from('wishlist_singles')
+    .select('name')
+    .ilike('name', cardName)
+    .maybeSingle()
+  if (existing) return NextResponse.json({ error: `${cardName} is already on the wishlist` }, { status: 409 })
 
   const { error } = await supabase.from('wishlist_singles').insert({
     user_id: user.id,
