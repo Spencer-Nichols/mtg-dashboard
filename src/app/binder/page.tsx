@@ -783,7 +783,6 @@ export default function BinderPage() {
   const csvFileInputRef = useRef<HTMLInputElement>(null)
   const importLogRef = useRef<HTMLDivElement>(null)
   const expandParamRef = useRef<string | null>(null)
-  const seedCardRef = useRef<string | null>(null)
 
   // History state
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
@@ -912,7 +911,6 @@ export default function BinderPage() {
   }
 
   function handleAddedFromModal() {
-    if (pendingAddName) seedCardRef.current = pendingAddName
     fetch('/api/binder').then(r => r.json()).then(d => {
       setEntries(d.entries)
       startStream()
@@ -1001,22 +999,21 @@ export default function BinderPage() {
             localStorage.setItem(LS_HIGHLIGHTS, JSON.stringify({ ...highlights, totalDelta }))
           } catch { /* ignore */ }
 
-          if (seedCardRef.current) {
-            const seedName = seedCardRef.current
-            seedCardRef.current = null
-            const seedResult = prev.get(Array.from(prev.keys()).find(k => k.startsWith(seedName + '||')) ?? '')
-            if (seedResult?.currentPrice != null) {
-              fetch('/api/binder/card-history', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prices: { [seedName]: seedResult.currentPrice } }),
-              }).then(r => r.json()).then(h => {
-                if (h && typeof h === 'object' && !h.error) {
-                  setCardHistory(h)
-                  localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
-                }
-              })
-            }
+          const prices: Record<string, number> = {}
+          for (const r of prev.values()) {
+            if (r.currentPrice != null) prices[r.displayName] = r.currentPrice
+          }
+          if (Object.keys(prices).length > 0) {
+            fetch('/api/binder/card-history', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prices }),
+            }).then(r => r.json()).then(h => {
+              if (h && typeof h === 'object' && !h.error) {
+                setCardHistory(h)
+                localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
+              }
+            })
           }
 
           return prev
