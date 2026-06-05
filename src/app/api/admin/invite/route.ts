@@ -31,10 +31,14 @@ export async function POST(req: NextRequest) {
   if (inviteError) {
     // User may exist in an unconfirmed state from a previously broken invite.
     // Delete and re-invite so they receive a fresh token.
-    const { data: { users } } = await service.auth.admin.listUsers()
-    const existing = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
-    if (existing && !existing.email_confirmed_at) {
-      await service.auth.admin.deleteUser(existing.id)
+    const { data: listData, error: listError } = await service.auth.admin.listUsers()
+    if (listError) return NextResponse.json({ error: `listUsers failed: ${listError.message}` }, { status: 500 })
+
+    const existing = listData.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+    if (existing && !existing.last_sign_in_at) {
+      const { error: deleteError } = await service.auth.admin.deleteUser(existing.id)
+      if (deleteError) return NextResponse.json({ error: `deleteUser failed: ${deleteError.message}` }, { status: 500 })
+
       const retry = await service.auth.admin.inviteUserByEmail(email, {
         redirectTo: `${siteUrl}/auth/confirm`,
       })
