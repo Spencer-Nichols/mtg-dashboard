@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 const HEADERS = { 'User-Agent': 'SpencerMTGDashboard/1.0' }
 
 export interface BrewCard {
+  id: string
   name: string
   typeLine: string
   manaCost: string | null
@@ -28,8 +29,8 @@ export async function GET(req: NextRequest) {
 
     const [scryfallRes, binderData, wishlistData] = await Promise.all([
       fetch(scryfallUrl, { headers: HEADERS }),
-      user ? supabase.from('binder_cards').select('base_name').eq('user_id', user.id) : Promise.resolve({ data: [] }),
-      user ? supabase.from('wishlist_singles').select('name').eq('user_id', user.id) : Promise.resolve({ data: [] }),
+      user ? supabase.from('binder_cards').select('base_name, scryfall_id').eq('user_id', user.id) : Promise.resolve({ data: [] }),
+      user ? supabase.from('wishlist_singles').select('name, scryfall_id').eq('user_id', user.id) : Promise.resolve({ data: [] }),
     ])
 
     if (!scryfallRes.ok) {
@@ -41,11 +42,18 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await scryfallRes.json()
-    const binderNames = new Set((binderData.data ?? []).map(e => e.base_name.toLowerCase()))
-    const wishlistNames = new Set((wishlistData.data ?? []).map(s => s.name.toLowerCase()))
+
+    const binderEntries = binderData.data ?? []
+    const binderIds = new Set(binderEntries.filter(e => e.scryfall_id).map(e => e.scryfall_id))
+    const binderNamesFallback = new Set(binderEntries.filter(e => !e.scryfall_id).map(e => e.base_name.toLowerCase()))
+
+    const wishlistEntries = wishlistData.data ?? []
+    const wishlistIds = new Set(wishlistEntries.filter(e => e.scryfall_id).map(e => e.scryfall_id))
+    const wishlistNamesFallback = new Set(wishlistEntries.filter(e => !e.scryfall_id).map(e => e.name.toLowerCase()))
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cards: BrewCard[] = (data.data ?? []).map((c: any) => ({
+      id: c.id,
       name: c.name,
       typeLine: c.type_line ?? '',
       manaCost: c.mana_cost ?? null,
@@ -53,8 +61,8 @@ export async function GET(req: NextRequest) {
       price: c.prices?.usd ? parseFloat(c.prices.usd) : null,
       rarity: c.rarity ?? 'common',
       setName: c.set_name ?? '',
-      owned: binderNames.has(c.name.toLowerCase()),
-      onWishlist: wishlistNames.has(c.name.toLowerCase()),
+      owned: binderIds.has(c.id) || binderNamesFallback.has(c.name.toLowerCase()),
+      onWishlist: wishlistIds.has(c.id) || wishlistNamesFallback.has(c.name.toLowerCase()),
     }))
 
     return NextResponse.json({

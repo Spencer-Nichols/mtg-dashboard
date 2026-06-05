@@ -36,6 +36,7 @@ export function frameSuffix(card: ScryfallCard): string {
   if (card.full_art) return ' (full art)'
   if (card.frame_effects?.includes('showcase')) return ' (showcase)'
   if (card.frame_effects?.includes('extendedart')) return ' (extended art)'
+  if (card.frame_effects?.includes('poster')) return ' (poster)'
   if (card.border_color === 'borderless') return ' (borderless)'
   if (card.frame_effects?.includes('etched')) return ' (etched)'
   return ''
