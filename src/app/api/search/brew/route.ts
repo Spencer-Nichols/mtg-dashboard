@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
 
-    if (user) supabase.from('user_profiles').upsert({ user_id: user.id, last_seen: new Date().toISOString() }, { onConflict: 'user_id' }).then(() => {})
+    if (user) supabase.from('user_profiles').upsert({ user_id: user.id, last_seen: new Date().toISOString(), last_seen_page: 'search' }, { onConflict: 'user_id' }).then(() => {})
 
     const [scryfallRes, binderData, wishlistData] = await Promise.all([
       fetch(scryfallUrl, { headers: HEADERS }),

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
 
-  supabase.from('user_profiles').upsert({ user_id: user.id, last_seen: new Date().toISOString() }, { onConflict: 'user_id' }).then(() => {})
+  supabase.from('user_profiles').upsert({ user_id: user.id, last_seen: new Date().toISOString(), last_seen_page: 'wishlist' }, { onConflict: 'user_id' }).then(() => {})
 
   const { data, error } = await supabase
     .from('wishlist_singles')
