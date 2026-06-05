@@ -24,9 +24,24 @@ export async function POST(req: NextRequest) {
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
       : 'http://localhost:3001')
 
-  const { error: inviteError } = await service.auth.admin.inviteUserByEmail(email, {
+  let { error: inviteError } = await service.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${siteUrl}/auth/confirm`,
   })
+
+  if (inviteError) {
+    // User may exist in an unconfirmed state from a previously broken invite.
+    // Delete and re-invite so they receive a fresh token.
+    const { data: { users } } = await service.auth.admin.listUsers()
+    const existing = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+    if (existing && !existing.email_confirmed_at) {
+      await service.auth.admin.deleteUser(existing.id)
+      const retry = await service.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${siteUrl}/auth/confirm`,
+      })
+      inviteError = retry.error
+    }
+  }
+
   if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 })
 
   await service.from('access_requests').update({ status: 'approved' }).eq('id', id)
