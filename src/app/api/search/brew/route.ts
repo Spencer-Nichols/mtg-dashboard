@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
 
+    if (user) supabase.from('user_profiles').upsert({ user_id: user.id, last_seen: new Date().toISOString() }, { onConflict: 'user_id' }).then(() => {})
+
     const [scryfallRes, binderData, wishlistData] = await Promise.all([
       fetch(scryfallUrl, { headers: HEADERS }),
       user ? supabase.from('binder_cards').select('base_name, scryfall_id').eq('user_id', user.id) : Promise.resolve({ data: [] }),

@@ -66,6 +66,8 @@ const LS_HIGHLIGHTS = 'tnk:highlights'
 const LS_HISTORY = 'tnk:history'
 const LS_CACHE_VERSION = 'tnk:cache:version'
 const CACHE_VERSION = '3'
+const LS_STREAM_AT = 'tnk:binder:stream-at'
+const STREAM_TTL = 4 * 60 * 60 * 1000
 
 function pctColor(pct: number | null, purchasePrice?: number | null) {
   if (purchasePrice === 0) return 'text-green-400'
@@ -819,7 +821,9 @@ export default function BinderPage() {
             setGainersOpen(true)
           }
         }
-        startStream()
+        const lastStreamAt = localStorage.getItem(LS_STREAM_AT)
+        const isStale = !lastStreamAt || Date.now() - parseInt(lastStreamAt) > STREAM_TTL
+        if (isStale) startStream()
       })
     fetch('/api/binder/history').then(r => r.json()).then(h => {
       if (Array.isArray(h)) {
@@ -833,10 +837,6 @@ export default function BinderPage() {
         localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
       }
     })
-
-    const INTERVAL = 60 * 60 * 1000
-    const interval = setInterval(() => startStream(), INTERVAL)
-    return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -983,6 +983,7 @@ export default function BinderPage() {
       } else if (msg.type === 'done') {
         setStreaming(false)
         setBinderUpdatedAt(new Date())
+        localStorage.setItem(LS_STREAM_AT, Date.now().toString())
         es.close()
         setResults(prev => {
           localStorage.setItem(LS_BINDER_RESULTS, JSON.stringify(Array.from(prev.entries())))
