@@ -341,6 +341,10 @@ export default function SearchPage() {
   useEffect(() => { brewRawQueryRef.current = brewRawQuery }, [brewRawQuery])
 
   useEffect(() => {
+    fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'search' }) })
+  }, [])
+
+  useEffect(() => {
     const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet))
     const raw = brewRawQueryRef.current
     setDisplayedQuery(

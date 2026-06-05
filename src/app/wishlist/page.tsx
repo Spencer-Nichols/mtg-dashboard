@@ -589,6 +589,8 @@ export default function WishlistPage() {
   const staleResetRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
+    fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'wishlist' }) })
+
     const cachedSingles = localStorage.getItem(LS_WISHLIST_SINGLES)
     const cachedResults = localStorage.getItem(LS_WISHLIST_RESULTS)
     const cachedHistory = localStorage.getItem(LS_WISHLIST_HISTORY)
