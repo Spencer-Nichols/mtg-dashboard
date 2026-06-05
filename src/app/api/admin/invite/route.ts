@@ -19,7 +19,14 @@ export async function POST(req: NextRequest) {
 
   const service = createServiceClient()
 
-  const { error: inviteError } = await service.auth.admin.inviteUserByEmail(email)
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : 'http://localhost:3001')
+
+  const { error: inviteError } = await service.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${siteUrl}/auth/confirm`,
+  })
   if (inviteError) return NextResponse.json({ error: inviteError.message }, { status: 500 })
 
   await service.from('access_requests').update({ status: 'approved' }).eq('id', id)

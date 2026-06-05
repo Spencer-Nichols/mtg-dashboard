@@ -2,9 +2,12 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { login } from '@/app/actions/auth'
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const urlError = searchParams.get('error')
   const [requesting, setRequesting] = useState(false)
   const [requestEmail, setRequestEmail] = useState('')
   const [requestStatus, setRequestStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
@@ -35,6 +38,10 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-amber-500 tracking-wide">TapNTrack</h1>
           <p className="text-stone-400 text-sm mt-1">Sign in to continue</p>
         </div>
+
+        {urlError && (
+          <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2 text-center">{urlError}</p>
+        )}
 
         {!requesting ? (
           <>
