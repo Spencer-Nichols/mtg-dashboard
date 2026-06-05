@@ -117,8 +117,6 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
   const binderCardHistory: { user_id: string; display_name: string; date: string; price: number }[] = []
   const now = new Date()
   const today = now.toISOString().split('T')[0]
-  const bucket8h = String(Math.floor(now.getUTCHours() / 8) * 8).padStart(2, '0')
-  const dateBucket = `${today}T${bucket8h}`
   const bucket4h = String(Math.floor(now.getUTCHours() / 4) * 4).padStart(2, '0')
   const dateBucket4h = `${today}T${bucket4h}`
 
@@ -130,7 +128,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     const price = getCachedPriceByFoilType(cached, row.foil_type ?? 'none')
     if (price == null) continue
     userTotals.set(row.user_id, (userTotals.get(row.user_id) ?? 0) + price)
-    binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: dateBucket, price: parseFloat(price.toFixed(2)) })
+    binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: today, price: parseFloat(price.toFixed(2)) })
   }
 
   const HISTORY_MIN_DELTA = 0.25
