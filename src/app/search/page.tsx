@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react'
 import { KEYWORDS, KEYWORD_CATEGORIES } from '@/lib/keywords'
+import { RECENT_SETS } from '@/lib/sets'
 import type { BrewCard } from '@/app/api/search/brew/route'
 
 interface CardFace {
@@ -64,13 +65,25 @@ const CLIENT_PAGE_SIZE = 24
 
 const RARITY_COLOR: Record<string, string> = {
   mythic: 'text-orange-400', rare: 'text-yellow-400',
-  uncommon: 'text-blue-400', common: 'text-stone-500',
+  uncommon: 'text-blue-400', common: 'text-stone-400',
 }
+
+const ART_TYPES = [
+  { label: 'Showcase', value: 'is:showcase' },
+  { label: 'Extended Art', value: 'is:extendedart' },
+  { label: 'Borderless', value: 'is:borderless' },
+  { label: 'Full Art', value: 'is:fullart' },
+  { label: 'Poster', value: 'is:poster' },
+  { label: 'Textless', value: 'is:textless' },
+  { label: 'Inverted', value: 'is:inverted' },
+]
 
 function buildBrewQuery(
   keywords: string[], colors: Set<string>, activeType: string | null,
   maxCmc: number | null, maxPrice: number | null, raw: string,
   oracleText?: string,
+  artTypes?: Set<string>,
+  setCodes?: string[] | null,
 ): string {
   const parts: string[] = []
   for (const slug of keywords) parts.push(`function:${slug}`)
@@ -80,6 +93,10 @@ function buildBrewQuery(
   if (activeType) parts.push(`t:${activeType}`)
   if (maxCmc !== null) parts.push(`cmc<=${maxCmc}`)
   if (maxPrice !== null) parts.push(`usd<=${maxPrice}`)
+  if (artTypes) for (const a of artTypes) parts.push(a)
+  if (setCodes && setCodes.length > 0) {
+    parts.push(setCodes.length === 1 ? `e:${setCodes[0]}` : `(${setCodes.map(c => `e:${c}`).join(' or ')})`)
+  }
   return parts.join(' ')
 }
 
@@ -87,29 +104,57 @@ function KeywordLegend({ onInsert, activeKeywords }: {
   onInsert: (slug: string) => void
   activeKeywords: string[]
 }) {
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set())
+
+  function toggleCat(cat: string) {
+    setOpenCats(prev => {
+      const next = new Set(prev)
+      next.has(cat) ? next.delete(cat) : next.add(cat)
+      return next
+    })
+  }
+
   return (
-    <div className="space-y-4">
-      {KEYWORD_CATEGORIES.map(cat => (
-        <div key={cat}>
-          <p className="text-xs text-stone-400 uppercase tracking-widest mb-2">{cat}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {KEYWORDS.filter(k => k.category === cat).map(kw => (
-              <button
-                key={kw.slug}
-                onClick={() => onInsert(kw.slug)}
-                className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                  activeKeywords.includes(kw.slug)
-                    ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                    : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                }`}
-              >
-                {kw.label}
-              </button>
-            ))}
+    <div className="space-y-1">
+      {KEYWORD_CATEGORIES.map(cat => {
+        const catKws = KEYWORDS.filter(k => k.category === cat)
+        const activeCount = catKws.filter(k => activeKeywords.includes(k.slug)).length
+        const isOpen = openCats.has(cat)
+        return (
+          <div key={cat} className="border border-stone-800 rounded-lg overflow-hidden">
+            <button
+              onClick={() => toggleCat(cat)}
+              className="w-full flex items-center justify-between px-3 py-2 bg-stone-900/50 text-xs text-stone-400 hover:text-stone-200 transition-colors"
+            >
+              <span className="flex items-center gap-1.5">
+                {cat}
+                {activeCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-900/60 border border-amber-700 text-amber-300">{activeCount}</span>
+                )}
+              </span>
+              <span className="text-stone-600">{isOpen ? '▾' : '▸'}</span>
+            </button>
+            {isOpen && (
+              <div className="px-3 py-2.5 bg-stone-900/30 border-t border-stone-800 flex flex-wrap gap-1.5">
+                {catKws.map(kw => (
+                  <button
+                    key={kw.slug}
+                    onClick={() => onInsert(kw.slug)}
+                    className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                      activeKeywords.includes(kw.slug)
+                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                        : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                    }`}
+                  >
+                    {kw.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
-      <p className="text-xs text-stone-500 pt-1">Combine multiple to narrow results.</p>
+        )
+      })}
+      <p className="text-xs text-stone-600 pt-1 px-1">Combine multiple to narrow results.</p>
     </div>
   )
 }
@@ -158,10 +203,10 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
 
       <div className="px-0.5 flex flex-col gap-0.5">
         <p className="text-sm text-stone-200 font-semibold leading-tight">{card.name}</p>
-        {card.typeLine && <p className="text-xs text-stone-500 leading-tight">{card.typeLine}</p>}
+        {card.typeLine && <p className="text-xs text-stone-400 leading-tight">{card.typeLine}</p>}
         <div className="flex items-center justify-between gap-1">
-          <p className={`text-xs font-medium capitalize ${RARITY_COLOR[card.rarity] ?? 'text-stone-500'}`}>{card.rarity}</p>
-          {card.price != null && <p className="text-sm font-mono text-stone-300">${card.price.toFixed(2)}</p>}
+          <p className={`text-xs font-medium capitalize ${RARITY_COLOR[card.rarity] ?? 'text-stone-400'}`}>{card.rarity}</p>
+          {card.price != null && <p className="text-sm font-mono text-stone-400">${card.price.toFixed(2)}</p>}
         </div>
       </div>
     </div>
@@ -231,6 +276,14 @@ export default function SearchPage() {
   const [typeOpen, setTypeOpen] = useState(false)
   const [cmcOpen, setCmcOpen] = useState(false)
   const [priceOpen, setPriceOpen] = useState(false)
+  const [activeArtTypes, setActiveArtTypes] = useState<Set<string>>(new Set())
+  const [activeSet, setActiveSet] = useState<string | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [artOpen, setArtOpen] = useState(false)
+  const [setsOpen, setSetsOpen] = useState(false)
+  const recentSets = RECENT_SETS
+  const getSetCodes = (name: string | null): string[] | null =>
+    name ? (RECENT_SETS.find(s => s.name === name)?.codes ?? null) : null
 
   const [allFetchedCards, setAllFetchedCards] = useState<BrewCard[]>([])
   const [clientPage, setClientPage] = useState(1)
@@ -287,7 +340,7 @@ export default function SearchPage() {
   useEffect(() => { brewRawQueryRef.current = brewRawQuery }, [brewRawQuery])
 
   useEffect(() => {
-    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText)
+    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet))
     const raw = brewRawQueryRef.current
     setDisplayedQuery(
       filterPart
@@ -295,7 +348,7 @@ export default function SearchPage() {
         : raw
     )
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKeywords, activeColors, activeType, maxCmc, maxPrice, oracleText])
+  }, [activeKeywords, activeColors, activeType, maxCmc, maxPrice, oracleText, activeArtTypes, activeSet])
 
   // ── Brew filter handlers ──────────────────────────────────
 
@@ -304,25 +357,25 @@ export default function SearchPage() {
       ? activeKeywords.filter(k => k !== slug)
       : [...activeKeywords, slug]
     setActiveKeywords(next)
-    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText))
+    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
   }
 
   function toggleColor(symbol: string) {
     const next = new Set(activeColors)
     next.has(symbol) ? next.delete(symbol) : next.add(symbol)
     setActiveColors(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery, oracleText))
+    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
   }
 
   function selectType(type: string) {
     const next = activeType === type ? null : type
     setActiveType(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery, oracleText))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
   }
 
   function setCmcFilter(val: number | null) {
     setMaxCmc(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery, oracleText))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
   }
 
   function handlePriceSlider(val: number) {
@@ -334,18 +387,31 @@ export default function SearchPage() {
     setAllFetchedCards([])
     setScryfallPage(1)
     brewDebounceRef.current = setTimeout(() => {
-      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery, oracleText), 1, false)
+      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)), 1, false)
     }, 500)
   }
 
   function handleBrewRawInput(val: string) {
-    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText)
+    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet))
     const extraTerms = filterPart && val.startsWith(filterPart)
       ? val.slice(filterPart.length).trimStart()
       : val
     setBrewRawQuery(extraTerms)
     setDisplayedQuery(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, extraTerms, oracleText))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, extraTerms, oracleText, activeArtTypes, getSetCodes(activeSet)))
+  }
+
+  function toggleArtType(value: string) {
+    const next = new Set(activeArtTypes)
+    next.has(value) ? next.delete(value) : next.add(value)
+    setActiveArtTypes(next)
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, next, getSetCodes(activeSet)))
+  }
+
+  function selectSet(name: string) {
+    const next = activeSet === name ? null : name
+    setActiveSet(next)
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(next)))
   }
 
   function clearAllFilters() {
@@ -358,6 +424,8 @@ export default function SearchPage() {
     setBrewRawQuery('')
     setDisplayedQuery('')
     setOracleText('')
+    setActiveArtTypes(new Set())
+    setActiveSet(null)
     setAllFetchedCards([])
     setBrewTotal(0)
     setHasMoreScryfall(false)
@@ -419,7 +487,12 @@ export default function SearchPage() {
     ...(activeType ? [{ label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
     ...(maxCmc !== null ? [{ label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
     ...(maxPrice !== null ? [{ label: `≤ $${maxPrice}`, onRemove: () => { handlePriceSlider(MAX_PRICE_SLIDER) } }] : []),
-    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => { setOracleText(''); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, '')) } }] : []),
+    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => { setOracleText(''); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, '', activeArtTypes, getSetCodes(activeSet))) } }] : []),
+    ...[...activeArtTypes].map(v => ({
+      label: ART_TYPES.find(a => a.value === v)?.label ?? v,
+      onRemove: () => toggleArtType(v),
+    })),
+    ...(activeSet ? [{ label: activeSet, onRemove: () => selectSet(activeSet) }] : []),
   ]
 
   // ── Card search handlers ──────────────────────────────────
@@ -479,7 +552,7 @@ export default function SearchPage() {
 
   const image = card?.image_uris?.normal ?? card?.card_faces?.[0]?.image_uris?.normal
   const oracle = card?.oracle_text ?? card?.card_faces?.map(f => `${f.name}\n${f.oracle_text ?? ''}`).join('\n\n')
-  const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim() || oracleText.trim()
+  const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim() || oracleText.trim() || activeArtTypes.size > 0 || activeSet !== null
 
   return (
     <div>
@@ -489,13 +562,13 @@ export default function SearchPage() {
         <div className="flex rounded-lg border-2 border-stone-700 overflow-hidden text-sm">
           <button
             onClick={() => setMode('card')}
-            className={`px-4 py-2 transition-colors ${mode === 'card' ? 'bg-amber-950/70 text-amber-300 border-r-2 border-stone-700' : 'text-stone-500 hover:text-stone-300 border-r-2 border-stone-700'}`}
+            className={`px-4 py-2 transition-colors ${mode === 'card' ? 'bg-amber-950/70 text-amber-300 border-r-2 border-stone-700' : 'text-stone-400 hover:text-stone-400 border-r-2 border-stone-700'}`}
           >
             Card Name
           </button>
           <button
             onClick={() => setMode('brew')}
-            className={`px-4 py-2 transition-colors ${mode === 'brew' ? 'bg-amber-950/70 text-amber-300' : 'text-stone-500 hover:text-stone-300'}`}
+            className={`px-4 py-2 transition-colors ${mode === 'brew' ? 'bg-amber-950/70 text-amber-300' : 'text-stone-400 hover:text-stone-400'}`}
           >
             Brew
           </button>
@@ -527,7 +600,7 @@ export default function SearchPage() {
                     >
                       <div>
                         <p className="text-stone-200 text-sm font-medium">{c.name}</p>
-                        <p className="text-stone-500 text-xs">{c.type_line}</p>
+                        <p className="text-stone-400 text-xs">{c.type_line}</p>
                       </div>
                       {c.price && <span className="text-green-400 font-mono text-sm ml-4">${c.price}</span>}
                     </button>
@@ -549,12 +622,12 @@ export default function SearchPage() {
 
           {candidates.length > 0 && (
             <div className="mb-6">
-              <p className="text-sm text-stone-500 mb-3">Multiple matches — pick one:</p>
+              <p className="text-sm text-stone-400 mb-3">Multiple matches — pick one:</p>
               <div className="flex flex-col gap-2">
                 {candidates.map(c => (
                   <button key={c.name} onClick={() => { setQuery(c.name); selectCandidate(c.name) }}
                     className="text-left px-4 py-3 bg-stone-900 border-2 border-stone-700 rounded-lg hover:border-amber-700/50 text-stone-200 text-sm transition-colors">
-                    {c.name} <span className="text-stone-500 ml-2">{c.type_line}</span>
+                    {c.name} <span className="text-stone-400 ml-2">{c.type_line}</span>
                   </button>
                 ))}
               </div>
@@ -575,7 +648,7 @@ export default function SearchPage() {
                   {oracle && (
                     <div className="bg-stone-900 border-2 border-amber-900/30 rounded-lg p-4 mb-4">
                       {oracle.split('\n').map((line, i) => (
-                        <p key={i} className={`text-sm text-stone-300 ${line === '' ? 'mt-2' : ''}`}>{line}</p>
+                        <p key={i} className={`text-sm text-stone-400 ${line === '' ? 'mt-2' : ''}`}>{line}</p>
                       ))}
                     </div>
                   )}
@@ -583,9 +656,9 @@ export default function SearchPage() {
                     <p className="text-stone-400 text-sm mb-3">{card.power ? `P/T: ${card.power}/${card.toughness}` : `Loyalty: ${card.loyalty}`}</p>
                   )}
                   <div className="flex gap-6 text-sm">
-                    {card.prices.usd && <div><span className="text-stone-500">Price</span><p className="text-green-400 font-mono font-medium">${card.prices.usd}</p></div>}
-                    {card.prices.usd_foil && <div><span className="text-stone-500">Foil</span><p className="text-amber-500 font-mono font-medium">${card.prices.usd_foil}</p></div>}
-                    <div><span className="text-stone-500">Set</span><p className="text-stone-300">{card.set_name}</p></div>
+                    {card.prices.usd && <div><span className="text-stone-400">Price</span><p className="text-green-400 font-mono font-medium">${card.prices.usd}</p></div>}
+                    {card.prices.usd_foil && <div><span className="text-stone-400">Foil</span><p className="text-amber-500 font-mono font-medium">${card.prices.usd_foil}</p></div>}
+                    <div><span className="text-stone-400">Set</span><p className="text-stone-400">{card.set_name}</p></div>
                   </div>
                 </div>
               </div>
@@ -623,11 +696,11 @@ export default function SearchPage() {
                               <p className="text-sm text-stone-200 font-semibold leading-tight">{s.name}</p>
                               <span className="text-xs font-bold text-amber-400 whitespace-nowrap">{Math.round(s.inclusionRate * 100)}% inclusion</span>
                             </div>
-                            {s.typeLine && <p className="text-xs text-stone-500 leading-tight">{s.typeLine}</p>}
+                            {s.typeLine && <p className="text-xs text-stone-400 leading-tight">{s.typeLine}</p>}
                             {s.rarity && (
-                              <p className={`text-xs font-medium capitalize ${RARITY_COLOR[s.rarity] ?? 'text-stone-500'}`}>{s.rarity}</p>
+                              <p className={`text-xs font-medium capitalize ${RARITY_COLOR[s.rarity] ?? 'text-stone-400'}`}>{s.rarity}</p>
                             )}
-                            {s.price != null && <p className="text-sm font-mono text-stone-300">${s.price.toFixed(2)}</p>}
+                            {s.price != null && <p className="text-sm font-mono text-stone-400">${s.price.toFixed(2)}</p>}
                           </div>
                         </button>
                       ))}
@@ -666,38 +739,18 @@ export default function SearchPage() {
 
             {/* Mobile accordion — hidden on desktop */}
             <div className="lg:hidden space-y-1">
-              <AccordionRow title="Keywords (Most Common)" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
-                <div className="space-y-3">
-                  {KEYWORD_CATEGORIES.map(cat => (
-                    <div key={cat}>
-                      <p className="text-xs text-stone-400 uppercase tracking-widest mb-1.5">{cat}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {KEYWORDS.filter(k => k.category === cat).map(kw => (
-                          <button key={kw.slug} onClick={() => toggleKeyword(kw.slug)}
-                            className={`text-sm px-3 py-1.5 rounded-full border-2 transition-colors ${
-                              activeKeywords.includes(kw.slug)
-                                ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                                : 'bg-stone-800 border-stone-700 text-stone-300 active:border-amber-700/60 active:text-amber-400'
-                            }`}>
-                            {kw.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  <p className="text-xs text-stone-600 pt-1">This is a curated selection. Use <span className="font-mono text-stone-500">function:tag</span> in the query field above for hundreds more.</p>
-                </div>
-              </AccordionRow>
-
               <div className="px-1 py-1">
-                <p className="text-xs text-stone-500 uppercase tracking-widest mb-1.5">Oracle Text</p>
+                <p className="text-xs text-stone-400 uppercase tracking-widest mb-1.5">Oracle Text</p>
                 <input
                   value={oracleText}
-                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value)) }}
+                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value, activeArtTypes, getSetCodes(activeSet))) }}
                   placeholder='e.g. whenever you draw'
-                  className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+                  className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                 />
               </div>
+              <AccordionRow title="Keywords" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
+                <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
+              </AccordionRow>
 
               <AccordionRow title="Colors" count={activeColors.size} open={colorsOpen} onToggle={() => setColorsOpen(o => !o)}>
                 <div className="flex gap-2.5">
@@ -766,6 +819,38 @@ export default function SearchPage() {
                 </div>
               </AccordionRow>
 
+              <AccordionRow title="Art Style" count={activeArtTypes.size} open={artOpen} onToggle={() => setArtOpen(o => !o)}>
+                <div className="flex flex-wrap gap-1.5">
+                  {ART_TYPES.map(a => (
+                    <button key={a.value} onClick={() => toggleArtType(a.value)}
+                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                        activeArtTypes.has(a.value)
+                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                          : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                      }`}>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              </AccordionRow>
+
+              {recentSets.length > 0 && (
+                <AccordionRow title="Recent Sets" count={activeSet ? 1 : 0} open={setsOpen} onToggle={() => setSetsOpen(o => !o)}>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentSets.map(s => (
+                      <button key={s.name} onClick={() => selectSet(s.name)}
+                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                          activeSet === s.name
+                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                            : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                        }`}>
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                </AccordionRow>
+              )}
+
               <div className="flex justify-end pt-0.5">
                 <button
                   onClick={clearAllFilters}
@@ -777,96 +862,147 @@ export default function SearchPage() {
               </div>
             </div>
 
-            {/* Desktop filter panel — hidden on mobile */}
-            <div className="hidden lg:block bg-stone-900/50 border-2 border-stone-800 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-stone-500 uppercase tracking-widest">Filters</p>
-                <button
-                  onClick={clearAllFilters}
-                  disabled={!anyBrewFilter}
-                  className="text-xs px-2.5 py-1 rounded-full border-2 border-stone-700 text-stone-400 hover:border-red-800/60 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  Clear All
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-stone-400 shrink-0">Color</span>
-                  <div className="flex gap-1.5">
-                    {COLOR_CHIPS.map(c => (
-                      <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
-                        className={`w-7 h-7 rounded-full text-xs font-bold border-2 transition-all ${
-                          activeColors.has(c.symbol)
-                            ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
-                            : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
+            {/* Desktop filter panel — collapsible */}
+            <div className="hidden lg:block border-2 border-stone-800 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setFiltersOpen(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-stone-900/50 text-sm text-stone-400 hover:text-stone-200 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  Filters
+                  {activeFilters.length > 0 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-900/60 border border-amber-700 text-amber-300">
+                      {activeFilters.length}
+                    </span>
+                  )}
+                </span>
+                <div className="flex items-center gap-3">
+                  {anyBrewFilter && (
+                    <span
+                      role="button"
+                      onClick={e => { e.stopPropagation(); clearAllFilters() }}
+                      className="text-xs text-stone-500 hover:text-red-400 transition-colors"
+                    >
+                      Clear All
+                    </span>
+                  )}
+                  <span className="text-stone-600 text-xs">{filtersOpen ? '▾' : '▸'}</span>
+                </div>
+              </button>
+              {filtersOpen && (
+              <div className="px-4 py-3 bg-stone-900/30 border-t-2 border-stone-800 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
+                  <input
+                    value={oracleText}
+                    onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value, activeArtTypes, getSetCodes(activeSet))) }}
+                    placeholder='e.g. whenever you draw'
+                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-x-6 gap-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-stone-400 shrink-0">Color</span>
+                    <div className="flex gap-1.5">
+                      {COLOR_CHIPS.map(c => (
+                        <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
+                          className={`w-7 h-7 rounded-full text-xs font-bold border-2 transition-all ${
+                            activeColors.has(c.symbol)
+                              ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
+                              : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
+                          }`}>
+                          {c.symbol}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-stone-400 shrink-0">Type</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CARD_TYPES.map(t => (
+                        <button key={t} onClick={() => selectType(t.toLowerCase())}
+                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                            activeType === t.toLowerCase()
+                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                          }`}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-x-6 gap-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-stone-400 shrink-0">CMC</span>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => setCmcFilter(null)}
+                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                          maxCmc === null
+                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
                         }`}>
-                        {c.symbol}
+                        Any
                       </button>
-                    ))}
+                      {CMC_PRESETS.map(n => (
+                        <button key={n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}
+                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                            maxCmc === n
+                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                          }`}>
+                          ≤{n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-stone-400 shrink-0">Max Price</span>
+                    <input
+                      type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
+                      value={priceSlider}
+                      onChange={e => handlePriceSlider(Number(e.target.value))}
+                      className="w-28 accent-amber-600 cursor-pointer"
+                    />
+                    <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
+                      {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-stone-400 shrink-0">Type</span>
+                  <span className="text-xs text-stone-400 shrink-0">Art Style</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {CARD_TYPES.map(t => (
-                      <button key={t} onClick={() => selectType(t.toLowerCase())}
+                    {ART_TYPES.map(a => (
+                      <button key={a.value} onClick={() => toggleArtType(a.value)}
                         className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeType === t.toLowerCase()
+                          activeArtTypes.has(a.value)
                             ? 'bg-amber-900/60 border-amber-600 text-amber-300'
                             : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
                         }`}>
-                        {t}
+                        {a.label}
                       </button>
                     ))}
                   </div>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-stone-400 shrink-0">CMC</span>
-                  <div className="flex gap-1.5">
-                    <button onClick={() => setCmcFilter(null)}
-                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                        maxCmc === null
-                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                          : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                      }`}>
-                      Any
-                    </button>
-                    {CMC_PRESETS.map(n => (
-                      <button key={n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          maxCmc === n
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        ≤{n}
-                      </button>
-                    ))}
+                {recentSets.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-stone-400 shrink-0">Recent Sets</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {recentSets.map(s => (
+                        <button key={s.name} onClick={() => selectSet(s.name)}
+                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                            activeSet === s.name
+                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                          }`}>
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-stone-400 shrink-0">Max Price</span>
-                  <input
-                    type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
-                    value={priceSlider}
-                    onChange={e => handlePriceSlider(Number(e.target.value))}
-                    className="w-28 accent-amber-600 cursor-pointer"
-                  />
-                  <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
-                    {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
-                  </span>
-                </div>
+                )}
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
-                <input
-                  value={oracleText}
-                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value)) }}
-                  placeholder='e.g. whenever you draw'
-                  className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
-                />
-              </div>
+              )}
             </div>
 
             {/* Active filters strip */}
@@ -943,11 +1079,12 @@ export default function SearchPage() {
 
           </div>
 
-          {/* Desktop legend sidebar */}
+          {/* Desktop keyword sidebar */}
           <div className="hidden lg:block w-52 shrink-0">
-            <p className="text-xs text-stone-500 uppercase tracking-widest mb-4">Keywords (Most Common)</p>
+            <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">Keywords</p>
             <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
           </div>
+
         </div>
       )}
     </div>

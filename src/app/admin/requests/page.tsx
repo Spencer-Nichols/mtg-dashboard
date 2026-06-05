@@ -18,6 +18,13 @@ interface AdminUser {
   sealedCount: number
 }
 
+interface SealedItem {
+  id: string
+  product_name: string
+  set_name: string
+  snapshot_price: number | null
+}
+
 function formatRelativeTime(dateStr: string): string {
   const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
   if (mins < 1) return 'just now'
@@ -38,6 +45,10 @@ export default function AdminRequestsPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [triggeringSealed, setTriggeringSealed] = useState(false)
   const [sealedTriggerStatus, setSealedTriggerStatus] = useState<'idle' | 'ok' | 'error'>('idle')
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
+  const [userSealed, setUserSealed] = useState<Record<string, SealedItem[]>>({})
+  const [sealedLoading, setSealedLoading] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     fetch('/api/admin/requests')
       .then(r => r.json())
@@ -87,6 +98,25 @@ export default function AdminRequestsPage() {
     setTriggeringSealed(false)
     setSealedTriggerStatus(res.ok ? 'ok' : 'error')
     setTimeout(() => setSealedTriggerStatus('idle'), 4000)
+  }
+
+  async function toggleUserExpand(userId: string) {
+    const next = new Set(expandedUsers)
+    if (next.has(userId)) {
+      next.delete(userId)
+      setExpandedUsers(next)
+      return
+    }
+    next.add(userId)
+    setExpandedUsers(next)
+
+    if (userSealed[userId] !== undefined) return
+
+    setSealedLoading(prev => new Set(prev).add(userId))
+    const res = await fetch(`/api/admin/user-sealed?userId=${userId}`)
+    const data = res.ok ? await res.json() : []
+    setUserSealed(prev => ({ ...prev, [userId]: data }))
+    setSealedLoading(prev => { const s = new Set(prev); s.delete(userId); return s })
   }
 
   const pending = requests.filter(r => r.status === 'pending')
@@ -187,19 +217,52 @@ export default function AdminRequestsPage() {
           </div>
           <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
             {users.sort((a, b) => (b.lastSeen ?? b.createdAt) > (a.lastSeen ?? a.createdAt) ? 1 : -1).map(u => (
-              <div key={u.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
-                <p className="text-stone-300 text-sm truncate min-w-0">{u.email}</p>
-                <div className="flex items-center gap-3 shrink-0">
-                  {u.sealedCount > 0 && (
-                    <span className="text-xs text-stone-600 font-mono">{u.sealedCount} sealed</span>
-                  )}
-                  {u.cardCount > 0 && (
-                    <span className="text-xs text-stone-600 font-mono">{u.cardCount.toLocaleString()} cards</span>
-                  )}
-                  <span className="text-xs text-stone-600 font-mono">
-                    {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
-                  </span>
-                </div>
+              <div key={u.id} className="border-b border-stone-800 last:border-0">
+                <button
+                  onClick={() => toggleUserExpand(u.id)}
+                  className="w-full flex items-center justify-between gap-4 px-5 py-3 text-left hover:bg-stone-800/40 transition-colors"
+                >
+                  <p className="text-stone-300 text-sm truncate min-w-0">{u.email}</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-stone-600 font-mono">
+                      {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
+                    </span>
+                    <span className="text-stone-700 text-xs">{expandedUsers.has(u.id) ? '▾' : '▸'}</span>
+                  </div>
+                </button>
+
+                {expandedUsers.has(u.id) && (
+                  <div className="px-5 pb-3 border-t border-stone-800/60 bg-stone-900/40">
+                    <div className="flex gap-4 pt-2.5 pb-2">
+                      {u.cardCount > 0 && (
+                        <span className="text-xs text-stone-500 font-mono">{u.cardCount.toLocaleString()} cards</span>
+                      )}
+                      {u.sealedCount > 0 && (
+                        <span className="text-xs text-stone-500 font-mono">{u.sealedCount} sealed on wishlist</span>
+                      )}
+                      {u.cardCount === 0 && u.sealedCount === 0 && (
+                        <span className="text-xs text-stone-600">No collection data</span>
+                      )}
+                    </div>
+
+                    {u.sealedCount > 0 && (
+                      sealedLoading.has(u.id) ? (
+                        <p className="text-xs text-stone-600 pb-1">Loading sealed wishlist…</p>
+                      ) : userSealed[u.id]?.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {userSealed[u.id].map(item => (
+                            <div key={item.id} className="flex items-center justify-between gap-2">
+                              <p className="text-xs text-stone-400 truncate min-w-0">{item.product_name}</p>
+                              {item.snapshot_price != null && (
+                                <span className="text-xs font-mono text-stone-500 shrink-0">${item.snapshot_price.toFixed(2)}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

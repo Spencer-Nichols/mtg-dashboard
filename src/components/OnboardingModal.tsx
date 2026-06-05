@@ -28,11 +28,16 @@ const STEPS: Step[] = [
     nav: 'Search',
     description: 'Look up any card on Scryfall instantly. The Brew tab lets you build advanced searches using keyword pills and filters.',
     detail: [
-      'Use the Brew tab for advanced Scryfall syntax',
-      'Filter by color, type, CMC, price, and keywords',
-      'Results pull live data directly from Scryfall',
-      'Search by card name to see prices and printings',
+      'Filter by color, type, CMC, price, and oracle text',
+      'Keywords are grouped by category, tap a category to expand it',
+      'Filter by art style: Showcase, Borderless, Extended Art, and more (For you Jacob)',
+      'Filter by recent set to browse what\'s in the latest releases',
     ],
+    callout: {
+      label: 'NEW',
+      title: 'Brew Tab Overhaul',
+      body: '50+ keywords now organized into categories like Ramp, Tokens, Counters, and Strategies. New art style and recent set filters let you find exactly the printing you want.',
+    },
   },
   {
     title: 'Wishlist',
