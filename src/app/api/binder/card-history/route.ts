@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 async function getHistory(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const since = new Date()
-  since.setDate(since.getDate() - 30)
+  since.setDate(since.getDate() - 14)
   const sinceStr = since.toISOString().split('T')[0]
 
   const { data, error } = await supabase
