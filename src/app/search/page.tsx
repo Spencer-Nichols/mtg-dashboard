@@ -276,9 +276,9 @@ export default function SearchPage() {
   const [typeOpen, setTypeOpen] = useState(false)
   const [cmcOpen, setCmcOpen] = useState(false)
   const [priceOpen, setPriceOpen] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [activeArtTypes, setActiveArtTypes] = useState<Set<string>>(new Set())
   const [activeSet, setActiveSet] = useState<string | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [artOpen, setArtOpen] = useState(false)
   const [setsOpen, setSetsOpen] = useState(false)
   const recentSets = RECENT_SETS
@@ -862,30 +862,35 @@ export default function SearchPage() {
               </div>
             </div>
 
-            {/* Desktop filter toggle row — hidden on mobile */}
-            <div className="hidden lg:flex items-center justify-between">
+            {/* Desktop filter panel — collapsible */}
+            <div className="hidden lg:block border-2 border-stone-800 rounded-xl overflow-hidden">
               <button
                 onClick={() => setFiltersOpen(o => !o)}
-                className="flex items-center gap-2 text-xs text-stone-400 hover:text-stone-200 transition-colors"
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-stone-900/50 text-sm text-stone-400 hover:text-stone-200 transition-colors"
               >
-                <span>Filters</span>
-                {activeFilters.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-900/60 border border-amber-700 text-amber-300">{activeFilters.length}</span>
-                )}
-                <span className="text-stone-600">{filtersOpen ? '▴' : '▾'}</span>
+                <span className="flex items-center gap-2">
+                  Filters
+                  {activeFilters.length > 0 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-900/60 border border-amber-700 text-amber-300">
+                      {activeFilters.length}
+                    </span>
+                  )}
+                </span>
+                <div className="flex items-center gap-3">
+                  {anyBrewFilter && (
+                    <span
+                      role="button"
+                      onClick={e => { e.stopPropagation(); clearAllFilters() }}
+                      className="text-xs text-stone-500 hover:text-red-400 transition-colors"
+                    >
+                      Clear All
+                    </span>
+                  )}
+                  <span className="text-stone-600 text-xs">{filtersOpen ? '▾' : '▸'}</span>
+                </div>
               </button>
-              <button
-                onClick={clearAllFilters}
-                disabled={!anyBrewFilter}
-                className="text-xs px-2.5 py-1 rounded-full border-2 border-stone-700 text-stone-400 hover:border-red-800/60 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                Clear All
-              </button>
-            </div>
-
-            {/* Desktop filter panel — collapsible */}
-            {filtersOpen && (
-              <div className="hidden lg:block bg-stone-900/50 border-2 border-stone-800 rounded-xl p-4 space-y-3">
+              {filtersOpen && (
+              <div className="px-4 py-3 bg-stone-900/30 border-t-2 border-stone-800 space-y-3">
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
                   <input
@@ -997,7 +1002,8 @@ export default function SearchPage() {
                   </div>
                 )}
               </div>
-            )}
+              )}
+            </div>
 
             {/* Active filters strip */}
             {activeFilters.length > 0 && (
