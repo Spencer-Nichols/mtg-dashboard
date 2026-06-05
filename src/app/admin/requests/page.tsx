@@ -13,6 +13,7 @@ interface AdminUser {
   id: string
   email: string
   lastSeen: string | null
+  lastSeenPage: string | null
   createdAt: string
   cardCount: number
   sealedCount: number
@@ -226,6 +227,7 @@ export default function AdminRequestsPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs text-stone-600 font-mono">
                       {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
+                      {u.lastSeen && u.lastSeenPage && <span> · {u.lastSeenPage}</span>}
                     </span>
                     <span className="text-stone-700 text-xs">{expandedUsers.has(u.id) ? '▾' : '▸'}</span>
                   </div>
