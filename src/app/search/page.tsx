@@ -76,6 +76,7 @@ const ART_TYPES = [
   { label: 'Poster', value: 'is:poster' },
   { label: 'Textless', value: 'is:textless' },
   { label: 'Inverted', value: 'is:inverted' },
+  { label: 'Secret Lair Promo', value: 'set:slp' },
 ]
 
 function buildBrewQuery(
@@ -460,12 +461,12 @@ export default function SearchPage() {
 
   // ── Add to wishlist ───────────────────────────────────────
 
-  async function addToWishlist(name: string) {
+  async function addToWishlist(name: string, scryfallId: string) {
     setWishlistLoading(prev => new Set(prev).add(name))
     const res = await fetch('/api/wishlist/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, scryfallId }),
     })
     setWishlistLoading(prev => { const s = new Set(prev); s.delete(name); return s })
     if (res.ok || res.status === 409) {
@@ -1069,7 +1070,7 @@ export default function SearchPage() {
                   <BrewResultCard
                     key={c.name}
                     card={c}
-                    onAddToWishlist={() => addToWishlist(c.name)}
+                    onAddToWishlist={() => addToWishlist(c.name, c.id)}
                     isAdding={wishlistLoading.has(c.name)}
                     isAdded={wishlistAdded.has(c.name)}
                   />
