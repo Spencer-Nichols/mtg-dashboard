@@ -1,13 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { login } from '@/app/actions/auth'
 
+function LoginError() {
+  const error = useSearchParams().get('error')
+  if (!error) return null
+  return (
+    <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2 text-center">{error}</p>
+  )
+}
+
 export default function LoginPage() {
-  const searchParams = useSearchParams()
-  const urlError = searchParams.get('error')
   const [requesting, setRequesting] = useState(false)
   const [requestEmail, setRequestEmail] = useState('')
   const [requestStatus, setRequestStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
@@ -39,9 +45,9 @@ export default function LoginPage() {
           <p className="text-stone-400 text-sm mt-1">Sign in to continue</p>
         </div>
 
-        {urlError && (
-          <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2 text-center">{urlError}</p>
-        )}
+        <Suspense>
+          <LoginError />
+        </Suspense>
 
         {!requesting ? (
           <>
