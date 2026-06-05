@@ -16,10 +16,17 @@ async function getHistory(supabase: Awaited<ReturnType<typeof createClient>>, us
 
   if (error) return null
 
-  const history: Record<string, Array<{ date: string; price: number }>> = {}
+  // Deduplicate to 1 entry per card per calendar day (last write wins, data is ordered ASC)
+  const byDay: Record<string, Map<string, number>> = {}
   for (const row of data ?? []) {
-    if (!history[row.display_name]) history[row.display_name] = []
-    history[row.display_name].push({ date: row.date, price: row.price })
+    const day = row.date.split('T')[0]
+    if (!byDay[row.display_name]) byDay[row.display_name] = new Map()
+    byDay[row.display_name].set(day, row.price)
+  }
+
+  const history: Record<string, Array<{ date: string; price: number }>> = {}
+  for (const [name, dayMap] of Object.entries(byDay)) {
+    history[name] = [...dayMap.entries()].map(([date, price]) => ({ date, price }))
   }
   return history
 }
