@@ -169,7 +169,7 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
   const isOnWishlist = card.onWishlist || isAdded
   return (
     <div className="flex flex-col gap-1.5 group">
-      <div className={`relative rounded-xl overflow-hidden shadow-lg transition-all ${card.owned ? 'ring-2 ring-green-600/60' : ''}`}>
+      <div className={`relative rounded-xl overflow-hidden shadow-lg transition-all ${card.owned ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-green-600/60' : isOnWishlist ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-amber-600/60' : ''}`}>
         {card.imageUrl
           ? <img src={card.imageUrl} alt={card.name} className="w-full block" />
           : <div className="aspect-[5/7] bg-stone-800 rounded-xl flex items-center justify-center text-stone-600 text-xs p-2 text-center">{card.name}</div>}
