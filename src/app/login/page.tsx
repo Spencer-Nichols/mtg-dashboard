@@ -1,8 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { login } from '@/app/actions/auth'
+
+function LoginError() {
+  const error = useSearchParams().get('error')
+  if (!error) return null
+  return (
+    <p className="text-red-400 text-sm bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2 text-center">{error}</p>
+  )
+}
 
 export default function LoginPage() {
   const [requesting, setRequesting] = useState(false)
@@ -35,6 +44,10 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-amber-500 tracking-wide">TapNTrack</h1>
           <p className="text-stone-400 text-sm mt-1">Sign in to continue</p>
         </div>
+
+        <Suspense>
+          <LoginError />
+        </Suspense>
 
         {!requesting ? (
           <>
