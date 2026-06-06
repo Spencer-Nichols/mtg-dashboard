@@ -1084,9 +1084,6 @@ export default function BinderPage() {
   }
 
   // --- Binder derived data ---
-  const todayStr = new Date().toISOString().split('T')[0]
-  const twoDaysAgoStr = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
   const rows: CardResult[] = entries.map(e => {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foilType)
     const result = results.get(rKey)
@@ -1095,13 +1092,18 @@ export default function BinderPage() {
     const pct = currentPrice != null && costBasis > 0
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
-    const priorEntries = (cardHistory[e.displayName] ?? []).filter(h => {
-      const d = h.date.split('T')[0]
-      return d >= twoDaysAgoStr && d < todayStr
-    })
-    const dailyBaseline = priorEntries.length > 0 ? priorEntries[priorEntries.length - 1].price : null
-    const dailyPct = currentPrice != null && dailyBaseline != null && dailyBaseline > 0
-      ? ((currentPrice - dailyBaseline) / dailyBaseline) * 100
+
+    // Bucket by comparing last two confirmed calendar-day history entries
+    const byDay = new Map<string, number>()
+    for (const h of (cardHistory[e.displayName] ?? [])) {
+      byDay.set(h.date.split('T')[0], h.price)
+    }
+    const sortedDays = [...byDay.entries()].sort(([a], [b]) => a < b ? -1 : 1)
+    const latestDay = sortedDays[sortedDays.length - 1]
+    const prevDay = sortedDays[sortedDays.length - 2]
+    const dailyBaseline = prevDay?.[1] ?? null
+    const dailyPct = latestDay && prevDay && prevDay[1] > 0
+      ? ((latestDay[1] - prevDay[1]) / prevDay[1]) * 100
       : null
     return result
       ? { ...result, pct, dailyPct, dailyBaseline, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
@@ -1112,7 +1114,7 @@ export default function BinderPage() {
     ? rows.filter(r => r.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
     : rows
 
-  const MIN_DAILY_PCT = 2
+  const MIN_DAILY_PCT = 1
   const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
   const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
   const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT)
