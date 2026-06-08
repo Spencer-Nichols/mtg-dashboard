@@ -1100,16 +1100,14 @@ export default function BinderPage() {
   const rows: CardResult[] = entries.map(e => {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foilType)
     const result = results.get(rKey)
-    const currentPrice = result?.currentPrice ?? null
+    const today = new Date().toISOString().split('T')[0]
+    const todayHistoryEntries = (cardHistory[e.displayName] ?? []).filter(h => h.date.split('T')[0] === today)
+    const currentPrice = todayHistoryEntries.at(-1)?.price ?? result?.currentPrice ?? null
     const costBasis = e.purchasePrice != null ? e.purchasePrice : (e.addedPrice ?? e.snapshotPrice)
     const pct = currentPrice != null && costBasis > 0
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
 
-    // Compare stream price vs most recent confirmed prior-day history entry.
-    // Exclude today's history entry as baseline — it may be stale (cron ran before Scryfall updated).
-    // Exact match (< 0.01%) means stale data, not a confirmed zero-change.
-    const today = new Date().toISOString().split('T')[0]
     const byDay = new Map<string, number>()
     for (const h of (cardHistory[e.displayName] ?? [])) {
       const day = h.date.split('T')[0]
