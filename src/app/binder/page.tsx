@@ -459,7 +459,7 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
   )
 }
 
-function CompactCardGrid({ rows, onDelete, pendingDelete, sparklines }: { rows: CardResult[]; onDelete: (name: string, rowKey: string) => void; pendingDelete: string | null; sparklines?: Map<string, { values: number[], dates: string[] }> }) {
+function CompactCardGrid({ rows, onDelete, pendingDelete, sparklines, onSaved }: { rows: CardResult[]; onDelete: (name: string, rowKey: string) => void; pendingDelete: string | null; sparklines?: Map<string, { values: number[], dates: string[] }>; onSaved?: () => void }) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [editRow, setEditRow] = useState<CardResult | null>(null)
 
@@ -482,7 +482,7 @@ function CompactCardGrid({ rows, onDelete, pendingDelete, sparklines }: { rows: 
           )
         })}
       </div>
-      {editRow && <EditModal row={editRow} onClose={() => setEditRow(null)} onSaved={handleSavedFromModal} />}
+      {editRow && <EditModal row={editRow} onClose={() => setEditRow(null)} onSaved={onSaved} />}
     </div>
   )
 }
@@ -495,6 +495,7 @@ function CardRow({
   expanded,
   onToggleExpand,
   rowId,
+  onSaved,
 }: {
   row: CardResult
   onDelete: (name: string, rowKey: string) => void
@@ -503,6 +504,7 @@ function CardRow({
   expanded: boolean
   onToggleExpand: () => void
   rowId?: string
+  onSaved?: () => void
 }) {
   const costBasis = row.purchasePrice != null ? row.purchasePrice : row.snapshotPrice
   const diff = row.currentPrice != null ? row.currentPrice - costBasis : null
@@ -658,7 +660,7 @@ function CardRow({
 
     {showEdit && (
       <tr><td colSpan={6} style={{ padding: 0, border: 'none' }}>
-        <EditModal row={row} onClose={() => setShowEdit(false)} onSaved={handleSavedFromModal} />
+        <EditModal row={row} onClose={() => setShowEdit(false)} onSaved={onSaved} />
       </td></tr>
     )}
     </>
@@ -672,6 +674,7 @@ function CardTable({
   sparklines,
   pendingDelete,
   autoExpandName,
+  onSaved,
 }: {
   rows: CardResult[]
   onDelete: (name: string, rowKey: string) => void
@@ -679,6 +682,7 @@ function CardTable({
   sparklines?: Map<string, { values: number[], dates: string[] }>
   pendingDelete: string | null
   autoExpandName?: string | null
+  onSaved?: () => void
 }) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const autoExpandedRef = useRef(false)
@@ -725,6 +729,7 @@ function CardTable({
                   pendingDelete={pendingDelete}
                   expanded={expandedKey === rKey}
                   onToggleExpand={() => setExpandedKey(k => k === rKey ? null : rKey)}
+                  onSaved={onSaved}
                 />
               )
             })
@@ -1563,6 +1568,7 @@ return (
                   pendingDelete={pendingDelete}
                   sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
                   autoExpandName={autoExpandName}
+                  onSaved={handleSavedFromModal}
                 />
               )}
             </div>
@@ -1588,6 +1594,7 @@ return (
                   emptyLabel={results.size === 0 ? 'Loading...' : 'No losers'}
                   pendingDelete={pendingDelete}
                   sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
+                  onSaved={handleSavedFromModal}
                 />
               )}
             </div>
@@ -1610,6 +1617,7 @@ return (
                   onDelete={requestDelete}
                   pendingDelete={pendingDelete}
                   sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
+                  onSaved={handleSavedFromModal}
                 />
               )}
             </div>
