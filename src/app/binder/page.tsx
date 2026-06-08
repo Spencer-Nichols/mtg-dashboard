@@ -224,7 +224,7 @@ function SparklinePlaceholder({ height = 100 }: { height?: number }) {
   )
 }
 
-function EditModal({ row, onClose, isNew = false, onAdded }: { row: CardResult; onClose: () => void; isNew?: boolean; onAdded?: () => void }) {
+function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: CardResult; onClose: () => void; isNew?: boolean; onAdded?: () => void; onSaved?: () => void }) {
   const [editPrints, setEditPrints] = useState<Candidate[]>([])
   const [editPrintsLoading, setEditPrintsLoading] = useState(true)
   const [editFoilType, setEditFoilType] = useState<FoilType>(row.foilType ?? 'none')
@@ -259,7 +259,7 @@ function EditModal({ row, onClose, isNew = false, onAdded }: { row: CardResult; 
       return
     }
     onClose()
-    window.location.reload()
+    onSaved?.()
   }
 
   async function addNew(scryfallId?: string, setCode?: string) {
@@ -482,7 +482,7 @@ function CompactCardGrid({ rows, onDelete, pendingDelete, sparklines }: { rows: 
           )
         })}
       </div>
-      {editRow && <EditModal row={editRow} onClose={() => setEditRow(null)} />}
+      {editRow && <EditModal row={editRow} onClose={() => setEditRow(null)} onSaved={handleSavedFromModal} />}
     </div>
   )
 }
@@ -658,7 +658,7 @@ function CardRow({
 
     {showEdit && (
       <tr><td colSpan={6} style={{ padding: 0, border: 'none' }}>
-        <EditModal row={row} onClose={() => setShowEdit(false)} />
+        <EditModal row={row} onClose={() => setShowEdit(false)} onSaved={handleSavedFromModal} />
       </td></tr>
     )}
     </>
@@ -907,6 +907,14 @@ export default function BinderPage() {
     setShowDropdown(false)
     setAddQuery('')
     setPendingAddName(name.trim())
+  }
+
+  function handleSavedFromModal() {
+    fetch('/api/binder').then(r => r.json()).then(d => {
+      setEntries(d.entries)
+      localStorage.setItem(LS_BINDER_ENTRIES, JSON.stringify(d.entries))
+      startStream()
+    })
   }
 
   function handleAddedFromModal() {
