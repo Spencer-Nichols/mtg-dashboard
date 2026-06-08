@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest) {
 
   const { data, error } = await supabase
     .from('sealed_wishlist')
-    .select('id, tcg_product_id, product_name, set_name, snapshot_price, image_url')
+    .select('id, tcg_product_id, product_name, set_name, snapshot_price, image_url, manapool_url')
     .eq('user_id', user.id)
     .order('created_at')
 
@@ -64,6 +64,7 @@ export async function GET(_req: NextRequest) {
           pct,
           imageUrl: item.image_url,
           priceSource: latestSources.get(item.tcg_product_id) ?? null,
+          manapoolUrl: item.manapool_url ?? null,
         })
       }
 

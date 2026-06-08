@@ -5,49 +5,13 @@ import { KEYWORDS, KEYWORD_CATEGORIES } from '@/lib/keywords'
 import { RECENT_SETS } from '@/lib/sets'
 import type { BrewCard } from '@/app/api/search/brew/route'
 
-interface CardFace {
+interface PrintingOption {
+  scryfallId?: string
   name: string
-  mana_cost?: string
-  oracle_text?: string
-  image_uris?: { normal: string }
-}
-
-interface Card {
-  name: string
-  mana_cost?: string
-  type_line: string
-  oracle_text?: string
-  power?: string
-  toughness?: string
-  loyalty?: string
-  set_name: string
-  image_uris?: { normal: string }
-  card_faces?: CardFace[]
-  prices: { usd?: string | null; usd_foil?: string | null }
-}
-
-interface SynergyCard {
-  name: string
-  lift: number
-  inclusionRate: number
-  numDecks: number
-  owned: boolean
-  imageUrl: string | null
+  setCode: string
+  setName: string
   price: number | null
-  typeLine: string | null
-  setName: string | null
-  rarity: string | null
-}
-
-type CardStatus = 'owned' | 'proxy' | 'not_owned'
-
-const STATUS_STYLES: Record<CardStatus, string> = {
-  owned: 'bg-green-900/50 text-green-300 border border-green-700',
-  proxy: 'bg-yellow-900/50 text-yellow-300 border border-yellow-700',
-  not_owned: 'bg-stone-800 text-stone-400 border border-stone-700',
-}
-const STATUS_LABELS: Record<CardStatus, string> = {
-  owned: 'Owned', proxy: 'Proxy', not_owned: 'Not Owned',
+  imageUrl?: string | null
 }
 
 const COLOR_CHIPS = [
@@ -214,6 +178,62 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
   )
 }
 
+function PrintingsModal({ name, onClose, onSelect }: {
+  name: string
+  onClose: () => void
+  onSelect: (scryfallId: string | undefined, name: string) => void
+}) {
+  const [printings, setPrintings] = useState<PrintingOption[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/card?q=${encodeURIComponent(name)}&prints=true`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (Array.isArray(data)) setPrintings(data) })
+      .finally(() => setLoading(false))
+  }, [name])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
+          <div>
+            <p className="font-semibold text-stone-100">{name}</p>
+            <p className="text-xs text-stone-500">Select a printing to add to wishlist</p>
+          </div>
+          <button onClick={onClose} className="text-stone-500 hover:text-stone-200 text-xl leading-none">×</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-5">
+          {loading ? (
+            <p className="text-sm text-stone-600">Loading printings…</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {printings.map(p => (
+                <button
+                  key={p.scryfallId ?? p.setCode}
+                  onClick={() => onSelect(p.scryfallId, p.name)}
+                  className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left"
+                >
+                  {p.imageUrl
+                    ? <img src={p.imageUrl} alt={p.name} className="w-full" />
+                    : <div className="aspect-[63/88] bg-stone-800 flex items-center justify-center text-stone-600 text-xs p-2">{p.name}</div>}
+                  <div className="px-2 py-1.5 bg-stone-800 w-full">
+                    <p className="text-xs text-stone-300 font-medium">{p.setName}</p>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs text-stone-600 font-mono">{p.setCode.toUpperCase()}</span>
+                      <span className="text-xs font-mono text-stone-400">{p.price != null ? `$${p.price.toFixed(2)}` : '—'}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AccordionRow({ title, count, open, onToggle, children }: {
   title: string
   count: number
@@ -247,21 +267,6 @@ function AccordionRow({ title, count, open, onToggle, children }: {
 }
 
 export default function SearchPage() {
-  const [mode, setMode] = useState<'card' | 'brew'>('brew')
-
-  // ── Card search state ─────────────────────────────────────
-  const [query, setQuery] = useState('')
-  const [card, setCard] = useState<Card | null>(null)
-  const [candidates, setCandidates] = useState<Card[]>([])
-  const [cardStatus, setCardStatus] = useState<CardStatus | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [synergies, setSynergies] = useState<SynergyCard[]>([])
-  const [synergyHeader, setSynergyHeader] = useState('')
-  const [synergyLoading, setSynergyLoading] = useState(false)
-  const [dropdown, setDropdown] = useState<{ name: string; type_line: string; price: string | null }[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
-
   // ── Brew state ────────────────────────────────────────────
   const [brewRawQuery, setBrewRawQuery] = useState('')
   const [displayedQuery, setDisplayedQuery] = useState('')
@@ -296,9 +301,8 @@ export default function SearchPage() {
 
   const [wishlistAdded, setWishlistAdded] = useState<Set<string>>(new Set())
   const [wishlistLoading, setWishlistLoading] = useState<Set<string>>(new Set())
+  const [printingsModal, setPrintingsModal] = useState<string | null>(null)
 
-  const inputRef = useRef<HTMLInputElement>(null)
-  const cardDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const brewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Brew core fetch ───────────────────────────────────────
@@ -498,225 +502,25 @@ export default function SearchPage() {
 
   // ── Card search handlers ──────────────────────────────────
 
-  function handleCardInput(value: string) {
-    setQuery(value)
-    setDropdown([])
-    if (cardDebounceRef.current) clearTimeout(cardDebounceRef.current)
-    if (!value.trim()) { setShowDropdown(false); return }
-    cardDebounceRef.current = setTimeout(async () => {
-      const res = await fetch(`/api/card?q=${encodeURIComponent(value)}&candidates=true`)
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data) && data.length > 0) { setDropdown(data); setShowDropdown(true) }
-      }
-    }, 500)
-  }
-
-  async function fetchSynergies(name: string) {
-    setSynergyLoading(true)
-    setSynergies([])
-    const res = await fetch(`/api/synergy?card=${encodeURIComponent(name)}`)
-    if (res.ok) {
-      const data = await res.json()
-      setSynergies(data.cards ?? [])
-      setSynergyHeader(data.header ?? 'Synergies')
-    }
-    setSynergyLoading(false)
-  }
-
-  async function randomCard() {
-    setLoading(true); setError(null); setCard(null); setCandidates([]); setSynergies([])
-    const res = await fetch('/api/card?random=true')
-    const data = await res.json()
-    if (data.card) { setQuery(data.card.name); setCard(data.card); setCardStatus(data.status); fetchSynergies(data.card.name) }
-    setLoading(false)
-  }
-
-  async function searchCard(q: string) {
-    if (!q.trim()) return
-    setLoading(true); setError(null); setCard(null); setCandidates([]); setCardStatus(null); setSynergies([])
-    const res = await fetch(`/api/card?q=${encodeURIComponent(q)}`)
-    const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Card not found') }
-    else if (data.candidates) { setCandidates(data.candidates) }
-    else { setCard(data.card); setCardStatus(data.status); fetchSynergies(data.card.name) }
-    setLoading(false)
-  }
-
-  async function selectCandidate(name: string) {
-    setLoading(true); setCandidates([]); setSynergies([])
-    const res = await fetch(`/api/card?q=${encodeURIComponent(name)}`)
-    const data = await res.json()
-    if (data.card) { setCard(data.card); setCardStatus(data.status); fetchSynergies(data.card.name) }
-    setLoading(false)
-  }
-
-  const image = card?.image_uris?.normal ?? card?.card_faces?.[0]?.image_uris?.normal
-  const oracle = card?.oracle_text ?? card?.card_faces?.map(f => `${f.name}\n${f.oracle_text ?? ''}`).join('\n\n')
   const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim() || oracleText.trim() || activeArtTypes.size > 0 || activeSet !== null
 
   return (
     <div>
-      {/* Mode toggle */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-stone-100">Card Search</h1>
-        <div className="flex rounded-lg border-2 border-stone-700 overflow-hidden text-sm">
-          <button
-            onClick={() => setMode('card')}
-            className={`px-4 py-2 transition-colors ${mode === 'card' ? 'bg-amber-950/70 text-amber-300 border-r-2 border-stone-700' : 'text-stone-400 hover:text-stone-400 border-r-2 border-stone-700'}`}
-          >
-            Card Name
-          </button>
-          <button
-            onClick={() => setMode('brew')}
-            className={`px-4 py-2 transition-colors ${mode === 'brew' ? 'bg-amber-950/70 text-amber-300' : 'text-stone-400 hover:text-stone-400'}`}
-          >
-            Brew
-          </button>
-        </div>
-      </div>
+      <h1 className="text-2xl font-bold text-stone-100 mb-6">Card Search</h1>
 
-      {/* ── Card Name Mode ──────────────────────────────────── */}
-      {mode === 'card' && (
-        <div>
-          <div className="relative flex gap-3 mb-8">
-            <div className="relative flex-1">
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={e => handleCardInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && searchCard(query)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-                onFocus={() => dropdown.length > 0 && setShowDropdown(true)}
-                placeholder="Search for a card..."
-                className="w-full bg-stone-900 border-2 border-stone-700 rounded-lg px-4 py-3 text-stone-100 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
-              />
-              {showDropdown && dropdown.length > 0 && (
-                <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-stone-900 border-2 border-stone-700 rounded-xl overflow-hidden shadow-2xl">
-                  {dropdown.map(c => (
-                    <button
-                      key={c.name}
-                      onMouseDown={e => { e.preventDefault(); setShowDropdown(false); setQuery(c.name); selectCandidate(c.name) }}
-                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
-                    >
-                      <div>
-                        <p className="text-stone-200 text-sm font-medium">{c.name}</p>
-                        <p className="text-stone-400 text-xs">{c.type_line}</p>
-                      </div>
-                      {c.price && <span className="text-green-400 font-mono text-sm ml-4">${c.price}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button onClick={() => searchCard(query)} disabled={loading}
-              className="px-6 py-3 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg font-medium transition-colors">
-              {loading ? 'Searching…' : 'Search'}
-            </button>
-            <button onClick={randomCard} disabled={loading}
-              className="px-4 py-3 bg-stone-800 hover:bg-stone-700 disabled:opacity-50 rounded-lg font-medium text-stone-400 hover:text-stone-200 transition-colors" title="Random card">
-              🎲
-            </button>
-          </div>
-
-          {error && <div className="bg-red-900/30 border-2 border-red-700 rounded-lg px-4 py-3 text-red-300 mb-4">{error}</div>}
-
-          {candidates.length > 0 && (
-            <div className="mb-6">
-              <p className="text-sm text-stone-400 mb-3">Multiple matches — pick one:</p>
-              <div className="flex flex-col gap-2">
-                {candidates.map(c => (
-                  <button key={c.name} onClick={() => { setQuery(c.name); selectCandidate(c.name) }}
-                    className="text-left px-4 py-3 bg-stone-900 border-2 border-stone-700 rounded-lg hover:border-amber-700/50 text-stone-200 text-sm transition-colors">
-                    {c.name} <span className="text-stone-400 ml-2">{c.type_line}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {card && cardStatus && (
-            <div className="flex gap-6 flex-col">
-              <div className="flex flex-col sm:flex-row gap-6">
-                {image && <img src={image} alt={card.name} className="w-full max-w-[224px] mx-auto sm:mx-0 sm:w-56 rounded-xl shadow-2xl flex-shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start gap-3 mb-3 flex-wrap">
-                    <h2 className="text-xl font-bold text-stone-100">{card.name}</h2>
-                    {card.mana_cost && <span className="text-stone-400 font-mono text-sm mt-1">{card.mana_cost}</span>}
-                    <span className={`text-xs px-2 py-1 rounded font-medium ${STATUS_STYLES[cardStatus]}`}>{STATUS_LABELS[cardStatus]}</span>
-                  </div>
-                  <p className="text-stone-400 text-sm mb-4">{card.type_line}</p>
-                  {oracle && (
-                    <div className="bg-stone-900 border-2 border-amber-900/30 rounded-lg p-4 mb-4">
-                      {oracle.split('\n').map((line, i) => (
-                        <p key={i} className={`text-sm text-stone-400 ${line === '' ? 'mt-2' : ''}`}>{line}</p>
-                      ))}
-                    </div>
-                  )}
-                  {(card.power || card.loyalty) && (
-                    <p className="text-stone-400 text-sm mb-3">{card.power ? `P/T: ${card.power}/${card.toughness}` : `Loyalty: ${card.loyalty}`}</p>
-                  )}
-                  <div className="flex gap-6 text-sm">
-                    {card.prices.usd && <div><span className="text-stone-400">Price</span><p className="text-green-400 font-mono font-medium">${card.prices.usd}</p></div>}
-                    {card.prices.usd_foil && <div><span className="text-stone-400">Foil</span><p className="text-amber-500 font-mono font-medium">${card.prices.usd_foil}</p></div>}
-                    <div><span className="text-stone-400">Set</span><p className="text-stone-400">{card.set_name}</p></div>
-                  </div>
-                </div>
-              </div>
-
-              {(synergyLoading || synergies.length > 0) && (
-                <div>
-                  <h3 className="text-sm font-semibold text-stone-400 mb-3">
-                    {synergyHeader || 'High Synergy Cards'}
-                    <span className="text-stone-600 font-normal ml-2">via EDHREC</span>
-                  </h3>
-                  {synergyLoading ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {Array.from({ length: 8 }).map((_, i) => (
-                        <div key={i} className="flex flex-col gap-1.5">
-                          <div className="aspect-[5/7] bg-stone-800 rounded-xl animate-pulse" />
-                          <div className="h-3 bg-stone-800 rounded animate-pulse w-3/4" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {synergies.map(s => (
-                        <button key={s.name} onClick={() => { setQuery(s.name); searchCard(s.name) }}
-                          className="group flex flex-col gap-1.5 text-left">
-                          <div className="relative rounded-xl overflow-hidden shadow-lg">
-                            {s.imageUrl
-                              ? <img src={s.imageUrl} alt={s.name} className="w-full block group-hover:brightness-110 transition-all" />
-                              : <div className="aspect-[5/7] bg-stone-800 rounded-xl" />}
-                            {s.owned && (
-                              <div className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm bg-green-900/80 text-green-300">Owned</div>
-                            )}
-                          </div>
-                          <div className="px-0.5 flex flex-col gap-0.5">
-                            <div className="flex items-baseline justify-between gap-1">
-                              <p className="text-sm text-stone-200 font-semibold leading-tight">{s.name}</p>
-                              <span className="text-xs font-bold text-amber-400 whitespace-nowrap">{Math.round(s.inclusionRate * 100)}% inclusion</span>
-                            </div>
-                            {s.typeLine && <p className="text-xs text-stone-400 leading-tight">{s.typeLine}</p>}
-                            {s.rarity && (
-                              <p className={`text-xs font-medium capitalize ${RARITY_COLOR[s.rarity] ?? 'text-stone-400'}`}>{s.rarity}</p>
-                            )}
-                            {s.price != null && <p className="text-sm font-mono text-stone-400">${s.price.toFixed(2)}</p>}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      {printingsModal && (
+        <PrintingsModal
+          name={printingsModal}
+          onClose={() => setPrintingsModal(null)}
+          onSelect={(scryfallId, name) => {
+            setPrintingsModal(null)
+            addToWishlist(name, scryfallId ?? '')
+          }}
+        />
       )}
 
-      {/* ── Brew Mode ──────────────────────────────────────── */}
-      {mode === 'brew' && (
-        <div className="flex gap-6">
+      {/* ── Brew ──────────────────────────────────────── */}
+      <div className="flex gap-6">
           {/* Main column */}
           <div className="flex-1 min-w-0 space-y-4">
 
@@ -1070,7 +874,7 @@ export default function SearchPage() {
                   <BrewResultCard
                     key={c.name}
                     card={c}
-                    onAddToWishlist={() => addToWishlist(c.name, c.id)}
+                    onAddToWishlist={() => activeArtTypes.size > 0 ? addToWishlist(c.name, c.id) : setPrintingsModal(c.name)}
                     isAdding={wishlistLoading.has(c.name)}
                     isAdded={wishlistAdded.has(c.name)}
                   />
@@ -1087,7 +891,6 @@ export default function SearchPage() {
           </div>
 
         </div>
-      )}
     </div>
   )
 }

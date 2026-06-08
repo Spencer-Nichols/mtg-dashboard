@@ -1093,18 +1093,22 @@ export default function BinderPage() {
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
 
-    // Bucket by comparing last two confirmed calendar-day history entries
+    // Compare stream price vs most recent confirmed prior-day history entry.
+    // Exclude today's history entry as baseline — it may be stale (cron ran before Scryfall updated).
+    // Exact match (< 0.01%) means stale data, not a confirmed zero-change.
+    const today = new Date().toISOString().split('T')[0]
     const byDay = new Map<string, number>()
     for (const h of (cardHistory[e.displayName] ?? [])) {
-      byDay.set(h.date.split('T')[0], h.price)
+      const day = h.date.split('T')[0]
+      if (day !== today) byDay.set(day, h.price)
     }
     const sortedDays = [...byDay.entries()].sort(([a], [b]) => a < b ? -1 : 1)
-    const latestDay = sortedDays[sortedDays.length - 1]
-    const prevDay = sortedDays[sortedDays.length - 2]
-    const dailyBaseline = prevDay?.[1] ?? null
-    const dailyPct = latestDay && prevDay && prevDay[1] > 0
-      ? ((latestDay[1] - prevDay[1]) / prevDay[1]) * 100
+    const lastPriorDay = sortedDays[sortedDays.length - 1]
+    const dailyBaseline = lastPriorDay?.[1] ?? null
+    const rawDailyPct = currentPrice != null && lastPriorDay && lastPriorDay[1] > 0
+      ? ((currentPrice - lastPriorDay[1]) / lastPriorDay[1]) * 100
       : null
+    const dailyPct = rawDailyPct !== null && Math.abs(rawDailyPct) < 0.01 ? null : rawDailyPct
     return result
       ? { ...result, pct, dailyPct, dailyBaseline, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
       : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, imageUrl: null, fromCache: false, rowKey: rKey, foilType: e.foilType, note: e.note ?? undefined }

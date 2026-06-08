@@ -24,13 +24,24 @@ export interface TcgPrice {
 }
 
 const SEALED_KEYWORDS = ['Booster', 'Bundle', 'Display', 'Pack', 'Case', 'Deck', 'Box', 'Draft Night', 'Secret Lair', 'Commander']
+const GROUP_NAME_PREFIXES = ['Universes Beyond: ', 'Commander: ', 'Art Series: ']
 
 export function isSealedProduct(productName: string, groupName: string): boolean {
-  // Some sets prefix product names with "Magic: The Gathering {groupName}" instead of just "{groupName}"
-  const idx = productName.indexOf(groupName + ' - ')
-  if (idx === -1) return false
-  const suffix = productName.slice(idx + groupName.length + 3)
-  return SEALED_KEYWORDS.some(k => suffix.includes(k))
+  // Products may use the full group name OR a shortened version without common prefixes
+  // e.g. "The Lord of the Rings Special Edition" products drop "Universes Beyond: "
+  const namesToTry = [groupName]
+  for (const prefix of GROUP_NAME_PREFIXES) {
+    if (groupName.startsWith(prefix)) namesToTry.push(groupName.slice(prefix.length))
+  }
+
+  for (const name of namesToTry) {
+    const idx = productName.indexOf(name + ' - ')
+    if (idx !== -1) {
+      const suffix = productName.slice(idx + name.length + 3)
+      if (SEALED_KEYWORDS.some(k => suffix.includes(k))) return true
+    }
+  }
+  return false
 }
 
 async function tcgFetch<T>(url: string): Promise<T[]> {
