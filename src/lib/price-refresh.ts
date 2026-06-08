@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { ScryfallCard, getPrice, getPriceByFoilType, sleep } from '@/lib/scryfall'
 import { getCached, setCached, setManapoolPrice, getCachedPriceByFoilType, cacheKey, setCronTimestamp, CacheEntry } from '@/lib/cache'
 import { fetchManapoolSinglePrices } from '@/lib/manapool'
+import { fetchTcgPlayerPrice } from '@/lib/tcgplayer'
 
 const STALE_MS = 4 * 60 * 60 * 1000
 const BATCH_SIZE = 75
@@ -38,7 +39,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
 
   const [{ data: binderRows }, { data: wishlistRows }] = await Promise.all([
     supabase.from('binder_cards').select('user_id, display_name, base_name, set_code, scryfall_id, foil_type, snapshot_price'),
-    supabase.from('wishlist_singles').select('user_id, name, set_code, scryfall_id'),
+    supabase.from('wishlist_singles').select('user_id, name, set_code, scryfall_id, tcgplayer_id'),
   ])
 
   type CardRef = { baseName: string; setCode: string | null; scryfallId: string | null }
@@ -85,6 +86,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
   }
 
   let fetched = 0
+  const scryfallIdToTcgplayerId = new Map<string, number>()
 
   for (let i = 0; i < identifiers.length; i += BATCH_SIZE) {
     if (i > 0) await sleep(BATCH_DELAY)
@@ -95,6 +97,8 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
       const key = idToKey.get(scryfallCard.id)
         ?? nameSetToKey.get(`${scryfallCard.name.toLowerCase()}:${scryfallCard.set.toLowerCase()}`)
       if (!key) continue
+
+      if (scryfallCard.tcgplayer_id) scryfallIdToTcgplayerId.set(scryfallCard.id, scryfallCard.tcgplayer_id)
 
       const price = getPrice(scryfallCard, false)
       const foilPrice = getPrice(scryfallCard, true)
@@ -109,6 +113,16 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
       })
       fetched++
     }
+  }
+
+  // Backfill tcgplayer_id for wishlist cards that are missing it
+  const wishlistBackfill = (wishlistRows ?? []).filter(
+    r => !r.tcgplayer_id && r.scryfall_id && scryfallIdToTcgplayerId.has(r.scryfall_id)
+  )
+  for (const row of wishlistBackfill) {
+    await supabase.from('wishlist_singles')
+      .update({ tcgplayer_id: scryfallIdToTcgplayerId.get(row.scryfall_id!) })
+      .eq('scryfall_id', row.scryfall_id!)
   }
 
   // Calculate per-user binder totals and card history
@@ -177,7 +191,7 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     )
   }
 
-  // Per-card wishlist history — use lower of Scryfall vs Manapool
+  // Per-card wishlist history — use lowest of Scryfall, Manapool, and TCGPlayer listings
   const wishlistCardHistory: { user_id: string; card_name: string; date: string; price: number }[] = []
   for (const row of wishlistRows ?? []) {
     const key = cacheKey(row.name, row.scryfall_id ?? row.set_code ?? '')
@@ -185,7 +199,14 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     if (!cached || cached.price == null) continue
     const scryfallPrice = cached.price
     const manapoolPrice = row.scryfall_id ? (manapoolPrices.get(row.scryfall_id)?.price ?? null) : null
-    const price = manapoolPrice != null && manapoolPrice < scryfallPrice ? manapoolPrice : scryfallPrice
+    const tcgId = row.tcgplayer_id ?? scryfallIdToTcgplayerId.get(row.scryfall_id ?? '') ?? null
+    const tcgPrice = tcgId ? await fetchTcgPlayerPrice(tcgId) : null
+    if (tcgId) await sleep(300)
+    const price = Math.min(
+      scryfallPrice,
+      manapoolPrice ?? Infinity,
+      tcgPrice ?? Infinity,
+    )
     wishlistCardHistory.push({ user_id: row.user_id, card_name: row.name, date: dateBucket4h, price: parseFloat(price.toFixed(2)) })
   }
 

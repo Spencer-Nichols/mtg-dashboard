@@ -746,6 +746,7 @@ export default function WishlistPage() {
             pct: msg.pct,
             imageUrl: msg.imageUrl,
             priceSource: msg.priceSource ?? null,
+          manapoolUrl: msg.manapoolUrl ?? null,
           })
           return next
         })

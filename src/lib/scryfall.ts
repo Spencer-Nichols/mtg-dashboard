@@ -31,6 +31,7 @@ export interface ScryfallCard {
     usd_foil?: string | null
     usd_etched?: string | null
   }
+  tcgplayer_id?: number | null
 }
 
 const SECRET_LAIR_SETS = new Set(['slp', 'sld'])

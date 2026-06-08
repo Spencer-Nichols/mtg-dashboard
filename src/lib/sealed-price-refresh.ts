@@ -1,51 +1,16 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { setSealedCronTimestamp } from '@/lib/cache'
-
-const LISTINGS_URL = (productId: number) =>
-  `https://mp-search-api.tcgplayer.com/v1/product/${productId}/listings?mpfev=5214`
+import { fetchTcgPlayerPrice } from '@/lib/tcgplayer'
 
 const MANAPOOL_URL = (ids: number[]) =>
   `https://manapool.com/api/v1/products/sealed?${ids.map(id => `tcgplayer_ids=${id}`).join('&')}`
 
-const MAX_SHIPPING = 25
 const PRICE_MIN_DELTA = 0.25
 
-const LISTINGS_BODY = {
-  filters: {
-    term: { sellerStatus: 'Live', channelId: 0, language: ['English'] },
-    range: { quantity: { gte: 1 } },
-  },
-  from: 0,
-  size: 5,
-  sort: { field: 'price', order: 'asc' },
-}
+interface ManaPoolSealedEntry { price: number; url: string | null }
 
-async function fetchTcgPlayerPrice(productId: number): Promise<number | null> {
-  const res = await fetch(LISTINGS_URL(productId), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Origin': 'https://www.tcgplayer.com',
-      'Referer': `https://www.tcgplayer.com/product/${productId}`,
-    },
-    body: JSON.stringify(LISTINGS_BODY),
-  })
-
-  if (!res.ok) return null
-
-  const data = await res.json()
-  const listings: Array<{ price: number; shippingPrice?: number }> = data?.results?.[0]?.results ?? []
-  if (listings.length === 0) return null
-
-  const valid = listings.filter(l => (l.shippingPrice ?? 0) <= MAX_SHIPPING)
-  if (valid.length === 0) return null
-
-  return parseFloat(Math.min(...valid.map(l => l.price + (l.shippingPrice ?? 0))).toFixed(2))
-}
-
-async function fetchManaPoolPrices(productIds: number[]): Promise<Map<number, number>> {
-  const map = new Map<number, number>()
+async function fetchManaPoolPrices(productIds: number[]): Promise<Map<number, ManaPoolSealedEntry>> {
+  const map = new Map<number, ManaPoolSealedEntry>()
   if (productIds.length === 0) return map
 
   for (let i = 0; i < productIds.length; i += 100) {
@@ -59,7 +24,10 @@ async function fetchManaPoolPrices(productIds: number[]): Promise<Map<number, nu
       const data = await res.json()
       for (const item of data?.data ?? []) {
         if (item.tcgplayer_product_id != null && item.low_price != null) {
-          map.set(item.tcgplayer_product_id, parseFloat((item.low_price / 100).toFixed(2)))
+          map.set(item.tcgplayer_product_id, {
+            price: parseFloat((item.low_price / 100).toFixed(2)),
+            url: item.url ?? null,
+          })
         }
       }
     } catch {
@@ -107,8 +75,11 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
   // For each product, take the lower of the two prices and track the source
   const priceMap = new Map<number, number | null>()
   const sourceMap = new Map<number, 'manapool' | 'tcgplayer'>()
+  const manapoolUrlMap = new Map<number, string>()
   for (const productId of uniqueProductIds) {
-    const mp = manapoolPrices.get(productId) ?? null
+    const mpEntry = manapoolPrices.get(productId) ?? null
+    const mp = mpEntry?.price ?? null
+    if (mpEntry?.url) manapoolUrlMap.set(productId, mpEntry.url)
     const tcg = tcgPrices.get(productId) ?? null
     if (mp == null && tcg == null) {
       priceMap.set(productId, null)
@@ -122,6 +93,16 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
       const lower = Math.min(mp, tcg)
       priceMap.set(productId, lower)
       sourceMap.set(productId, lower === mp ? 'manapool' : 'tcgplayer')
+    }
+  }
+
+  // Persist Manapool URLs to sealed_wishlist so the stream can serve them
+  if (manapoolUrlMap.size > 0) {
+    for (const [productId, url] of manapoolUrlMap) {
+      await supabase
+        .from('sealed_wishlist')
+        .update({ manapool_url: url })
+        .eq('tcg_product_id', productId)
     }
   }
 

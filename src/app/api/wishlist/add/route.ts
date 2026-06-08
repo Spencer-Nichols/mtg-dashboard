@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     note: note?.trim() || null,
     set_code: resolved.set ?? null,
     scryfall_id: resolved.id ?? null,
+    tcgplayer_id: resolved.tcgplayer_id ?? null,
     snapshot_price: price ?? null,
     snapshot_added_at: new Date().toISOString(),
   })
