@@ -1099,21 +1099,17 @@ export default function BinderPage() {
   const rows: CardResult[] = entries.map(e => {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foilType)
     const result = results.get(rKey)
-    const today = new Date().toISOString().split('T')[0]
-    const todayHistoryEntries = (cardHistory[e.displayName] ?? []).filter(h => h.date.split('T')[0] === today)
-    const currentPrice = todayHistoryEntries.at(-1)?.price ?? result?.currentPrice ?? null
+    const sortedHistory = (cardHistory[e.displayName] ?? []).slice().sort((a, b) => a.date < b.date ? -1 : 1)
+    const latestEntry = sortedHistory.at(-1)
+    const currentPrice = latestEntry?.price ?? result?.currentPrice ?? null
     const costBasis = e.purchasePrice != null ? e.purchasePrice : (e.addedPrice ?? e.snapshotPrice)
     const pct = currentPrice != null && costBasis > 0
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
 
-    const byDay = new Map<string, number>()
-    for (const h of (cardHistory[e.displayName] ?? [])) {
-      const day = h.date.split('T')[0]
-      if (day !== today) byDay.set(day, h.price)
-    }
-    const sortedDays = [...byDay.entries()].sort(([a], [b]) => a < b ? -1 : 1)
-    const lastPriorDay = sortedDays[sortedDays.length - 1]
+    const latestDay = latestEntry?.date.split('T')[0] ?? null
+    const priorEntry = sortedHistory.filter(h => h.date.split('T')[0] !== latestDay).at(-1)
+    const lastPriorDay: [string, number] | undefined = priorEntry ? [priorEntry.date.split('T')[0], priorEntry.price] : undefined
     const dailyBaseline = lastPriorDay?.[1] ?? null
     const rawDailyPct = currentPrice != null && lastPriorDay && lastPriorDay[1] > 0
       ? ((currentPrice - lastPriorDay[1]) / lastPriorDay[1]) * 100
