@@ -11,7 +11,7 @@ export interface ManapoolSinglePrice {
 function bestLowPrice(variants: any[], finishId: string): number | null {
   const acceptable = ['NM', 'LP']
   const candidates = variants?.filter(
-    v => v.finish_id === finishId && acceptable.includes(v.condition_id) && v.available_quantity > 0 && v.low_price > 0
+    v => v.finish_id === finishId && v.language_id === 'EN' && acceptable.includes(v.condition_id) && v.available_quantity > 0 && v.low_price > 0
   ) ?? []
   if (candidates.length === 0) return null
   return Math.min(...candidates.map(v => v.low_price))
