@@ -535,7 +535,7 @@ export default function SearchPage() {
                 onChange={e => handleBrewRawInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && runBrewFetch(displayedQuery, 1, false)}
                 placeholder="Scryfall syntax or use filters"
-                className="flex-1 bg-stone-900 border-2 border-stone-700 rounded-lg px-4 py-3 text-stone-100 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors font-mono text-sm"
+                className="flex-1 bg-stone-900 border-2 border-stone-700 rounded-lg px-4 py-3 text-stone-100 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors font-mono text-base sm:text-sm"
               />
               <button
                 onClick={() => runBrewFetch(displayedQuery, 1, false)}
@@ -706,7 +706,7 @@ export default function SearchPage() {
                     value={oracleText}
                     onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value, activeArtTypes, getSetCodes(activeSet))) }}
                     placeholder='e.g. whenever you draw'
-                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
+                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                   />
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-3">
