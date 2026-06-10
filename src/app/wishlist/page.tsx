@@ -600,6 +600,8 @@ export default function WishlistPage() {
   const sealedEsRef = useRef<EventSource | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const staleResetRef = useRef<Set<string>>(new Set())
+  const addDropdownRef = useRef<HTMLDivElement>(null)
+  const sealedDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'wishlist' }) })
@@ -683,6 +685,23 @@ export default function WishlistPage() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streaming])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+      if (sealedDropdownRef.current && !sealedDropdownRef.current.contains(e.target as Node)) {
+        setSealedShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [])
 
   function startStream(bust = false) {
     if (streaming) return
@@ -1129,13 +1148,12 @@ export default function WishlistPage() {
             Sealed product
           </button>
         </div>
-      {addMode === 'single' && <div className="relative">
+      {addMode === 'single' && <div className="relative" ref={addDropdownRef}>
         <div className="flex gap-2">
           <input
             value={addQuery}
             onChange={e => handleAddInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
-            onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
             onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
             placeholder="Add a card to wishlist..."
             className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
@@ -1161,12 +1179,11 @@ export default function WishlistPage() {
       </div>
 
       }
-      {addMode === 'sealed' && <div id="wishlist-sealed-add" className="relative">
+      {addMode === 'sealed' && <div id="wishlist-sealed-add" className="relative" ref={sealedDropdownRef}>
         <input
           value={sealedQuery}
           onChange={e => { setSealedQuery(e.target.value); setSealedShowDropdown(true) }}
           onFocus={() => { loadSealedGroups(); setSealedShowDropdown(true) }}
-          onBlur={() => setTimeout(() => setSealedShowDropdown(false), 150)}
           onKeyDown={e => { if (e.key === 'Escape') { setSealedShowDropdown(false); setSealedQuery('') } }}
           placeholder="Search sets to add sealed product…"
           className="w-full bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
@@ -1228,17 +1245,20 @@ export default function WishlistPage() {
                       className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group"
                     >
                       <CardImage src={c.imageUrl} alt={c.name} className="w-full" />
-                      <div className="px-2 py-1.5 bg-stone-800 w-full flex-1">
+                      <div className="px-2 py-1.5 bg-stone-800 w-full flex-1 flex flex-col gap-0.5">
                         <p className="text-xs text-stone-300 font-medium">{c.setName}</p>
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-xs text-stone-600 font-mono">{c.setCode.toUpperCase()}</span>
-                          <span className="text-xs font-mono text-stone-400 shrink-0">
-                            {c.price != null ? `$${c.price.toFixed(2)}` : '—'}
-                          </span>
+                          {c.rarity && (
+                            <span className={`text-xs capitalize shrink-0 ${
+                              c.rarity === 'mythic' ? 'text-orange-400' :
+                              c.rarity === 'rare' ? 'text-yellow-400' :
+                              c.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
+                            }`}>{c.rarity}</span>
+                          )}
                         </div>
-                        {c.foilPrice != null && (
-                          <p className="text-xs font-mono text-amber-500">${c.foilPrice.toFixed(2)} foil</p>
-                        )}
+                        {c.price != null && <span className="text-xs font-mono text-stone-400">${c.price.toFixed(2)}</span>}
+                        {c.foilPrice != null && <span className="text-xs font-mono text-amber-500">${c.foilPrice.toFixed(2)} foil</span>}
                       </div>
                     </button>
                   ))}

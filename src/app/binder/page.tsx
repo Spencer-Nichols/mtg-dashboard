@@ -785,6 +785,7 @@ export default function BinderPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const addInputRef = useRef<HTMLInputElement>(null)
+  const addDropdownRef = useRef<HTMLDivElement>(null)
   const csvFileInputRef = useRef<HTMLInputElement>(null)
   const importLogRef = useRef<HTMLDivElement>(null)
   const expandParamRef = useRef<string | null>(null)
@@ -847,6 +848,20 @@ export default function BinderPage() {
   }, [])
 
 
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [])
 
   // --- Binder functions ---
 
@@ -1257,14 +1272,13 @@ return (
       </div>
 
       {/* Add card input */}
-      <div className="relative mb-4">
+      <div className="relative mb-4" ref={addDropdownRef}>
         <div className="flex gap-2">
           <input
             ref={addInputRef}
             value={addQuery}
             onChange={e => handleAddInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
-            onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
             onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
             placeholder="Add a card to binder..."
             className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
