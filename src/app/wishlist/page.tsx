@@ -1156,7 +1156,7 @@ export default function WishlistPage() {
             onKeyDown={e => { if (e.key === 'Enter' && !showDropdown) addCard(); if (e.key === 'Escape') setShowDropdown(false) }}
             onFocus={() => addCandidates.length > 0 && setShowDropdown(true)}
             placeholder="Add a card to wishlist..."
-            className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
+            className="flex-1 bg-stone-900 border border-stone-700 rounded-lg px-4 py-2.5 text-base sm:text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
           />
         </div>
         {showDropdown && addCandidates.length > 0 && (

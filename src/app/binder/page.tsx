@@ -315,7 +315,7 @@ function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: Car
               <span className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</span>
               <div className="flex items-center gap-2">
                 <span className="text-stone-500 text-sm shrink-0">$</span>
-                <input type="number" min="0" step="0.01" placeholder="Scryfall price" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)} className="min-w-0 flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+                <input type="number" min="0" step="0.01" placeholder="Scryfall price" value={editPurchasePrice} onChange={e => setEditPurchasePrice(e.target.value)} className="min-w-0 flex-1 bg-stone-950 border border-stone-700 rounded px-2 py-1 text-base sm:text-sm text-stone-200 font-mono placeholder-stone-600 focus:outline-none focus:border-amber-600" />
                 <button onClick={() => setEditPurchasePrice('0')} className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap shrink-0">Booster pull</button>
               </div>
               {editPurchasePrice === '0' && <p className="text-xs text-stone-600">Shows dollar gain instead of %</p>}
@@ -328,7 +328,7 @@ function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: Car
               value={editNote}
               onChange={e => setEditNote(e.target.value)}
               placeholder="Optional note"
-              className="bg-stone-950 border border-stone-700 rounded px-3 py-2 text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600 transition-colors"
+              className="bg-stone-950 border border-stone-700 rounded px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600 transition-colors"
             />
           </div>
 
@@ -1500,7 +1500,7 @@ return (
             type="date"
             value={exportSince}
             onChange={e => { setExportSince(e.target.value); setExportStatus(null) }}
-            className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-sm text-stone-100 focus:outline-none focus:border-amber-600 transition-colors"
+            className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-100 focus:outline-none focus:border-amber-600 transition-colors"
           />
           <button
             onClick={downloadExport}
