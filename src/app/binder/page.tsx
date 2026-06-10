@@ -70,10 +70,10 @@ const LS_STREAM_AT = 'tnk:binder:stream-at'
 const STREAM_TTL = 4 * 60 * 60 * 1000
 
 function pctColor(pct: number | null, purchasePrice?: number | null) {
+  if (pct !== null && pct < -0.05) return 'text-red-400'
   if (purchasePrice === 0) return 'text-green-400'
   if (pct === null) return 'text-stone-500'
   if (pct > 0.05) return 'text-green-400'
-  if (pct < -0.05) return 'text-red-400'
   return 'text-stone-400'
 }
 
