@@ -2,6 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react'
 
+function CardImage({ src, alt, className }: { src: string | null | undefined; alt: string; className: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) {
+    return (
+      <div className={`${className} aspect-[63/88] bg-stone-800 flex items-center justify-center`}>
+        <span className="text-stone-600 text-xs">No image</span>
+      </div>
+    )
+  }
+  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+}
+
 interface SealedWishlistItem {
   id: string
   tcgProductId: number
@@ -530,6 +542,7 @@ export default function WishlistPage() {
   const [staleResetLoading, setStaleResetLoading] = useState(false)
   const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
+  const [printingModalOpen, setPrintingModalOpen] = useState(false)
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
   const [sealedHistory, setSealedHistory] = useState<Record<number, Array<{ date: string; price: number }>>>({})
   const [sealedLastRun, setSealedLastRun] = useState<Date | null>(null)
@@ -903,12 +916,14 @@ export default function WishlistPage() {
 
   async function selectNameForPrinting(name: string) {
     setAddCandidates([])
+    setShowDropdown(false)
     setAddPrintingName(name)
     setAddPrintings([])
+    setPrintingModalOpen(true)
     const res = await fetch(`/api/card?q=${encodeURIComponent(name)}&prints=true`)
     if (res.ok) {
       const data = await res.json()
-      if (Array.isArray(data) && data.length > 0) { setAddPrintings(data); setShowDropdown(true) }
+      if (Array.isArray(data) && data.length > 0) { setAddPrintings(data) }
     }
   }
 
@@ -920,6 +935,7 @@ export default function WishlistPage() {
     setAddPrintings([])
     setAddPrintingName(null)
     setShowDropdown(false)
+    setPrintingModalOpen(false)
     const res = await fetch('/api/wishlist/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1142,46 +1158,6 @@ export default function WishlistPage() {
             ))}
           </div>
         )}
-        {showDropdown && addPrintings.length > 0 && (
-          <div className="absolute z-40 top-full left-0 right-12 mt-1 bg-stone-900 border border-stone-700 rounded-xl overflow-hidden shadow-2xl max-h-80 overflow-y-auto">
-            <div className="px-4 py-2 border-b border-stone-800 flex items-center gap-2 sticky top-0 bg-stone-900">
-              <button
-                onMouseDown={e => { e.preventDefault(); setAddPrintings([]); setAddPrintingName(null); setShowDropdown(false) }}
-                className="text-stone-500 hover:text-stone-300 text-xs"
-              >← Back</button>
-              <span className="text-stone-400 text-xs font-medium">{addPrintingName} — choose printing</span>
-            </div>
-            {addPrintings.map(c => (
-              <button
-                key={`${c.name}-${c.setCode}-${c.collectorNumber}`}
-                onMouseDown={e => { e.preventDefault(); addCard(c.name, c.setCode, c.scryfallId) }}
-                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
-              >
-                {c.imageUrl
-                  ? <img src={c.imageUrl} alt="" className="w-[146px] rounded-lg shrink-0" />
-                  : <div className="w-[146px] h-[204px] bg-stone-800 rounded-lg shrink-0" />}
-                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                  <p className="text-stone-100 text-sm font-semibold leading-snug">{c.setName}</p>
-                  <p className="text-stone-500 text-xs">{c.setCode.toUpperCase()} · #{c.collectorNumber}</p>
-                  {c.rarity && (
-                    <p className={`text-xs capitalize font-medium ${
-                      c.rarity === 'mythic' ? 'text-orange-400' :
-                      c.rarity === 'rare' ? 'text-yellow-400' :
-                      c.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
-                    }`}>{c.rarity}</p>
-                  )}
-                  {c.releasedAt && <p className="text-stone-600 text-xs">{c.releasedAt.slice(0, 4)}</p>}
-                  <div className="mt-auto pt-2 flex flex-col gap-0.5">
-                    {c.price != null
-                      ? <span className="text-green-400 font-mono text-sm font-semibold">${c.price.toFixed(2)}</span>
-                      : <span className="text-stone-600 font-mono text-sm">—</span>}
-                    {c.foilPrice != null && <span className="text-amber-500 font-mono text-xs">${c.foilPrice.toFixed(2)} foil</span>}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       }
@@ -1224,6 +1200,54 @@ export default function WishlistPage() {
       </div>}
 
       </div>
+
+      {/* Printing picker modal */}
+      {printingModalOpen && addPrintingName && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+          onClick={e => { if (e.target === e.currentTarget) { setPrintingModalOpen(false); setAddPrintings([]); setAddPrintingName(null) } }}
+          onKeyDown={e => { if (e.key === 'Escape') { setPrintingModalOpen(false); setAddPrintings([]); setAddPrintingName(null) } }}
+        >
+          <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800 shrink-0">
+              <h2 className="text-stone-100 font-semibold truncate pr-4">{addPrintingName} — choose printing</h2>
+              <button
+                onClick={() => { setPrintingModalOpen(false); setAddPrintings([]); setAddPrintingName(null) }}
+                className="text-stone-500 hover:text-stone-300 transition-colors text-xl leading-none shrink-0"
+              >✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {addPrintings.length === 0 ? (
+                <p className="text-stone-600 text-sm">Loading printings…</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {addPrintings.map(c => (
+                    <button
+                      key={`${c.name}-${c.setCode}-${c.collectorNumber}`}
+                      onClick={() => addCard(c.name, c.setCode, c.scryfallId)}
+                      className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group"
+                    >
+                      <CardImage src={c.imageUrl} alt={c.name} className="w-full" />
+                      <div className="px-2 py-1.5 bg-stone-800 w-full flex-1">
+                        <p className="text-xs text-stone-300 font-medium">{c.setName}</p>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs text-stone-600 font-mono">{c.setCode.toUpperCase()}</span>
+                          <span className="text-xs font-mono text-stone-400 shrink-0">
+                            {c.price != null ? `$${c.price.toFixed(2)}` : '—'}
+                          </span>
+                        </div>
+                        {c.foilPrice != null && (
+                          <p className="text-xs font-mono text-amber-500">${c.foilPrice.toFixed(2)} foil</p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sealed product modal */}
       {sealedModalOpen && sealedSelectedGroup && (
