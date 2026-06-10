@@ -29,11 +29,18 @@ export default function CollectionChart({
   const padY = 16
 
   const totals = data.map(d => d.total)
+  const sorted = [...totals].sort((a, b) => a - b)
+  const p05 = sorted[Math.max(0, Math.floor(sorted.length * 0.05))]
+  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]
   const min = Math.min(...totals)
   const max = Math.max(...totals)
-  const range = max - min || 1
+  const clippedRange = p95 - p05 || 1
+  const buffer = clippedRange * 0.1
+  const yMin = p05 - buffer
+  const yMax = p95 + buffer
+  const range = yMax - yMin
 
-  const y = (v: number) => padY + (1 - (v - min) / range) * (height - padY * 2)
+  const y = (v: number) => padY + (1 - (v - yMin) / range) * (height - padY * 2)
 
   const firstDate = new Date(data[0].date).getTime()
   const lastDate = new Date(data[data.length - 1].date).getTime()
@@ -64,7 +71,7 @@ export default function CollectionChart({
 
   const gradId = `collectionChart-${width}-${height}`
 
-  const yLabels = [min, (min + max) / 2, max]
+  const yLabels = [yMin, (yMin + yMax) / 2, yMax]
   const MIN_LABEL_GAP = 40
   const candidateIndices = data.length <= 5
     ? data.map((_, i) => i)
