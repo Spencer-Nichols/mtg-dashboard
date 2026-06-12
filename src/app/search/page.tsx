@@ -54,7 +54,7 @@ function buildBrewQuery(
   for (const slug of keywords) parts.push(`function:${slug}`)
   if (raw.trim()) parts.push(raw.trim())
   if (oracleText?.trim()) parts.push(`o:"${oracleText.trim()}"`)
-  if (colors.size > 0) parts.push(`color<=${[...colors].join('')}`)
+  if (colors.size > 0) parts.push(`color=${[...colors].join('')}`)
   if (activeType) parts.push(`t:${activeType}`)
   if (maxCmc !== null) parts.push(`cmc<=${maxCmc}`)
   if (maxPrice !== null) parts.push(`usd<=${maxPrice}`)
