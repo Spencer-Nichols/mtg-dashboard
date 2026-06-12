@@ -42,7 +42,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-amber-500 tracking-wide">TapNTrack</h1>
-          <p className="text-stone-400 text-sm mt-1">Sign in to continue</p>
+          <p className="text-stone-400 text-sm mt-1">Track your MTG collection</p>
         </div>
 
         <Suspense>
