@@ -877,16 +877,6 @@ export default function SearchPage() {
                       ? 'Searching…'
                       : `${brewTotal.toLocaleString()} results · page ${clientPage} of ${totalClientPages}${hasMoreScryfall ? '+' : ''}`}
                   </p>
-                  <button
-                    onClick={() => setSortOwnedFirst(o => !o)}
-                    className={`lg:hidden text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                      sortOwnedFirst
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                    }`}
-                  >
-                    Owned first
-                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={goPrevPage} disabled={clientPage <= 1}
