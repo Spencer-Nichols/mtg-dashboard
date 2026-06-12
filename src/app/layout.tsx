@@ -9,9 +9,24 @@ import './globals.css'
 const geist = Geist({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://tapntrack.app'),
   title: 'TapNTrack',
-  description: 'MTG collection tracker',
+  description: 'Track your MTG collection, monitor card prices, and catch sealed product deals.',
   icons: { icon: '/favicon.svg' },
+  openGraph: {
+    title: 'TapNTrack',
+    description: 'Track your MTG collection, monitor card prices, and catch sealed product deals.',
+    url: 'https://tapntrack.app',
+    siteName: 'TapNTrack',
+    images: [{ url: '/favicon.svg', width: 512, height: 512, alt: 'TapNTrack' }],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'TapNTrack',
+    description: 'Track your MTG collection, monitor card prices, and catch sealed product deals.',
+    images: ['/favicon.svg'],
+  },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
