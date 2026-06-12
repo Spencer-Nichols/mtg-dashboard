@@ -45,7 +45,7 @@ const [scryfallRes, binderData, wishlistData] = await Promise.all([
 
     const binderEntries = binderData.data ?? []
     const binderIds = new Set(binderEntries.filter(e => e.scryfall_id).map(e => e.scryfall_id))
-    const binderNamesFallback = new Set(binderEntries.filter(e => !e.scryfall_id).map(e => e.base_name.toLowerCase()))
+    const binderNames = new Set(binderEntries.map(e => e.base_name.toLowerCase()))
 
     const wishlistEntries = wishlistData.data ?? []
     const wishlistIds = new Set(wishlistEntries.filter(e => e.scryfall_id).map(e => e.scryfall_id))
@@ -61,7 +61,7 @@ const [scryfallRes, binderData, wishlistData] = await Promise.all([
       price: c.prices?.usd ? parseFloat(c.prices.usd) : null,
       rarity: c.rarity ?? 'common',
       setName: c.set_name ?? '',
-      owned: binderIds.has(c.id) || binderNamesFallback.has(c.name.toLowerCase()),
+      owned: binderIds.has(c.id) || binderNames.has(c.name.toLowerCase()),
       onWishlist: wishlistIds.has(c.id) || wishlistNamesFallback.has(c.name.toLowerCase()),
     }))
 

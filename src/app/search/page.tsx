@@ -97,7 +97,7 @@ function KeywordLegend({ onInsert, activeKeywords }: {
                   <span className="px-1.5 py-0.5 rounded-full bg-amber-900/60 border border-amber-700 text-amber-300">{activeCount}</span>
                 )}
               </span>
-              <span className="text-stone-600">{isOpen ? '▾' : '▸'}</span>
+              <span className="text-stone-600 text-lg">{isOpen ? '▾' : '▸'}</span>
             </button>
             {isOpen && (
               <div className="px-3 py-2.5 bg-stone-900/30 border-t border-stone-800 flex flex-wrap gap-1.5">
@@ -255,7 +255,7 @@ function AccordionRow({ title, count, open, onToggle, children }: {
             </span>
           )}
         </span>
-        <span className="text-stone-600 text-xs">{open ? '▾' : '▸'}</span>
+        <span className="text-stone-600 text-lg">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="px-4 py-3 bg-stone-900/30 border-t-2 border-stone-800">
@@ -298,6 +298,8 @@ export default function SearchPage() {
   const [brewTotal, setBrewTotal] = useState(0)
   const [brewLoading, setBrewLoading] = useState(false)
   const [brewError, setBrewError] = useState<string | null>(null)
+
+  const [sortOwnedFirst, setSortOwnedFirst] = useState(true)
 
   const [wishlistAdded, setWishlistAdded] = useState<Set<string>>(new Set())
   const [wishlistLoading, setWishlistLoading] = useState<Set<string>>(new Set())
@@ -445,7 +447,10 @@ export default function SearchPage() {
 
   // ── Pagination ────────────────────────────────────────────
 
-  const visibleCards = allFetchedCards.slice((clientPage - 1) * CLIENT_PAGE_SIZE, clientPage * CLIENT_PAGE_SIZE)
+  const sortedCards = sortOwnedFirst
+    ? [...allFetchedCards].sort((a, b) => (b.owned ? 1 : 0) - (a.owned ? 1 : 0))
+    : allFetchedCards
+  const visibleCards = sortedCards.slice((clientPage - 1) * CLIENT_PAGE_SIZE, clientPage * CLIENT_PAGE_SIZE)
   const totalClientPages = Math.max(1, Math.ceil(allFetchedCards.length / CLIENT_PAGE_SIZE))
   const hasNextPage = clientPage < totalClientPages || hasMoreScryfall
 
@@ -660,7 +665,17 @@ export default function SearchPage() {
                 </AccordionRow>
               )}
 
-              <div className="flex justify-end pt-0.5">
+              <div className="flex items-center justify-between pt-0.5">
+                <button
+                  onClick={() => setSortOwnedFirst(o => !o)}
+                  className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                    sortOwnedFirst
+                      ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                      : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                  }`}
+                >
+                  Owned first
+                </button>
                 <button
                   onClick={clearAllFilters}
                   disabled={!anyBrewFilter}
@@ -695,7 +710,7 @@ export default function SearchPage() {
                       Clear All
                     </span>
                   )}
-                  <span className="text-stone-600 text-xs">{filtersOpen ? '▾' : '▸'}</span>
+                  <span className="text-stone-600 text-lg">{filtersOpen ? '▾' : '▸'}</span>
                 </div>
               </button>
               {filtersOpen && (
@@ -810,6 +825,19 @@ export default function SearchPage() {
                     </div>
                   </div>
                 )}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0">Sort</span>
+                  <button
+                    onClick={() => setSortOwnedFirst(o => !o)}
+                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                      sortOwnedFirst
+                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                        : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                    }`}
+                  >
+                    Owned first
+                  </button>
+                </div>
               </div>
               )}
             </div>
@@ -843,11 +871,23 @@ export default function SearchPage() {
             {/* Results header + pagination controls */}
             {(brewLoading || allFetchedCards.length > 0) && (
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs text-stone-600">
-                  {brewLoading && allFetchedCards.length === 0
-                    ? 'Searching…'
-                    : `${brewTotal.toLocaleString()} results · page ${clientPage} of ${totalClientPages}${hasMoreScryfall ? '+' : ''}`}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-stone-600">
+                    {brewLoading && allFetchedCards.length === 0
+                      ? 'Searching…'
+                      : `${brewTotal.toLocaleString()} results · page ${clientPage} of ${totalClientPages}${hasMoreScryfall ? '+' : ''}`}
+                  </p>
+                  <button
+                    onClick={() => setSortOwnedFirst(o => !o)}
+                    className={`lg:hidden text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                      sortOwnedFirst
+                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                        : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                    }`}
+                  >
+                    Owned first
+                  </button>
+                </div>
                 <div className="flex items-center gap-2">
                   <button onClick={goPrevPage} disabled={clientPage <= 1}
                     className="text-xs px-3 py-1 rounded-lg bg-stone-800 border-2 border-stone-700 text-stone-400 hover:text-stone-200 disabled:opacity-30 transition-colors">
@@ -883,6 +923,25 @@ export default function SearchPage() {
                     isAdded={wishlistAdded.has(c.name)}
                   />
                 ))}
+              </div>
+            )}
+
+            {/* Bottom pagination */}
+            {!brewLoading && allFetchedCards.length > 0 && (
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs text-stone-600">
+                  {`${brewTotal.toLocaleString()} results · page ${clientPage} of ${totalClientPages}${hasMoreScryfall ? '+' : ''}`}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={goPrevPage} disabled={clientPage <= 1}
+                    className="text-xs px-3 py-1 rounded-lg bg-stone-800 border-2 border-stone-700 text-stone-400 hover:text-stone-200 disabled:opacity-30 transition-colors">
+                    ← Prev
+                  </button>
+                  <button onClick={goNextPage} disabled={!hasNextPage || brewLoading}
+                    className="text-xs px-3 py-1 rounded-lg bg-stone-800 border-2 border-stone-700 text-stone-400 hover:text-stone-200 disabled:opacity-30 transition-colors">
+                    Next →
+                  </button>
+                </div>
               </div>
             )}
 
