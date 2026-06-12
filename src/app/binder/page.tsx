@@ -532,12 +532,12 @@ function CardRow({
       style={row.foilType && row.foilType !== 'none' ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.10) 35%, rgba(96, 165, 250, 0.10) 52%, rgba(52, 211, 153, 0.08) 68%, #1c1917 85%)' } : undefined}
       onClick={onToggleExpand}
     >
-      <td className="px-4 py-3 text-stone-200 font-medium max-w-0 w-full">
+      <td className="px-2 sm:px-4 py-3 text-stone-200 font-medium max-w-0 w-full">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <span className="truncate">{row.displayName}</span>
             {row.foilType && row.foilType !== 'none' && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">{row.foilType}</span>
+              <span className="hidden sm:inline text-[10px] px-1 py-px rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">{row.foilType}</span>
             )}
           </div>
         </div>
@@ -548,15 +548,15 @@ function CardRow({
       <td className="hidden md:table-cell lg:hidden xl:table-cell px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
       </td>
-      <td className={`px-2 py-3.5 text-right font-mono font-semibold whitespace-nowrap ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
+      <td className={`px-1 sm:px-2 py-3.5 text-right font-mono font-semibold whitespace-nowrap ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
         {row.dailyPct != null ? dailyPctLabel(row.dailyPct) : pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
         {row.dailyPct != null && row.pct != null && (
-          <p className={`text-xs font-normal ${pctColor(row.pct, row.purchasePrice)}`}>
+          <p className={`hidden sm:block text-xs font-normal ${pctColor(row.pct, row.purchasePrice)}`}>
             {pctLabel(row.pct, row.currentPrice, row.purchasePrice)} overall
           </p>
         )}
       </td>
-      <td className={`px-4 py-3.5 text-right font-mono whitespace-nowrap ${
+      <td className={`px-2 sm:px-4 py-3.5 text-right font-mono whitespace-nowrap ${
         diff != null && diff < 0 && (row.dailyPct ?? 0) > 0 ? 'text-amber-500' :
         diff != null && diff < 0 ? 'text-red-400' :
         diff != null && diff > 0 && (row.dailyPct ?? 0) < 0 ? 'text-amber-500' :
