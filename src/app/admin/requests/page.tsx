@@ -17,6 +17,7 @@ interface AdminUser {
   createdAt: string
   cardCount: number
   sealedCount: number
+  wishlistCount: number
   unlimitedBinder: boolean
 }
 
@@ -251,10 +252,13 @@ export default function AdminRequestsPage() {
                         {u.cardCount > 0 && (
                           <span className="text-xs text-stone-500 font-mono">{u.cardCount.toLocaleString()} cards</span>
                         )}
-                        {u.sealedCount > 0 && (
-                          <span className="text-xs text-stone-500 font-mono">{u.sealedCount} sealed on wishlist</span>
+                        {u.wishlistCount > 0 && (
+                          <span className="text-xs text-stone-500 font-mono">{u.wishlistCount} wishlisted</span>
                         )}
-                        {u.cardCount === 0 && u.sealedCount === 0 && (
+                        {u.sealedCount > 0 && (
+                          <span className="text-xs text-stone-500 font-mono">{u.sealedCount} sealed</span>
+                        )}
+                        {u.cardCount === 0 && u.wishlistCount === 0 && u.sealedCount === 0 && (
                           <span className="text-xs text-stone-600">No collection data</span>
                         )}
                       </div>
