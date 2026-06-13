@@ -1168,7 +1168,7 @@ export default function WishlistPage() {
                 className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-stone-800 transition-colors border-b border-stone-800 last:border-0 text-left"
               >
                 <div>
-                  <p className="text-stone-200 text-sm font-medium">{c.name}</p>
+                  <p className="text-stone-200 text-sm font-medium truncate min-w-0">{c.name}</p>
                   <p className="text-stone-500 text-xs">{c.type_line}</p>
                 </div>
                 {c.price && <span className="text-green-400 font-mono text-sm ml-4">${c.price.toFixed(2)}</span>}
@@ -1367,68 +1367,67 @@ export default function WishlistPage() {
         </div>
       )}
 
-      {atlSealedItems.filter(item => !isSealedDismissed(item.tcgProductId, sealedResults.get(item.id)?.currentPrice ?? Infinity)).length > 0 && (
-        <div className="mb-4 bg-green-950/40 border border-green-800/60 rounded-xl p-4">
-          <p className="text-green-400 font-semibold text-sm mb-3">↓ All-time low — lowest price ever recorded</p>
-          <div className="flex flex-wrap gap-3">
-            {atlSealedItems.filter(item => !isSealedDismissed(item.tcgProductId, sealedResults.get(item.id)?.currentPrice ?? Infinity)).map(item => {
-              const name = item.productName.includes(' - ') ? item.productName.slice(item.productName.indexOf(' - ') + 3) : item.productName
-              const currentPrice = sealedResults.get(item.id)?.currentPrice
-              const pct = currentPrice != null && item.snapshotPrice > 0 ? (currentPrice - item.snapshotPrice) / item.snapshotPrice * 100 : null
-              const saved = currentPrice != null ? item.snapshotPrice - currentPrice : null
-              return (
-                <div key={item.id} className="group relative bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
-                  <p className="text-stone-200 text-sm font-medium">{item.setName} — {name}</p>
-                  {currentPrice != null && (
-                    <p className="text-green-400 text-xs font-mono mt-0.5">
-                      ${item.snapshotPrice.toFixed(2)} → ${currentPrice.toFixed(2)} ({pctLabel(pct)})
-                      {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
-                    </p>
-                  )}
-                  {currentPrice != null && (
-                    <button
-                      onClick={() => dismissSealed(item.tcgProductId, currentPrice)}
-                      className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
-                    >
-                      Dismiss
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {/* Buy Opportunities — merged ATL + Good Time to Buy */}
+      {(() => {
+        const visibleAtl = atlSealedItems.filter(item => !isSealedDismissed(item.tcgProductId, sealedResults.get(item.id)?.currentPrice ?? Infinity))
+        const visibleBuy = buySuggestions
 
-      {buySuggestions.length > 0 && (
-        <div className="mb-6 bg-green-950/40 border border-green-800/60 rounded-xl p-4">
-          <p className="text-green-400 font-semibold text-sm mb-3">
-            Good Time to Buy — down {Math.abs(BUY_THRESHOLD)}%+ from when you started watching
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {buySuggestions.map(r => {
-              const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
-              return (
-                <div key={r.displayName} className="group relative bg-green-950/50 border border-green-800/40 rounded-lg px-3 py-2">
-                  <p className="text-stone-200 text-sm font-medium">{r.displayName}</p>
-                  <p className="text-green-400 text-xs font-mono mt-0.5">
-                    ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
-                    {saved != null && <span className="ml-1 text-green-500">−${saved.toFixed(2)}</span>}
-                  </p>
-                  {r.currentPrice != null && (
-                    <button
-                      onClick={() => dismissWishlistCard(r.displayName, r.currentPrice!)}
-                      className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
-                    >
-                      Dismiss
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+        if (visibleAtl.length === 0 && visibleBuy.length === 0) return null
+
+        return (
+          <div className="mb-6 bg-stone-900 border border-stone-800 rounded-xl p-4">
+            <p className="text-stone-300 font-semibold text-sm mb-3">Buy Opportunities</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+
+              {visibleAtl.map(item => {
+                const name = item.productName.includes(' - ') ? item.productName.slice(item.productName.indexOf(' - ') + 3) : item.productName
+                const currentPrice = sealedResults.get(item.id)?.currentPrice
+                const pct = currentPrice != null && item.snapshotPrice > 0 ? (currentPrice - item.snapshotPrice) / item.snapshotPrice : null
+                const saved = currentPrice != null ? item.snapshotPrice - currentPrice : null
+                return (
+                  <div key={item.id} className="group relative bg-green-950/30 border border-green-800/50 rounded-lg px-3 py-2 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-0.5 min-w-0">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-green-900/80 text-green-300 shrink-0">↓ ATL</span>
+                      <p className="text-stone-200 text-sm font-medium truncate min-w-0">{item.setName} — {name}</p>
+                    </div>
+                    {currentPrice != null && (
+                      <p className="text-green-400 text-[10px] sm:text-xs font-mono">
+                        ${item.snapshotPrice.toFixed(2)} → ${currentPrice.toFixed(2)} ({pctLabel(pct)})
+                        {saved != null && <span className="hidden sm:inline ml-1 text-green-500">−${saved.toFixed(2)}</span>}
+                      </p>
+                    )}
+                    {currentPrice != null && (
+                      <button onClick={() => dismissSealed(item.tcgProductId, currentPrice)} className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors">Dismiss</button>
+                    )}
+                  </div>
+                )
+              })}
+
+
+              {visibleBuy.map(r => {
+                const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
+                return (
+                  <div key={r.displayName} className="group relative bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-0.5 min-w-0">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-900/80 text-amber-300 shrink-0">↓ {Math.abs(BUY_THRESHOLD)}%+</span>
+                      <p className="text-stone-200 text-sm font-medium truncate min-w-0">{r.displayName}</p>
+                    </div>
+                    <p className="text-amber-400 text-[10px] sm:text-xs font-mono">
+                      ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
+                      {saved != null && <span className="hidden sm:inline ml-1 text-amber-500">−${saved.toFixed(2)}</span>}
+                    </p>
+                    {r.currentPrice != null && (
+                      <button onClick={() => dismissWishlistCard(r.displayName, r.currentPrice!)} className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors">Dismiss</button>
+                    )}
+                  </div>
+                )
+              })}
+
+
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Sealed Products */}
       <div id="wishlist-sealed" className="flex flex-col gap-4 mb-8">

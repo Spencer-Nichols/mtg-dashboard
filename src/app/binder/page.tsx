@@ -56,7 +56,6 @@ function makeRowKey(displayName: string, setCode: string | null | undefined, foi
   return `${displayName}||${setCode ?? ''}||${foilType}`
 }
 
-const SELL_THRESHOLD = -10 // % drop to flag as sell suggestion
 
 const LS_BINDER_ENTRIES = 'tnk:binder:entries'
 const LS_BINDER_RESULTS = 'tnk:binder:results'
@@ -532,12 +531,12 @@ function CardRow({
       style={row.foilType && row.foilType !== 'none' ? { background: 'linear-gradient(110deg, #1c1917 15%, rgba(167, 139, 250, 0.10) 35%, rgba(96, 165, 250, 0.10) 52%, rgba(52, 211, 153, 0.08) 68%, #1c1917 85%)' } : undefined}
       onClick={onToggleExpand}
     >
-      <td className="px-4 py-3 text-stone-200 font-medium max-w-0 w-full">
+      <td className="px-2 sm:px-4 py-3 text-stone-200 font-medium max-w-0 w-full">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <span className="truncate">{row.displayName}</span>
             {row.foilType && row.foilType !== 'none' && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40">{row.foilType}</span>
+              <span className="hidden sm:inline text-[10px] px-1 py-px rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">{row.foilType}</span>
             )}
           </div>
         </div>
@@ -548,15 +547,15 @@ function CardRow({
       <td className="hidden md:table-cell lg:hidden xl:table-cell px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
       </td>
-      <td className={`px-2 py-3.5 text-right font-mono font-semibold whitespace-nowrap ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
+      <td className={`px-1 sm:px-2 py-3.5 text-right font-mono font-semibold whitespace-nowrap ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
         {row.dailyPct != null ? dailyPctLabel(row.dailyPct) : pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
         {row.dailyPct != null && row.pct != null && (
-          <p className={`text-xs font-normal ${pctColor(row.pct, row.purchasePrice)}`}>
+          <p className={`hidden sm:block text-xs font-normal ${pctColor(row.pct, row.purchasePrice)}`}>
             {pctLabel(row.pct, row.currentPrice, row.purchasePrice)} overall
           </p>
         )}
       </td>
-      <td className={`px-4 py-3.5 text-right font-mono whitespace-nowrap ${
+      <td className={`px-2 sm:px-4 py-3.5 text-right font-mono whitespace-nowrap ${
         diff != null && diff < 0 && (row.dailyPct ?? 0) > 0 ? 'text-amber-500' :
         diff != null && diff < 0 ? 'text-red-400' :
         diff != null && diff > 0 && (row.dailyPct ?? 0) < 0 ? 'text-amber-500' :
@@ -763,7 +762,6 @@ export default function BinderPage() {
   const [showExport, setShowExport] = useState(false)
   const [exportSince, setExportSince] = useState(() => new Date().toISOString().slice(0, 10))
   const [exportStatus, setExportStatus] = useState<string | null>(null)
-  const [showSellSuggestions, setShowSellSuggestions] = useState(false)
   const [showImportCsv, setShowImportCsv] = useState(false)
   const [importCsvLoading, setImportCsvLoading] = useState(false)
   const [importCsvResults, setImportCsvResults] = useState<{ name: string; status: 'added' | 'skipped' | 'error'; message?: string; price?: number }[]>([])
@@ -1144,7 +1142,6 @@ export default function BinderPage() {
   const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
   const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT)
   const pending = filteredRows.filter(r => r.pct === null)
-  const sellSuggestions = filteredRows.filter(r => r.pct !== null && r.pct <= SELL_THRESHOLD)
 
   const totalCurrentValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
   const totalSnapshotValue = rows.reduce((sum, r) => sum + r.snapshotPrice, 0)
@@ -1184,17 +1181,6 @@ return (
               <span className="text-stone-700">·</span>
               <span className={`text-sm ${gainersDelta > 0 ? 'text-green-400' : 'text-stone-500'}`}>▲ {gainers.length}</span>
               <span className={`text-sm ${losersDelta < 0 ? 'text-red-400' : 'text-stone-500'}`}>▼ {losers.length}</span>
-              {sellSuggestions.length > 0 && (
-                <>
-                  <span className="text-stone-700">·</span>
-                  <button
-                    onClick={() => setShowSellSuggestions(s => !s)}
-                    className="text-sm text-amber-500 hover:text-amber-400 transition-colors"
-                  >
-                    ⚠ {sellSuggestions.length} down {Math.abs(SELL_THRESHOLD)}%+
-                  </button>
-                </>
-              )}
               <span className="text-stone-700">·</span>
               <span className="text-xs text-stone-500">{entries.length} cards</span>
               {binderUpdatedAt && (
@@ -1252,21 +1238,11 @@ return (
             <span className="text-sm font-semibold text-stone-600">— {flat.length}</span>
           </div>
         )}
-        {(sellSuggestions.length > 0 || binderUpdatedAt) && (
-          <div className="mt-2 flex items-center justify-between">
-            {sellSuggestions.length > 0 ? (
-              <button
-                onClick={() => setShowSellSuggestions(s => !s)}
-                className="text-xs text-amber-600 hover:text-amber-400 transition-colors"
-              >
-                {sellSuggestions.length} down {Math.abs(SELL_THRESHOLD)}%+ {showSellSuggestions ? '▲' : '▼'}
-              </button>
-            ) : <span />}
-            {binderUpdatedAt && (
-              <p className="text-xs text-stone-700">
-                Updated {binderUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
+        {binderUpdatedAt && (
+          <div className="mt-2 flex justify-end">
+            <p className="text-xs text-stone-700">
+              Updated {binderUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
         )}
       </div>
@@ -1522,25 +1498,7 @@ return (
             </div>
           )}
 
-          {/* Sell suggestions — collapsible */}
-          {showSellSuggestions && sellSuggestions.length > 0 && (
-            <div className="mb-6 bg-red-950/40 border border-red-800/60 rounded-xl p-4">
-              <div className="flex flex-wrap gap-3">
-                {sellSuggestions.map(r => {
-                  const lost = r.currentPrice != null ? r.currentPrice - r.snapshotPrice : null
-                  return (
-                    <div key={r.displayName} className="bg-red-950/50 border border-red-800/40 rounded-lg px-3 py-2">
-                      <p className="text-stone-200 text-sm font-medium">{r.displayName}</p>
-                      <p className="text-red-400 text-xs font-mono mt-0.5">
-                        ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
-                        {lost != null && <span className="ml-1 text-red-500">${lost.toFixed(2)}</span>}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+
 
           {/* Empty state */}
           {entries.length === 0 && !streaming && (
