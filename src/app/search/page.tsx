@@ -49,12 +49,13 @@ function buildBrewQuery(
   oracleText?: string,
   artTypes?: Set<string>,
   setCodes?: string[] | null,
+  colorMode?: 'exact' | 'includes',
 ): string {
   const parts: string[] = []
   for (const slug of keywords) parts.push(`function:${slug}`)
   if (raw.trim()) parts.push(raw.trim())
   if (oracleText?.trim()) parts.push(`o:"${oracleText.trim()}"`)
-  if (colors.size > 0) parts.push(`color=${[...colors].join('')}`)
+  if (colors.size > 0) parts.push(`color${colorMode === 'includes' ? '>=' : '='}${[...colors].join('')}`)
   if (activeType) parts.push(`t:${activeType}`)
   if (maxCmc !== null) parts.push(`cmc<=${maxCmc}`)
   if (maxPrice !== null) parts.push(`usd<=${maxPrice}`)
@@ -273,6 +274,7 @@ export default function SearchPage() {
   const [oracleText, setOracleText] = useState('')
   const [activeKeywords, setActiveKeywords] = useState<string[]>([])
   const [activeColors, setActiveColors] = useState<Set<string>>(new Set())
+  const [colorMode, setColorMode] = useState<'exact' | 'includes'>('exact')
   const [activeType, setActiveType] = useState<string | null>(null)
   const [maxCmc, setMaxCmc] = useState<number | null>(null)
   const [maxPrice, setMaxPrice] = useState<number | null>(null)
@@ -351,7 +353,7 @@ export default function SearchPage() {
   }, [])
 
   useEffect(() => {
-    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet))
+    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
     const raw = brewRawQueryRef.current
     setDisplayedQuery(
       filterPart
@@ -368,25 +370,25 @@ export default function SearchPage() {
       ? activeKeywords.filter(k => k !== slug)
       : [...activeKeywords, slug]
     setActiveKeywords(next)
-    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
+    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
   }
 
   function toggleColor(symbol: string) {
     const next = new Set(activeColors)
     next.has(symbol) ? next.delete(symbol) : next.add(symbol)
     setActiveColors(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
+    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
   }
 
   function selectType(type: string) {
     const next = activeType === type ? null : type
     setActiveType(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
   }
 
   function setCmcFilter(val: number | null) {
     setMaxCmc(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
   }
 
   function handlePriceSlider(val: number) {
@@ -398,25 +400,25 @@ export default function SearchPage() {
     setAllFetchedCards([])
     setScryfallPage(1)
     brewDebounceRef.current = setTimeout(() => {
-      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet)), 1, false)
+      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode), 1, false)
     }, 500)
   }
 
   function handleBrewRawInput(val: string) {
-    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet))
+    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
     const extraTerms = filterPart && val.startsWith(filterPart)
       ? val.slice(filterPart.length).trimStart()
       : val
     setBrewRawQuery(extraTerms)
     setDisplayedQuery(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, extraTerms, oracleText, activeArtTypes, getSetCodes(activeSet)))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, extraTerms, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
   }
 
   function toggleArtType(value: string) {
     const next = new Set(activeArtTypes)
     next.has(value) ? next.delete(value) : next.add(value)
     setActiveArtTypes(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, next, getSetCodes(activeSet)))
+    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, next, getSetCodes(activeSet), colorMode))
   }
 
   function selectSet(name: string) {
@@ -428,6 +430,7 @@ export default function SearchPage() {
   function clearAllFilters() {
     setActiveKeywords([])
     setActiveColors(new Set())
+    setColorMode('exact')
     setActiveType(null)
     setMaxCmc(null)
     setMaxPrice(null)
@@ -501,7 +504,7 @@ export default function SearchPage() {
     ...(activeType ? [{ label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
     ...(maxCmc !== null ? [{ label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
     ...(maxPrice !== null ? [{ label: `≤ $${maxPrice}`, onRemove: () => { handlePriceSlider(MAX_PRICE_SLIDER) } }] : []),
-    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => { setOracleText(''); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, '', activeArtTypes, getSetCodes(activeSet))) } }] : []),
+    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => { setOracleText(''); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)) } }] : []),
     ...[...activeArtTypes].map(v => ({
       label: ART_TYPES.find(a => a.value === v)?.label ?? v,
       onRemove: () => toggleArtType(v),
@@ -557,7 +560,7 @@ export default function SearchPage() {
                 <p className="text-xs text-stone-400 uppercase tracking-widest mb-1.5">Oracle Text</p>
                 <input
                   value={oracleText}
-                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value, activeArtTypes, getSetCodes(activeSet))) }}
+                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)) }}
                   placeholder='e.g. whenever you draw'
                   className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                 />
@@ -567,7 +570,7 @@ export default function SearchPage() {
               </AccordionRow>
 
               <AccordionRow title="Colors" count={activeColors.size} open={colorsOpen} onToggle={() => setColorsOpen(o => !o)}>
-                <div className="flex gap-2.5">
+                <div className="flex items-center gap-2.5 flex-wrap justify-center">
                   {COLOR_CHIPS.map(c => (
                     <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
                       className={`w-9 h-9 rounded-full text-sm font-bold border-2 transition-all ${
@@ -578,6 +581,20 @@ export default function SearchPage() {
                       {c.symbol}
                     </button>
                   ))}
+                  {activeColors.size > 0 && (
+                    <div className="flex items-center gap-1.5 ml-1">
+                      <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
+                      <button
+                        role="switch"
+                        aria-checked={colorMode === 'includes'}
+                        onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
+                        className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
+                      >
+                        <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
+                      </button>
+                      <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
+                    </div>
+                  )}
                 </div>
               </AccordionRow>
 
@@ -719,7 +736,7 @@ export default function SearchPage() {
                   <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
                   <input
                     value={oracleText}
-                    onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, e.target.value, activeArtTypes, getSetCodes(activeSet))) }}
+                    onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)) }}
                     placeholder='e.g. whenever you draw'
                     className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                   />
@@ -739,6 +756,20 @@ export default function SearchPage() {
                         </button>
                       ))}
                     </div>
+                    {activeColors.size > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
+                        <button
+                          role="switch"
+                          aria-checked={colorMode === 'includes'}
+                          onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
+                          className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
+                        </button>
+                        <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-stone-400 shrink-0">Type</span>
