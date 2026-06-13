@@ -16,10 +16,11 @@ export async function GET() {
 
   const userIds = data.users.map(u => u.id)
 
-  const [{ data: profiles }, { data: binderCounts }, { data: sealedCounts }, { data: flagProfiles }] = await Promise.all([
+  const [{ data: profiles }, { data: binderCounts }, { data: sealedCounts }, { data: wishlistCounts }, { data: flagProfiles }] = await Promise.all([
     service.from('user_profiles').select('user_id, last_seen, last_seen_page').in('user_id', userIds),
     service.from('binder_cards').select('user_id').in('user_id', userIds),
     service.from('sealed_wishlist').select('user_id').in('user_id', userIds),
+    service.from('wishlist_singles').select('user_id').in('user_id', userIds),
     service.from('user_profiles').select('user_id, unlimited_binder').in('user_id', userIds),
   ])
 
@@ -43,6 +44,11 @@ export async function GET() {
     sealedCountByUser.set(row.user_id, (sealedCountByUser.get(row.user_id) ?? 0) + 1)
   }
 
+  const wishlistCountByUser = new Map<string, number>()
+  for (const row of wishlistCounts ?? []) {
+    wishlistCountByUser.set(row.user_id, (wishlistCountByUser.get(row.user_id) ?? 0) + 1)
+  }
+
   const users = data.users.map(u => ({
     id: u.id,
     email: u.email,
@@ -51,6 +57,7 @@ export async function GET() {
     createdAt: u.created_at,
     cardCount: cardCountByUser.get(u.id) ?? 0,
     sealedCount: sealedCountByUser.get(u.id) ?? 0,
+    wishlistCount: wishlistCountByUser.get(u.id) ?? 0,
     unlimitedBinder: unlimitedBinderByUser.get(u.id) ?? false,
   }))
 
