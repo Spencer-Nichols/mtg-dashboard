@@ -1103,12 +1103,7 @@ export default function WishlistPage() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-stone-100">Wishlist</h1>
-          <p className="text-sm text-stone-500 mt-1">{singles.length} cards on your radar</p>
-          {sealedItems.length > 0 && (
-            <p className="text-xs text-stone-600 mt-0.5">
-              {sealedItems.length} sealed · {sealedGainers.length} up · {sealedLosers.length} down
-            </p>
-          )}
+          <p className="text-sm text-stone-500 mt-1">{singles.length} / 100 cards · {sealedItems.length} / 50 sealed</p>
         </div>
         <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-3">
           {streaming

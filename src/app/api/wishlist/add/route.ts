@@ -10,6 +10,14 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { count } = await supabase
+    .from('wishlist_singles')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+  if ((count ?? 0) >= 100) {
+    return NextResponse.json({ error: 'Wishlist limit reached (100 cards)' }, { status: 403 })
+  }
+
   const card = scryfallId
     ? await fetchById(scryfallId)
     : await fetchByName(name.trim(), setCode || undefined)
