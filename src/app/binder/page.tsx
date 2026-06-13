@@ -745,6 +745,7 @@ function CardTable({
 export default function BinderPage() {
   // Binder state
   const [entries, setEntries] = useState<BinderEntry[]>([])
+  const [unlimitedBinder, setUnlimitedBinder] = useState(false)
   const [results, setResults] = useState<Map<string, CardResult>>(new Map())
   const [streaming, setStreaming] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -820,6 +821,7 @@ export default function BinderPage() {
       .then(r => r.json())
       .then(data => {
         setEntries(data.entries)
+        setUnlimitedBinder(data.unlimitedBinder ?? false)
         localStorage.setItem(LS_BINDER_ENTRIES, JSON.stringify(data.entries))
         if (expandParamRef.current) {
           const match = (data.entries as BinderEntry[]).find(e => e.displayName === expandParamRef.current)
@@ -1190,7 +1192,9 @@ return (
               <span className={`text-sm ${gainersDelta > 0 ? 'text-green-400' : 'text-stone-500'}`}>▲ {gainers.length}</span>
               <span className={`text-sm ${losersDelta < 0 ? 'text-red-400' : 'text-stone-500'}`}>▼ {losers.length}</span>
               <span className="text-stone-700">·</span>
-              <span className="text-xs text-stone-500">{entries.length} cards</span>
+              <span className="text-xs text-stone-500">
+                {entries.length}{unlimitedBinder ? ' cards' : ` / 500 cards`}
+              </span>
               {binderUpdatedAt && (
                 <>
                   <span className="text-stone-700">·</span>

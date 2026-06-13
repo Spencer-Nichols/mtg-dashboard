@@ -17,6 +17,7 @@ interface AdminUser {
   createdAt: string
   cardCount: number
   sealedCount: number
+  unlimitedBinder: boolean
 }
 
 interface SealedItem {
@@ -99,6 +100,16 @@ export default function AdminRequestsPage() {
     setTriggeringSealed(false)
     setSealedTriggerStatus(res.ok ? 'ok' : 'error')
     setTimeout(() => setSealedTriggerStatus('idle'), 4000)
+  }
+
+  async function toggleUnlimitedBinder(userId: string, current: boolean) {
+    const next = !current
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, unlimitedBinder: next } : u))
+    await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, unlimitedBinder: next }),
+    })
   }
 
   async function toggleUserExpand(userId: string) {
@@ -225,12 +236,6 @@ export default function AdminRequestsPage() {
                 >
                   <p className="text-stone-300 text-sm truncate min-w-0">{u.email}</p>
                   <div className="flex items-center gap-3 shrink-0">
-                    {u.cardCount > 0 && (
-                      <span className="text-xs text-stone-600 font-mono">{u.cardCount} cards</span>
-                    )}
-                    {u.sealedCount > 0 && (
-                      <span className={`text-xs font-mono ${u.sealedCount >= 45 ? 'text-amber-400' : 'text-stone-600'}`}>{u.sealedCount}/50 sealed</span>
-                    )}
                     <span className="text-xs text-stone-600 font-mono">
                       {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
                       {u.lastSeen && u.lastSeenPage && <span> · {u.lastSeenPage}</span>}
@@ -241,16 +246,24 @@ export default function AdminRequestsPage() {
 
                 {expandedUsers.has(u.id) && (
                   <div className="px-5 pb-3 border-t border-stone-800/60 bg-stone-900/40">
-                    <div className="flex gap-4 pt-2.5 pb-2">
-                      {u.cardCount > 0 && (
-                        <span className="text-xs text-stone-500 font-mono">{u.cardCount.toLocaleString()} cards</span>
-                      )}
-                      {u.sealedCount > 0 && (
-                        <span className="text-xs text-stone-500 font-mono">{u.sealedCount} sealed on wishlist</span>
-                      )}
-                      {u.cardCount === 0 && u.sealedCount === 0 && (
-                        <span className="text-xs text-stone-600">No collection data</span>
-                      )}
+                    <div className="flex items-center justify-between gap-4 pt-2.5 pb-2">
+                      <div className="flex gap-4">
+                        {u.cardCount > 0 && (
+                          <span className="text-xs text-stone-500 font-mono">{u.cardCount.toLocaleString()} cards</span>
+                        )}
+                        {u.sealedCount > 0 && (
+                          <span className="text-xs text-stone-500 font-mono">{u.sealedCount} sealed on wishlist</span>
+                        )}
+                        {u.cardCount === 0 && u.sealedCount === 0 && (
+                          <span className="text-xs text-stone-600">No collection data</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => toggleUnlimitedBinder(u.id, u.unlimitedBinder)}
+                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${u.unlimitedBinder ? 'border-amber-600 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:border-stone-500'}`}
+                      >
+                        {u.unlimitedBinder ? '∞ unlimited binder' : 'set unlimited binder'}
+                      </button>
                     </div>
 
                     {u.sealedCount > 0 && (

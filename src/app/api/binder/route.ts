@@ -9,13 +9,14 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data, error } = await supabase
-      .from('binder_cards')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at')
+    const [{ data, error }, { data: profile }] = await Promise.all([
+      supabase.from('binder_cards').select('*').eq('user_id', user.id).order('created_at'),
+      supabase.from('user_profiles').select('unlimited_binder').eq('user_id', user.id).maybeSingle(),
+    ])
 
     if (error) throw error
+
+    const unlimitedBinder = profile?.unlimited_binder ?? false
 
     const entries = (data ?? []).map(row => ({
       id: row.id,
@@ -33,7 +34,7 @@ export async function GET() {
       dateAdded: row.date_added,
     }))
 
-    return NextResponse.json({ entries })
+    return NextResponse.json({ entries, unlimitedBinder })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
