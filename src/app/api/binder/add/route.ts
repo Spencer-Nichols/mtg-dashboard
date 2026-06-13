@@ -10,6 +10,14 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { count } = await supabase
+    .from('binder_cards')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+  if ((count ?? 0) >= 500) {
+    return NextResponse.json({ error: 'Binder limit reached (500 cards)' }, { status: 403 })
+  }
+
   // Check for duplicate
   const dupQuery = scryfallId
     ? supabase.from('binder_cards').select('base_name').eq('user_id', user.id).eq('scryfall_id', scryfallId).limit(1)

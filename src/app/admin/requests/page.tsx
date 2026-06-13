@@ -225,6 +225,12 @@ export default function AdminRequestsPage() {
                 >
                   <p className="text-stone-300 text-sm truncate min-w-0">{u.email}</p>
                   <div className="flex items-center gap-3 shrink-0">
+                    {u.cardCount > 0 && (
+                      <span className="text-xs text-stone-600 font-mono">{u.cardCount} cards</span>
+                    )}
+                    {u.sealedCount > 0 && (
+                      <span className={`text-xs font-mono ${u.sealedCount >= 45 ? 'text-amber-400' : 'text-stone-600'}`}>{u.sealedCount}/50 sealed</span>
+                    )}
                     <span className="text-xs text-stone-600 font-mono">
                       {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
                       {u.lastSeen && u.lastSeenPage && <span> · {u.lastSeenPage}</span>}

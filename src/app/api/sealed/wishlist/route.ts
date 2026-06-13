@@ -27,6 +27,14 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { count } = await supabase
+    .from('sealed_wishlist')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+  if ((count ?? 0) >= 50) {
+    return NextResponse.json({ error: 'Wishlist limit reached (50 items)' }, { status: 403 })
+  }
+
   const { error } = await supabase.from('sealed_wishlist').insert({
     user_id: user.id,
     tcg_product_id: tcgProductId,
