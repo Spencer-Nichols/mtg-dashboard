@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import CollectionChart from '@/components/CollectionChart'
 import OnboardingModal from '@/components/OnboardingModal'
+import setReleases from '@/lib/set-releases.json'
 
 interface Card {
   name: string
@@ -515,6 +516,21 @@ export default function HomePage() {
           >
             Feeling bored? 🎲
           </a>
+          {(() => {
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const next = setReleases.find(s => new Date(s.date) >= today)
+            if (!next) return null
+            const days = Math.round((new Date(next.date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+            return (
+              <div className="bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-2 text-center">
+                <p className="text-xs text-stone-500">{next.name}</p>
+                <p className="text-xs font-semibold text-amber-400">
+                  {days === 0 ? 'Releases today!' : `${days} day${days === 1 ? '' : 's'} away`}
+                </p>
+              </div>
+            )
+          })()}
         </div>
       )}
       </div>
