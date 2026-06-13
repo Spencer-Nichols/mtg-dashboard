@@ -1137,12 +1137,10 @@ export default function BinderPage() {
     ? rows.filter(r => r.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
     : rows
 
-  const SELL_THRESHOLD = -10
-const MIN_DAILY_PCT = 1
+  const MIN_DAILY_PCT = 1
   const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
   const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
   const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT)
-  const sellSuggestions = filteredRows.filter(r => r.pct !== null && r.pct <= SELL_THRESHOLD)
   const pending = filteredRows.filter(r => r.pct === null)
 
   const totalCurrentValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
@@ -1501,26 +1499,6 @@ return (
           )}
 
 
-          {/* Sell suggestions */}
-          {sellSuggestions.length > 0 && (
-            <div className="mb-6 bg-red-950/40 border border-red-800/60 rounded-xl p-4">
-              <p className="text-red-400 font-semibold text-sm mb-3">Down {Math.abs(SELL_THRESHOLD)}%+ from when you added them</p>
-              <div className="flex flex-wrap gap-3">
-                {sellSuggestions.map(r => {
-                  const lost = r.currentPrice != null ? r.currentPrice - r.snapshotPrice : null
-                  return (
-                    <div key={r.displayName} className="bg-red-950/50 border border-red-800/40 rounded-lg px-3 py-2">
-                      <p className="text-stone-200 text-sm font-medium">{r.displayName}</p>
-                      <p className="text-red-400 text-xs font-mono mt-0.5">
-                        ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})
-                        {lost != null && <span className="ml-1 text-red-500">${lost.toFixed(2)}</span>}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Empty state */}
           {entries.length === 0 && !streaming && (
