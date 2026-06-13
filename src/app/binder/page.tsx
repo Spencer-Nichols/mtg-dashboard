@@ -29,6 +29,7 @@ interface CardResult {
   pct: number | null
   dailyPct: number | null
   dailyBaseline: number | null
+  dailyDaysAgo?: number | null
   imageUrl: string | null
   backImageUrl?: string | null
   fromCache?: boolean
@@ -86,10 +87,11 @@ function pctLabel(pct: number | null, currentPrice?: number | null, purchasePric
   return `${arrow}${Math.abs(pct).toFixed(1)}%`
 }
 
-function dailyPctLabel(dailyPct: number | null) {
+function dailyPctLabel(dailyPct: number | null, daysAgo?: number | null) {
   if (dailyPct === null) return null
   const arrow = dailyPct > 0 ? '▲' : dailyPct < 0 ? '▼' : ''
-  return <>{arrow}{Math.abs(dailyPct).toFixed(1)}% <span className="text-xs font-normal">today</span></>
+  const timeLabel = !daysAgo || daysAgo <= 1 ? 'today' : `${daysAgo}d ago`
+  return <>{arrow}{Math.abs(dailyPct).toFixed(1)}% <span className="text-xs font-normal">{timeLabel}</span></>
 }
 
 function CardImage({ src, alt, className }: { src: string | null | undefined; alt: string; className: string }) {
@@ -548,7 +550,7 @@ function CardRow({
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
       </td>
       <td className={`px-1 sm:px-2 py-3.5 text-right font-mono font-semibold whitespace-nowrap ${pctColor(row.dailyPct ?? row.pct, row.purchasePrice)}`}>
-        {row.dailyPct != null ? dailyPctLabel(row.dailyPct) : pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
+        {row.dailyPct != null ? dailyPctLabel(row.dailyPct, row.dailyDaysAgo) : pctLabel(row.pct, row.currentPrice, row.purchasePrice)}
         {row.dailyPct != null && row.pct != null && (
           <p className={`hidden sm:block text-xs font-normal ${pctColor(row.pct, row.purchasePrice)}`}>
             {pctLabel(row.pct, row.currentPrice, row.purchasePrice)} overall
@@ -1121,16 +1123,21 @@ export default function BinderPage() {
       : result?.pct ?? null
 
     const latestDay = latestEntry?.date.split('T')[0] ?? null
-    const priorEntry = sortedHistory.filter(h => h.date.split('T')[0] !== latestDay).at(-1)
-    const lastPriorDay: [string, number] | undefined = priorEntry ? [priorEntry.date.split('T')[0], priorEntry.price] : undefined
-    const dailyBaseline = lastPriorDay?.[1] ?? null
-    const rawDailyPct = currentPrice != null && lastPriorDay && lastPriorDay[1] > 0
-      ? ((currentPrice - lastPriorDay[1]) / lastPriorDay[1]) * 100
+    // Find the most recent history entry with a price that actually differs from current
+    const lastChangedEntry = currentPrice != null
+      ? [...sortedHistory].reverse().slice(1).find(h => Math.abs(h.price - currentPrice) >= 0.01)
+      : undefined
+    const dailyBaseline = lastChangedEntry?.price ?? null
+    const rawDailyPct = currentPrice != null && lastChangedEntry != null && lastChangedEntry.price > 0
+      ? ((currentPrice - lastChangedEntry.price) / lastChangedEntry.price) * 100
       : null
     const dailyPct = rawDailyPct !== null && Math.abs(rawDailyPct) < 0.01 ? null : rawDailyPct
+    const dailyDaysAgo = lastChangedEntry && latestDay
+      ? Math.round((new Date(latestDay).getTime() - new Date(lastChangedEntry.date.split('T')[0]).getTime()) / 86400000)
+      : null
     return result
-      ? { ...result, pct, dailyPct, dailyBaseline, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
-      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, imageUrl: null, fromCache: false, rowKey: rKey, foilType: e.foilType, note: e.note ?? undefined }
+      ? { ...result, pct, dailyPct, dailyBaseline, dailyDaysAgo, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
+      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, dailyDaysAgo: null, imageUrl: null, fromCache: false, rowKey: rKey, foilType: e.foilType, note: e.note ?? undefined }
   })
 
   const filteredRows = searchQuery.trim()
@@ -1138,9 +1145,10 @@ export default function BinderPage() {
     : rows
 
   const MIN_DAILY_PCT = 1
-  const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
-  const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
-  const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT)
+  const MAX_DAILY_DAYS = 2
+  const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
+  const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
+  const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT || (r.dailyDaysAgo ?? 1) > MAX_DAILY_DAYS)
   const pending = filteredRows.filter(r => r.pct === null)
 
   const totalCurrentValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
@@ -1149,8 +1157,8 @@ export default function BinderPage() {
   const totalPct = totalDelta != null && totalSnapshotValue > 0 ? (totalDelta / totalSnapshotValue) * 100 : null
   const binderSparkValues = binderHistory.map(h => h.total)
 
-  const gainersDelta = gainers.reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
-  const losersDelta = losers.reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
+  const gainersDelta = gainers.filter(r => (r.dailyDaysAgo ?? 1) <= 1).reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
+  const losersDelta = losers.filter(r => (r.dailyDaysAgo ?? 1) <= 1).reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
 
 return (
     <div>

@@ -85,9 +85,14 @@ export default function LoginPage() {
                 Sign in
               </button>
 
-              <Link href="/forgot-password" className="text-center text-sm text-stone-500 hover:text-stone-300 transition-colors">
-                Forgot password?
-              </Link>
+              <div className="flex flex-col gap-1 text-center">
+                <Link href="/forgot-password" className="text-sm text-stone-500 hover:text-stone-300 transition-colors">
+                  Forgot password?
+                </Link>
+                <Link href="/forgot-password" className="text-xs text-stone-600 hover:text-stone-400 transition-colors">
+                  Reset link expired? Request a new one
+                </Link>
+              </div>
             </form>
 
             <button
