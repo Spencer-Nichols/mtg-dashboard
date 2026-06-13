@@ -56,7 +56,6 @@ function makeRowKey(displayName: string, setCode: string | null | undefined, foi
   return `${displayName}||${setCode ?? ''}||${foilType}`
 }
 
-const SELL_THRESHOLD = -10 // % drop to flag as sell suggestion
 
 const LS_BINDER_ENTRIES = 'tnk:binder:entries'
 const LS_BINDER_RESULTS = 'tnk:binder:results'
@@ -763,7 +762,6 @@ export default function BinderPage() {
   const [showExport, setShowExport] = useState(false)
   const [exportSince, setExportSince] = useState(() => new Date().toISOString().slice(0, 10))
   const [exportStatus, setExportStatus] = useState<string | null>(null)
-  const [showSellSuggestions, setShowSellSuggestions] = useState(false)
   const [showImportCsv, setShowImportCsv] = useState(false)
   const [importCsvLoading, setImportCsvLoading] = useState(false)
   const [importCsvResults, setImportCsvResults] = useState<{ name: string; status: 'added' | 'skipped' | 'error'; message?: string; price?: number }[]>([])
@@ -1139,12 +1137,13 @@ export default function BinderPage() {
     ? rows.filter(r => r.displayName.toLowerCase().includes(searchQuery.toLowerCase()))
     : rows
 
-  const MIN_DAILY_PCT = 1
+  const SELL_THRESHOLD = -10
+const MIN_DAILY_PCT = 1
   const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
   const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
   const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT)
-  const pending = filteredRows.filter(r => r.pct === null)
   const sellSuggestions = filteredRows.filter(r => r.pct !== null && r.pct <= SELL_THRESHOLD)
+  const pending = filteredRows.filter(r => r.pct === null)
 
   const totalCurrentValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
   const totalSnapshotValue = rows.reduce((sum, r) => sum + r.snapshotPrice, 0)
@@ -1184,17 +1183,6 @@ return (
               <span className="text-stone-700">·</span>
               <span className={`text-sm ${gainersDelta > 0 ? 'text-green-400' : 'text-stone-500'}`}>▲ {gainers.length}</span>
               <span className={`text-sm ${losersDelta < 0 ? 'text-red-400' : 'text-stone-500'}`}>▼ {losers.length}</span>
-              {sellSuggestions.length > 0 && (
-                <>
-                  <span className="text-stone-700">·</span>
-                  <button
-                    onClick={() => setShowSellSuggestions(s => !s)}
-                    className="text-sm text-amber-500 hover:text-amber-400 transition-colors"
-                  >
-                    ⚠ {sellSuggestions.length} down {Math.abs(SELL_THRESHOLD)}%+
-                  </button>
-                </>
-              )}
               <span className="text-stone-700">·</span>
               <span className="text-xs text-stone-500">{entries.length} cards</span>
               {binderUpdatedAt && (
@@ -1252,21 +1240,11 @@ return (
             <span className="text-sm font-semibold text-stone-600">— {flat.length}</span>
           </div>
         )}
-        {(sellSuggestions.length > 0 || binderUpdatedAt) && (
-          <div className="mt-2 flex items-center justify-between">
-            {sellSuggestions.length > 0 ? (
-              <button
-                onClick={() => setShowSellSuggestions(s => !s)}
-                className="text-xs text-amber-600 hover:text-amber-400 transition-colors"
-              >
-                {sellSuggestions.length} down {Math.abs(SELL_THRESHOLD)}%+ {showSellSuggestions ? '▲' : '▼'}
-              </button>
-            ) : <span />}
-            {binderUpdatedAt && (
-              <p className="text-xs text-stone-700">
-                Updated {binderUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
-            )}
+        {binderUpdatedAt && (
+          <div className="mt-2 flex justify-end">
+            <p className="text-xs text-stone-700">
+              Updated {binderUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
           </div>
         )}
       </div>
@@ -1522,9 +1500,11 @@ return (
             </div>
           )}
 
-          {/* Sell suggestions — collapsible */}
-          {showSellSuggestions && sellSuggestions.length > 0 && (
+
+          {/* Sell suggestions */}
+          {sellSuggestions.length > 0 && (
             <div className="mb-6 bg-red-950/40 border border-red-800/60 rounded-xl p-4">
+              <p className="text-red-400 font-semibold text-sm mb-3">Down {Math.abs(SELL_THRESHOLD)}%+ from when you added them</p>
               <div className="flex flex-wrap gap-3">
                 {sellSuggestions.map(r => {
                   const lost = r.currentPrice != null ? r.currentPrice - r.snapshotPrice : null
