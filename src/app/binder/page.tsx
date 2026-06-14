@@ -1248,6 +1248,10 @@ return (
             </span>
             <span className="text-stone-700">·</span>
             <span className="text-sm font-semibold text-stone-600">— {flat.length}</span>
+            <span className="text-stone-700">·</span>
+            <span className="text-xs text-stone-500">
+              {entries.length}{unlimitedBinder ? '' : ' / 500'}
+            </span>
           </div>
         )}
         {binderUpdatedAt && (
