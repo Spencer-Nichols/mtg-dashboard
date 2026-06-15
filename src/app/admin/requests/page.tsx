@@ -183,7 +183,7 @@ export default function AdminRequestsPage() {
                 <button
                   onClick={() => sendInvite(r.id, r.email)}
                   disabled={pendingAction === r.id}
-                  className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
+                  className="text-[11px] px-2.5 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
                 >
                   {pendingAction === r.id ? 'Sending…' : 'Send invite'}
                 </button>
