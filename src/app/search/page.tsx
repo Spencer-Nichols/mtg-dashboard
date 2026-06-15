@@ -889,7 +889,7 @@ export default function SearchPage() {
                   <span className="text-xs text-stone-400 shrink-0">Sort</span>
                   {(['rarity', 'usd', 'name'] as const).map(s => {
                     const isActive = sortBy === s
-                    const label = s === 'edhrec' ? 'EDHREC' : s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
+                    const label = s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
                     return (
                       <button key={s} onClick={() => {
                         if (isActive) {

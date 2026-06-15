@@ -233,7 +233,7 @@ function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: Car
   const [editPurchasePrice, setEditPurchasePrice] = useState(row.purchasePrice != null ? String(row.purchasePrice) : '')
   const [editNote, setEditNote] = useState(row.note ?? '')
   const [editSaving, setEditSaving] = useState(false)
-  const [selectedScryfallId, setSelectedScryfallId] = useState<string | undefined>(row.scryfallId ?? undefined)
+  const [selectedScryfallId, setSelectedScryfallId] = useState<string | undefined>(undefined)
   const [selectedSetCode, setSelectedSetCode] = useState<string | undefined>(row.setCode ?? undefined)
 
   useEffect(() => {
