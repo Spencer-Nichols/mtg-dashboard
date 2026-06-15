@@ -43,6 +43,8 @@ const ART_TYPES = [
   { label: 'Secret Lair Promo', value: 'set:slp' },
 ]
 
+const KEYWORD_QUERY_MAP = new Map(KEYWORDS.map(k => [k.slug, k.query ?? `function:${k.slug}`]))
+
 function buildBrewQuery(
   keywords: string[], colors: Set<string>, activeType: string | null,
   maxCmc: number | null, maxPrice: number | null, raw: string,
@@ -52,9 +54,9 @@ function buildBrewQuery(
   colorMode?: 'exact' | 'includes',
 ): string {
   const parts: string[] = []
-  for (const slug of keywords) parts.push(`function:${slug}`)
+  for (const slug of keywords) parts.push(KEYWORD_QUERY_MAP.get(slug) ?? `function:${slug}`)
   if (raw.trim()) parts.push(raw.trim())
-  if (oracleText?.trim()) parts.push(`o:"${oracleText.trim()}"`)
+  if (oracleText?.trim()) parts.push(`o:"${oracleText.trim().replace(/"/g, '')}"`)
   if (colors.size > 0) {
     if (colorMode === 'includes' && colors.size > 1) {
       parts.push(`(${[...colors].map(c => `color>=${c}`).join(' or ')})`)
@@ -308,6 +310,8 @@ export default function SearchPage() {
   const [brewError, setBrewError] = useState<string | null>(null)
 
   const [sortOwnedFirst, setSortOwnedFirst] = useState(true)
+  const [sortBy, setSortBy] = useState<'edhrec' | 'rarity' | 'usd' | 'name'>('edhrec')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const [wishlistAdded, setWishlistAdded] = useState<Set<string>>(new Set())
   const [wishlistLoading, setWishlistLoading] = useState<Set<string>>(new Set())
@@ -326,7 +330,7 @@ export default function SearchPage() {
     }
     setBrewLoading(true)
     setBrewError(null)
-    const res = await fetch(`/api/search/brew?q=${encodeURIComponent(q)}&page=${page}`)
+    const res = await fetch(`/api/search/brew?q=${encodeURIComponent(q)}&page=${page}&sort=${sortBy}&dir=${sortDir}`)
     const data = await res.json()
     if (!res.ok) {
       setBrewError(data.error ?? 'No results found')
@@ -340,7 +344,7 @@ export default function SearchPage() {
       setScryfallPage(page)
     }
     setBrewLoading(false)
-  }, [])
+  }, [sortBy, sortDir])
 
   function scheduleFetch(q: string) {
     if (brewDebounceRef.current) clearTimeout(brewDebounceRef.current)
@@ -571,10 +575,6 @@ export default function SearchPage() {
                   className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                 />
               </div>
-              <AccordionRow title="Keywords" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
-                <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
-              </AccordionRow>
-
               <AccordionRow title="Colors" count={activeColors.size} open={colorsOpen} onToggle={() => setColorsOpen(o => !o)}>
                 <div className="flex items-center gap-2.5 flex-wrap justify-center">
                   {COLOR_CHIPS.map(c => (
@@ -587,20 +587,18 @@ export default function SearchPage() {
                       {c.symbol}
                     </button>
                   ))}
-                  {activeColors.size > 0 && (
-                    <div className="flex items-center gap-1.5 ml-1">
-                      <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
-                      <button
-                        role="switch"
-                        aria-checked={colorMode === 'includes'}
-                        onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
-                        className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
-                      >
-                        <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
-                      </button>
-                      <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5 ml-1">
+                    <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
+                    <button
+                      role="switch"
+                      aria-checked={colorMode === 'includes'}
+                      onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
+                      className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
+                    >
+                      <span className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
+                    </button>
+                    <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
+                  </div>
                 </div>
               </AccordionRow>
 
@@ -617,6 +615,10 @@ export default function SearchPage() {
                     </button>
                   ))}
                 </div>
+              </AccordionRow>
+
+              <AccordionRow title="Keywords" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
+                <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
               </AccordionRow>
 
               <AccordionRow title="CMC" count={maxCmc !== null ? 1 : 0} open={cmcOpen} onToggle={() => setCmcOpen(o => !o)}>
@@ -688,17 +690,42 @@ export default function SearchPage() {
                 </AccordionRow>
               )}
 
-              <div className="flex items-center justify-between pt-0.5">
-                <button
-                  onClick={() => setSortOwnedFirst(o => !o)}
-                  className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                    sortOwnedFirst
-                      ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                      : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                  }`}
-                >
-                  Owned first
-                </button>
+              <div className="flex items-center justify-between pt-0.5 flex-wrap gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(['rarity', 'usd', 'name'] as const).map(s => {
+                    const isActive = sortBy === s
+                    const label = s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
+                    return (
+                      <button key={s} onClick={() => {
+                        if (isActive) {
+                          const nextDir = sortDir === 'desc' ? 'asc' : 'desc'
+                          setSortDir(nextDir)
+                        } else {
+                          setSortBy(s)
+                          setSortDir('desc')
+                        }
+                        runBrewFetch(displayedQuery, 1, false)
+                      }}
+                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                          isActive
+                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                            : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                        }`}>
+                        {isActive ? (sortDir === 'desc' ? '▼ ' : '▲ ') : ''}{label}
+                      </button>
+                    )
+                  })}
+                  <button
+                    onClick={() => setSortOwnedFirst(o => !o)}
+                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                      sortOwnedFirst
+                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                        : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
+                    }`}
+                  >
+                    Owned first
+                  </button>
+                </div>
                 <button
                   onClick={clearAllFilters}
                   disabled={!anyBrewFilter}
@@ -738,6 +765,48 @@ export default function SearchPage() {
               </button>
               {filtersOpen && (
               <div className="px-4 py-3 bg-stone-900/30 border-t-2 border-stone-800 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0">Color</span>
+                  <div className="flex gap-1.5">
+                    {COLOR_CHIPS.map(c => (
+                      <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
+                        className={`w-7 h-7 rounded-full text-xs font-bold border-2 transition-all ${
+                          activeColors.has(c.symbol)
+                            ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
+                            : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
+                        }`}>
+                        {c.symbol}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
+                    <button
+                      role="switch"
+                      aria-checked={colorMode === 'includes'}
+                      onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
+                      className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
+                    >
+                      <span className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
+                    </button>
+                    <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-stone-400 shrink-0">Type</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CARD_TYPES.map(t => (
+                      <button key={t} onClick={() => selectType(t.toLowerCase())}
+                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                          activeType === t.toLowerCase()
+                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                        }`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
                   <input
@@ -746,52 +815,6 @@ export default function SearchPage() {
                     placeholder='e.g. whenever you draw'
                     className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                   />
-                </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-stone-400 shrink-0">Color</span>
-                    <div className="flex gap-1.5">
-                      {COLOR_CHIPS.map(c => (
-                        <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
-                          className={`w-7 h-7 rounded-full text-xs font-bold border-2 transition-all ${
-                            activeColors.has(c.symbol)
-                              ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
-                              : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
-                          }`}>
-                          {c.symbol}
-                        </button>
-                      ))}
-                    </div>
-                    {activeColors.size > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
-                        <button
-                          role="switch"
-                          aria-checked={colorMode === 'includes'}
-                          onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
-                          className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
-                        >
-                          <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
-                        </button>
-                        <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-stone-400 shrink-0">Type</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {CARD_TYPES.map(t => (
-                        <button key={t} onClick={() => selectType(t.toLowerCase())}
-                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                            activeType === t.toLowerCase()
-                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                          }`}>
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-3">
                   <div className="flex items-center gap-2">
@@ -862,8 +885,31 @@ export default function SearchPage() {
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-stone-400 shrink-0">Sort</span>
+                  {(['rarity', 'usd', 'name'] as const).map(s => {
+                    const isActive = sortBy === s
+                    const label = s === 'edhrec' ? 'EDHREC' : s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
+                    return (
+                      <button key={s} onClick={() => {
+                        if (isActive) {
+                          const nextDir = sortDir === 'desc' ? 'asc' : 'desc'
+                          setSortDir(nextDir)
+                        } else {
+                          setSortBy(s)
+                          setSortDir('desc')
+                        }
+                        runBrewFetch(displayedQuery, 1, false)
+                      }}
+                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+                          isActive
+                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                        }`}>
+                        {isActive ? (sortDir === 'desc' ? '▼ ' : '▲ ') : ''}{label}
+                      </button>
+                    )
+                  })}
                   <button
                     onClick={() => setSortOwnedFirst(o => !o)}
                     className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${

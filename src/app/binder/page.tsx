@@ -233,6 +233,8 @@ function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: Car
   const [editPurchasePrice, setEditPurchasePrice] = useState(row.purchasePrice != null ? String(row.purchasePrice) : '')
   const [editNote, setEditNote] = useState(row.note ?? '')
   const [editSaving, setEditSaving] = useState(false)
+  const [selectedScryfallId, setSelectedScryfallId] = useState<string | undefined>(row.scryfallId ?? undefined)
+  const [selectedSetCode, setSelectedSetCode] = useState<string | undefined>(row.setCode ?? undefined)
 
   useEffect(() => {
     const baseName = row.displayName
@@ -339,8 +341,10 @@ function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: Car
               <p className="text-sm text-stone-600">Loading printings…</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {editPrints.map(p => (
-                  <button key={p.scryfallId ?? p.setCode} onClick={() => isNew ? addNew(p.scryfallId, p.setCode) : saveEdit(p.scryfallId, p.setCode)} disabled={editSaving} className="flex flex-col w-full rounded-xl border border-stone-700 hover:border-amber-600 transition-colors overflow-hidden text-left group disabled:opacity-50">
+                {editPrints.map(p => {
+                  const isSelected = (p.scryfallId && p.scryfallId === selectedScryfallId) || (!p.scryfallId && p.setCode === selectedSetCode)
+                  return (
+                  <button key={p.scryfallId ?? p.setCode} onClick={() => { setSelectedScryfallId(p.scryfallId); setSelectedSetCode(p.setCode) }} disabled={editSaving} className={`flex flex-col w-full rounded-xl border transition-colors overflow-hidden text-left group disabled:opacity-50 ${isSelected ? 'border-amber-500 ring-1 ring-amber-500/50' : 'border-stone-700 hover:border-amber-600'}`}>
                     <CardImage src={p.imageUrl} alt={p.name} className="w-full" />
                     <div className="px-2 py-1.5 bg-stone-800 w-full flex-1">
                       <p className="text-xs text-stone-300 font-medium">{p.setName}</p>
@@ -350,7 +354,8 @@ function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: Car
                       </div>
                     </div>
                   </button>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -358,7 +363,7 @@ function EditModal({ row, onClose, isNew = false, onAdded, onSaved }: { row: Car
 
         <div className="flex gap-2 justify-end px-5 py-4 border-t border-stone-800">
           <button onClick={onClose} className="text-sm px-4 py-1.5 rounded border border-stone-700 text-stone-400 hover:text-stone-200 transition-colors">Cancel</button>
-          <button onClick={() => isNew ? addNew() : saveEdit()} disabled={editSaving} className="text-sm px-4 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50">{editSaving ? (isNew ? 'Adding…' : 'Saving…') : (isNew ? 'Add to binder' : 'Save')}</button>
+          <button onClick={() => isNew ? addNew(selectedScryfallId, selectedSetCode) : saveEdit(selectedScryfallId, selectedSetCode)} disabled={editSaving} className="text-sm px-4 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50">{editSaving ? (isNew ? 'Adding…' : 'Saving…') : (isNew ? 'Add to binder' : 'Save')}</button>
         </div>
       </div>
     </div>

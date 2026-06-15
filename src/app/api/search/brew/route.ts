@@ -19,10 +19,12 @@ export interface BrewCard {
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim()
   const page = Math.max(1, parseInt(req.nextUrl.searchParams.get('page') ?? '1', 10))
+  const sort = req.nextUrl.searchParams.get('sort') ?? 'edhrec'
+  const dir = req.nextUrl.searchParams.get('dir') ?? 'desc'
   if (!q) return NextResponse.json({ cards: [], total: 0, hasMore: false })
 
   try {
-    const scryfallUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec&unique=cards&page=${page}`
+    const scryfallUrl = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=${sort}&direction=${dir}&unique=cards&page=${page}`
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
