@@ -32,6 +32,8 @@ const RARITY_COLOR: Record<string, string> = {
   uncommon: 'text-blue-400', common: 'text-stone-400',
 }
 
+const RARITY_RANK: Record<string, number> = { mythic: 4, rare: 3, uncommon: 2, common: 1 }
+
 const ART_TYPES = [
   { label: 'Showcase', value: 'is:showcase' },
   { label: 'Extended Art', value: 'is:extendedart' },
@@ -141,10 +143,10 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
 }) {
   const isOnWishlist = card.onWishlist || isAdded
   return (
-    <div className="flex flex-col gap-1.5 group">
-      <div className={`relative rounded-xl overflow-hidden shadow-lg transition-all ${card.owned ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-green-600/60' : isOnWishlist ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-amber-600/60' : ''}`}>
+    <div className="flex flex-col gap-1.5 group relative lg:hover:z-50">
+      <div className={`relative rounded-xl shadow-lg transition-transform duration-200 origin-center lg:group-hover:scale-150 lg:group-hover:ring-2 lg:group-hover:ring-amber-500/70 ${card.owned ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-green-600/60' : isOnWishlist ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-amber-600/60' : ''}`}>
         {card.imageUrl
-          ? <img src={card.imageUrl} alt={card.name} className="w-full block" />
+          ? <img src={card.imageUrl} alt={card.name} className="w-full block rounded-xl" />
           : <div className="aspect-[5/7] bg-stone-800 rounded-xl flex items-center justify-center text-stone-600 text-xs p-2 text-center">{card.name}</div>}
 
         {card.owned && (
@@ -330,7 +332,7 @@ export default function SearchPage() {
     }
     setBrewLoading(true)
     setBrewError(null)
-    const res = await fetch(`/api/search/brew?q=${encodeURIComponent(q)}&page=${page}&sort=${sortBy}&dir=${sortDir}`)
+    const res = await fetch(`/api/search/brew?q=${encodeURIComponent(q)}&page=${page}`)
     const data = await res.json()
     if (!res.ok) {
       setBrewError(data.error ?? 'No results found')
@@ -344,7 +346,7 @@ export default function SearchPage() {
       setScryfallPage(page)
     }
     setBrewLoading(false)
-  }, [sortBy, sortDir])
+  }, [])
 
   function scheduleFetch(q: string) {
     if (brewDebounceRef.current) clearTimeout(brewDebounceRef.current)
@@ -460,9 +462,17 @@ export default function SearchPage() {
 
   // ── Pagination ────────────────────────────────────────────
 
-  const sortedCards = sortOwnedFirst
-    ? [...allFetchedCards].sort((a, b) => (b.owned ? 1 : 0) - (a.owned ? 1 : 0))
-    : allFetchedCards
+  const sortedCards = [...allFetchedCards].sort((a, b) => {
+    if (sortOwnedFirst) {
+      const ownedCmp = (b.owned ? 1 : 0) - (a.owned ? 1 : 0)
+      if (ownedCmp !== 0) return ownedCmp
+    }
+    let cmp = 0
+    if (sortBy === 'rarity') cmp = (RARITY_RANK[a.rarity] ?? 0) - (RARITY_RANK[b.rarity] ?? 0)
+    else if (sortBy === 'usd') cmp = (a.price ?? 0) - (b.price ?? 0)
+    else if (sortBy === 'name') cmp = a.name.localeCompare(b.name)
+    return sortDir === 'desc' ? -cmp : cmp
+  })
   const visibleCards = sortedCards.slice((clientPage - 1) * CLIENT_PAGE_SIZE, clientPage * CLIENT_PAGE_SIZE)
   const totalClientPages = Math.max(1, Math.ceil(allFetchedCards.length / CLIENT_PAGE_SIZE))
   const hasNextPage = clientPage < totalClientPages || hasMoreScryfall
@@ -475,13 +485,13 @@ export default function SearchPage() {
       await runBrewFetch(displayedQuery, scryfallPage + 1, true)
       setClientPage(nextPage)
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   function goPrevPage() {
     if (clientPage > 1) {
       setClientPage(p => p - 1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
 
@@ -698,13 +708,11 @@ export default function SearchPage() {
                     return (
                       <button key={s} onClick={() => {
                         if (isActive) {
-                          const nextDir = sortDir === 'desc' ? 'asc' : 'desc'
-                          setSortDir(nextDir)
+                          setSortDir(sortDir === 'desc' ? 'asc' : 'desc')
                         } else {
                           setSortBy(s)
                           setSortDir('desc')
                         }
-                        runBrewFetch(displayedQuery, 1, false)
                       }}
                         className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
                           isActive
@@ -893,13 +901,11 @@ export default function SearchPage() {
                     return (
                       <button key={s} onClick={() => {
                         if (isActive) {
-                          const nextDir = sortDir === 'desc' ? 'asc' : 'desc'
-                          setSortDir(nextDir)
+                          setSortDir(sortDir === 'desc' ? 'asc' : 'desc')
                         } else {
                           setSortBy(s)
                           setSortDir('desc')
                         }
-                        runBrewFetch(displayedQuery, 1, false)
                       }}
                         className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
                           isActive
@@ -953,7 +959,7 @@ export default function SearchPage() {
 
             {/* Results header + pagination controls */}
             {(brewLoading || allFetchedCards.length > 0) && (
-              <div className="flex items-center justify-between gap-4">
+              <div id="search-results" className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-stone-600">
                     {brewLoading && allFetchedCards.length === 0
