@@ -37,7 +37,7 @@ export default function CollectionChart({
   const clippedRange = p95 - p05 || 1
   const buffer = clippedRange * 0.1
   const yMin = p05 - buffer
-  const yMax = p95 + buffer
+  const yMax = Math.max(p95, max) + buffer
   const range = yMax - yMin
 
   const y = (v: number) => padY + (1 - (v - yMin) / range) * (height - padY * 2)
