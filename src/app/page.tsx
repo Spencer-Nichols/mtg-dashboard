@@ -70,14 +70,6 @@ interface HistoryPoint {
 }
 
 
-function formatRelativeTime(date: Date): string {
-  const mins = Math.floor((Date.now() - date.getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
 
 const LS_HIGHLIGHTS = 'tnk:highlights'
 const LS_HISTORY = 'tnk:history'
@@ -99,7 +91,6 @@ export default function HomePage() {
     if (typeof window === 'undefined') return []
     try { const c = localStorage.getItem(LS_HISTORY); return c ? JSON.parse(c) : [] } catch { return [] }
   })
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [faceIndex, setFaceIndex] = useState(0)
   const [isDesktop, setIsDesktop] = useState(true)
   const [recentCards, setRecentCards] = useState<{ displayName: string; setCode: string; snapshotPrice: number; purchasePrice: number | null; currentPrice: number | null; imageUrl: string | null; dateAdded: string | null }[]>([])
@@ -120,7 +111,6 @@ export default function HomePage() {
       setTopGainers(data.topGainers ?? [])
       setWishlistDrops(data.wishlistDrops ?? [])
       setSealedDrops(data.sealedDrops ?? [])
-      if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
       if (data.totalDelta != null) setTotalDelta(data.totalDelta)
     }
     fetch('/api/highlights')
@@ -129,8 +119,7 @@ export default function HomePage() {
         setTopGainers(data.topGainers ?? [])
         setWishlistDrops(data.wishlistDrops ?? [])
         setSealedDrops(data.sealedDrops ?? [])
-        if (data.lastUpdated) setLastUpdated(new Date(data.lastUpdated))
-        if (data.totalDelta != null) setTotalDelta(data.totalDelta)
+          if (data.totalDelta != null) setTotalDelta(data.totalDelta)
         localStorage.setItem(LS_HIGHLIGHTS, JSON.stringify(data))
       })
   }
@@ -391,21 +380,24 @@ export default function HomePage() {
       {/* Sidebar — order-1 on mobile so it renders above main content */}
       {sidebar && (
         <div id="sidebar" className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-6 order-1 lg:order-2">
-          <div id="sidebar-price-data" className="hidden lg:flex bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 flex-col gap-0.5">
-            <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold">Price Data</p>
-            <p className="text-xs text-stone-400">
-              {lastUpdated ? `Last updated ${formatRelativeTime(lastUpdated)}` : 'Not yet synced'}
-            </p>
-          </div>
+          {(() => {
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const next = setReleases.find(s => new Date(s.date) >= today)
+            if (!next) return null
+            const days = Math.round((new Date(next.date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+            return (
+              <div className="bg-stone-900 border border-stone-800 rounded-xl px-4 py-3 text-center">
+                <p className="text-xs text-stone-500">{next.name}</p>
+                <p className="text-xs font-semibold text-amber-400">
+                  {days === 0 ? 'Releases today!' : `${days} day${days === 1 ? '' : 's'} away`}
+                </p>
+              </div>
+            )
+          })()}
 
           {topGainers.length === 0 && wishlistDrops.length === 0 && sealedDrops.length === 0 && (
             <p className="text-xs text-stone-600">Price highlights will appear here once you have cards in your <Link href="/binder" className="text-amber-700 hover:text-amber-600">binder</Link> and <Link href="/wishlist" className="text-amber-700 hover:text-amber-600">wishlist</Link>.</p>
-          )}
-
-          {lastUpdated && (
-            <p className="lg:hidden text-xs text-stone-600 text-right -mt-2">
-              Prices updated {formatRelativeTime(lastUpdated)}
-            </p>
           )}
 
           {sealedDrops.filter(c => c.productId != null && !isSealedDismissed(c.productId, c.currentPrice)).length > 0 && (
@@ -516,21 +508,6 @@ export default function HomePage() {
           >
             Feeling bored? 🎲
           </a>
-          {(() => {
-            const today = new Date()
-            today.setHours(0, 0, 0, 0)
-            const next = setReleases.find(s => new Date(s.date) >= today)
-            if (!next) return null
-            const days = Math.round((new Date(next.date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-            return (
-              <div className="bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-2 text-center">
-                <p className="text-xs text-stone-500">{next.name}</p>
-                <p className="text-xs font-semibold text-amber-400">
-                  {days === 0 ? 'Releases today!' : `${days} day${days === 1 ? '' : 's'} away`}
-                </p>
-              </div>
-            )
-          })()}
         </div>
       )}
       </div>
