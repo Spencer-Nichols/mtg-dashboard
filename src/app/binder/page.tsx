@@ -1118,29 +1118,26 @@ export default function BinderPage() {
   }
 
   // --- Binder derived data ---
+  const todayStr = new Date().toISOString().split('T')[0]
   const rows: CardResult[] = entries.map(e => {
     const rKey = makeRowKey(e.displayName, e.setCode, e.foilType)
     const result = results.get(rKey)
     const sortedHistory = (cardHistory[e.displayName] ?? []).slice().sort((a, b) => a.date < b.date ? -1 : 1)
-    const latestEntry = sortedHistory.at(-1)
-    const currentPrice = latestEntry?.price ?? result?.currentPrice ?? null
+    const currentPrice = result?.currentPrice ?? sortedHistory.at(-1)?.price ?? null
     const costBasis = e.purchasePrice != null ? e.purchasePrice : (e.addedPrice ?? e.snapshotPrice)
     const pct = currentPrice != null && costBasis > 0
       ? ((currentPrice - costBasis) / costBasis) * 100
       : result?.pct ?? null
 
-    const latestDay = latestEntry?.date.split('T')[0] ?? null
-    // Find the most recent history entry with a price that actually differs from current
-    const lastChangedEntry = currentPrice != null
-      ? [...sortedHistory].reverse().slice(1).find(h => Math.abs(h.price - currentPrice) >= 0.01)
-      : undefined
-    const dailyBaseline = lastChangedEntry?.price ?? null
-    const rawDailyPct = currentPrice != null && lastChangedEntry != null && lastChangedEntry.price > 0
-      ? ((currentPrice - lastChangedEntry.price) / lastChangedEntry.price) * 100
+    const previousEntries = sortedHistory.filter(h => h.date.split('T')[0] < todayStr)
+    const baselineEntry = previousEntries.at(-1)
+    const dailyBaseline = baselineEntry?.price ?? null
+    const rawDailyPct = currentPrice != null && dailyBaseline != null && dailyBaseline > 0
+      ? ((currentPrice - dailyBaseline) / dailyBaseline) * 100
       : null
     const dailyPct = rawDailyPct !== null && Math.abs(rawDailyPct) < 0.01 ? null : rawDailyPct
-    const dailyDaysAgo = lastChangedEntry && latestDay
-      ? Math.round((new Date(latestDay).getTime() - new Date(lastChangedEntry.date.split('T')[0]).getTime()) / 86400000)
+    const dailyDaysAgo = baselineEntry
+      ? Math.round((new Date(todayStr).getTime() - new Date(baselineEntry.date.split('T')[0]).getTime()) / 86400000)
       : null
     return result
       ? { ...result, pct, dailyPct, dailyBaseline, dailyDaysAgo, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
@@ -1152,7 +1149,7 @@ export default function BinderPage() {
     : rows
 
   const MIN_DAILY_PCT = 1
-  const MAX_DAILY_DAYS = 2
+  const MAX_DAILY_DAYS = 5
   const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
   const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
   const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT || (r.dailyDaysAgo ?? 1) > MAX_DAILY_DAYS)
