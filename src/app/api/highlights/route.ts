@@ -27,11 +27,13 @@ export async function GET() {
     .eq('user_id', user.id)
 
   const today = new Date().toISOString().split('T')[0]
+  const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const { data: historyRows } = await supabase
     .from('binder_card_history')
     .select('display_name, date, price')
     .eq('user_id', user.id)
     .lt('date', today)
+    .gte('date', fiveDaysAgo)
     .order('date', { ascending: false })
 
   const dailyBaselineMap = new Map<string, number>()
