@@ -53,14 +53,16 @@ function buildBrewQuery(
   oracleText?: string,
   artTypes?: Set<string>,
   setCodes?: string[] | null,
-  colorMode?: 'exact' | 'includes',
+  colorMode?: 'exact' | 'includes' | 'commander',
 ): string {
   const parts: string[] = []
   for (const slug of keywords) parts.push(KEYWORD_QUERY_MAP.get(slug) ?? `function:${slug}`)
   if (raw.trim()) parts.push(raw.trim())
   if (oracleText?.trim()) parts.push(`o:"${oracleText.trim().replace(/"/g, '')}"`)
   if (colors.size > 0) {
-    if (colorMode === 'includes' && colors.size > 1) {
+    if (colorMode === 'commander') {
+      parts.push(`id<=${[...colors].join('')}`)
+    } else if (colorMode === 'includes' && colors.size > 1) {
       parts.push(`(${[...colors].map(c => `color>=${c}`).join(' or ')})`)
     } else {
       parts.push(`color${colorMode === 'includes' ? '>=' : '='}${[...colors].join('')}`)
@@ -284,7 +286,7 @@ export default function SearchPage() {
   const [oracleText, setOracleText] = useState('')
   const [activeKeywords, setActiveKeywords] = useState<string[]>([])
   const [activeColors, setActiveColors] = useState<Set<string>>(new Set())
-  const [colorMode, setColorMode] = useState<'exact' | 'includes'>('exact')
+  const [colorMode, setColorMode] = useState<'exact' | 'includes' | 'commander'>('exact')
   const [activeType, setActiveType] = useState<string | null>(null)
   const [maxCmc, setMaxCmc] = useState<number | null>(null)
   const [maxPrice, setMaxPrice] = useState<number | null>(null)
@@ -598,16 +600,16 @@ export default function SearchPage() {
                     </button>
                   ))}
                   <div className="flex items-center gap-1.5 ml-1">
-                    <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
-                    <button
-                      role="switch"
-                      aria-checked={colorMode === 'includes'}
-                      onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
-                      className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
-                    >
-                      <span className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
-                    </button>
-                    <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
+                    {(['exact', 'includes', 'commander'] as const).map(mode => (
+                      <button key={mode} onClick={() => { setColorMode(mode); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), mode)) }}
+                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                          colorMode === mode
+                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                        }`}>
+                        {mode === 'commander' ? 'Commander' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </AccordionRow>
@@ -787,17 +789,17 @@ export default function SearchPage() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs transition-colors ${colorMode === 'exact' ? 'text-amber-300' : 'text-stone-500'}`}>Exact</span>
-                    <button
-                      role="switch"
-                      aria-checked={colorMode === 'includes'}
-                      onClick={() => { const next = colorMode === 'exact' ? 'includes' : 'exact'; setColorMode(next); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), next)) }}
-                      className={`relative w-9 h-5 rounded-full border transition-colors ${colorMode === 'includes' ? 'bg-amber-900/80 border-amber-600' : 'bg-stone-700 border-stone-600'}`}
-                    >
-                      <span className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all ${colorMode === 'includes' ? 'left-[18px] bg-amber-400' : 'left-0.5 bg-stone-400'}`} />
-                    </button>
-                    <span className={`text-xs transition-colors ${colorMode === 'includes' ? 'text-amber-300' : 'text-stone-500'}`}>Includes</span>
+                  <div className="flex items-center gap-1.5">
+                    {(['exact', 'includes', 'commander'] as const).map(mode => (
+                      <button key={mode} onClick={() => { setColorMode(mode); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), mode)) }}
+                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                          colorMode === mode
+                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
+                        }`}>
+                        {mode === 'commander' ? 'Commander' : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
