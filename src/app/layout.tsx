@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Cinzel } from 'next/font/google'
+import { Geist, Cinzel, Lora } from 'next/font/google'
 import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
 import { createClient } from '@/lib/supabase/server'
@@ -8,6 +8,7 @@ import './globals.css'
 
 const geist = Geist({ subsets: ['latin'] })
 const cinzel = Cinzel({ subsets: ['latin'], weight: ['700'], variable: '--font-cinzel' })
+const serifBody = Lora({ subsets: ['latin'], weight: ['400', '600'], style: ['normal', 'italic'], variable: '--font-serif-body' })
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://tapntrack.app'),
@@ -43,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   } catch {}
 
   return (
-    <html lang="en" className={`${geist.className} ${cinzel.variable} h-full`}>
+    <html lang="en" className={`${geist.className} ${cinzel.variable} ${serifBody.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-stone-950 text-stone-100">
         <nav className="sticky top-0 z-50 border-b-2 border-amber-900/50 bg-stone-900/80 backdrop-blur-sm">
           <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3 sm:gap-8 overflow-x-auto">
@@ -76,7 +77,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </main>
         <footer className="border-t-2 border-amber-900/50 bg-stone-900/80 mt-auto">
           <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-            <span className="text-xs text-stone-500">TapNTrack <span className="text-stone-700">v0.22.7</span></span>
+            <span className="text-xs text-stone-500">TapNTrack <span className="text-stone-700">v0.22.8</span></span>
             <a
               href="https://ko-fi.com/F1F521A8EM"
               target="_blank"
