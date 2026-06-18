@@ -4,14 +4,8 @@ import { getCached, setCached, setManapoolPrice, getCachedPriceByFoilType, cache
 import { fetchManapoolSinglePrices } from '@/lib/manapool'
 import { fetchTcgPlayerPrice } from '@/lib/tcgplayer'
 
-const STALE_MS = 4 * 60 * 60 * 1000
 const BATCH_SIZE = 75
 const BATCH_DELAY = 100
-
-function isStale(entry: CacheEntry | null): boolean {
-  if (!entry) return true
-  return Date.now() - entry.timestamp > STALE_MS
-}
 
 type ScryfallIdentifier = { id: string } | { name: string; set?: string }
 
@@ -30,7 +24,6 @@ export interface RefreshResult {
   wishlistCount: number
   uniqueCards: number
   fetched: number
-  fromCache: number
   usersUpdated: number
 }
 
@@ -54,27 +47,11 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     if (!uniqueCards.has(key)) uniqueCards.set(key, { baseName: row.name, setCode: row.set_code, scryfallId: row.scryfall_id })
   }
 
-  // Check cache for all unique cards, collect stale ones
-  const staleEntries: Array<{ key: string; card: CardRef }> = []
-  let fromCache = 0
-
-  await Promise.all(
-    [...uniqueCards.entries()].map(async ([key, card]) => {
-      const existing = await getCached(key)
-      if (isStale(existing)) {
-        staleEntries.push({ key, card })
-      } else {
-        fromCache++
-      }
-    })
-  )
-
   // Build reverse lookup maps for matching collection results back to cache keys
   const idToKey = new Map<string, string>()
   const nameSetToKey = new Map<string, string>()
   const identifiers: ScryfallIdentifier[] = []
-
-  for (const { key, card } of staleEntries) {
+  for (const [key, card] of uniqueCards.entries()) {
     if (card.scryfallId) {
       idToKey.set(card.scryfallId, key)
       identifiers.push({ id: card.scryfallId })
@@ -221,7 +198,6 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     wishlistCount: wishlistRows?.length ?? 0,
     uniqueCards: uniqueCards.size,
     fetched,
-    fromCache,
     usersUpdated: userTotals.size,
   }
 }
