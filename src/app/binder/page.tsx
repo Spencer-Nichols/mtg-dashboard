@@ -1130,7 +1130,11 @@ export default function BinderPage() {
       : result?.pct ?? null
 
     const previousEntries = sortedHistory.filter(h => h.date.split('T')[0] < todayStr)
-    const baselineEntry = previousEntries.at(-1)
+    // Find the most recent prior entry where the price actually differs from current (ignore flat entries)
+    const lastChangedEntry = currentPrice != null
+      ? [...previousEntries].reverse().find(h => Math.abs(h.price - currentPrice) >= 0.01)
+      : undefined
+    const baselineEntry = lastChangedEntry
     const dailyBaseline = baselineEntry?.price ?? null
     const rawDailyPct = currentPrice != null && dailyBaseline != null && dailyBaseline > 0
       ? ((currentPrice - dailyBaseline) / dailyBaseline) * 100
