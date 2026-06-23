@@ -568,6 +568,21 @@ export default function WishlistPage() {
     return d != null && currentPrice >= d - 0.25
   }
 
+  async function toggleEmailAlerts() {
+    setEmailAlertsLoading(true)
+    const next = !emailAlertsEnabled
+    try {
+      const res = await fetch('/api/notifications/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailSealedAlerts: next }),
+      })
+      if (res.ok) setEmailAlertsEnabled(next)
+    } finally {
+      setEmailAlertsLoading(false)
+    }
+  }
+
   function dismissSealed(productId: number, price: number) {
     const next = { ...getSealedDismissed(), [productId]: price }
     localStorage.setItem('tnk:sealed:dismissed', JSON.stringify(next))
@@ -579,6 +594,8 @@ export default function WishlistPage() {
     localStorage.setItem('tnk:wishlist:dismissed', JSON.stringify(next))
     setDismissedWishlist(next)
   }
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(false)
+  const [emailAlertsLoading, setEmailAlertsLoading] = useState(false)
   const [sealedItems, setSealedItems] = useState<SealedWishlistItem[]>([])
   const [sealedResults, setSealedResults] = useState<Map<string, SealedResult>>(new Map())
   const [sealedStreaming, setSealedStreaming] = useState(false)
@@ -638,6 +655,9 @@ export default function WishlistPage() {
     setDismissedWishlist(getWishlistDismissed())
     fetch('/api/sealed/last-run').then(r => r.json()).then(d => {
       if (d.lastRun) setSealedLastRun(new Date(d.lastRun))
+    })
+    fetch('/api/notifications/preferences').then(r => r.json()).then(d => {
+      if (typeof d.emailSealedAlerts === 'boolean') setEmailAlertsEnabled(d.emailSealedAlerts)
     })
     fetch('/api/sealed/history').then(r => r.json()).then(h => {
       if (h && typeof h === 'object') {
@@ -1462,6 +1482,22 @@ export default function WishlistPage() {
             </span>
           )}
         </div>
+
+        {sealedItems.length > 0 && (
+          <div id="sealed-email-toggle" className="flex items-center gap-2.5 py-1">
+            <button
+              onClick={toggleEmailAlerts}
+              disabled={emailAlertsLoading}
+              aria-pressed={emailAlertsEnabled}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${emailAlertsEnabled ? 'bg-amber-600' : 'bg-stone-600'}`}
+            >
+              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${emailAlertsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+            <span className="text-xs text-stone-400 select-none">
+              Email me when sealed products hit my price alerts
+            </span>
+          </div>
+        )}
 
         {sealedStreaming && (
           <div className="bg-stone-800 rounded-full overflow-hidden h-1">

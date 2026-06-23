@@ -1,6 +1,11 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { setSealedCronTimestamp } from '@/lib/cache'
 import { fetchTcgPlayerPrice } from '@/lib/tcgplayer'
+import { sendSealedAlertEmail, type SealedAlertProduct } from '@/lib/email'
+
+const COOLDOWN_MS = 8 * 60 * 60 * 1000
+const NORMAL_DROP_PCT = 5
+const URGENCY_DROP_PCT = 15
 
 const MANAPOOL_URL = (ids: number[]) =>
   `https://manapool.com/api/v1/products/sealed?${ids.map(id => `tcgplayer_ids=${id}`).join('&')}`
@@ -49,7 +54,7 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
 
   const { data: sealedRows, error } = await supabase
     .from('sealed_wishlist')
-    .select('user_id, tcg_product_id, snapshot_price, target_price')
+    .select('user_id, tcg_product_id, snapshot_price, target_price, product_name, set_name, image_url')
 
   if (error) throw new Error(`Failed to fetch sealed wishlist: ${error.message}`)
   if (!sealedRows || sealedRows.length === 0) {
@@ -149,14 +154,14 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
 
   const { data: lastNotifications } = await supabase
     .from('sealed_atl_notifications')
-    .select('user_id, tcg_product_id, notified_price')
+    .select('user_id, tcg_product_id, notified_price, notified_at')
     .in('tcg_product_id', uniqueProductIds)
     .order('notified_at', { ascending: false })
 
-  const lastNotifMap = new Map<string, number>()
+  const lastNotifMap = new Map<string, { price: number; notifiedAt: string }>()
   for (const row of lastNotifications ?? []) {
     const key = `${row.user_id}:${row.tcg_product_id}`
-    if (!lastNotifMap.has(key)) lastNotifMap.set(key, row.notified_price)
+    if (!lastNotifMap.has(key)) lastNotifMap.set(key, { price: row.notified_price, notifiedAt: row.notified_at })
   }
 
   const olderPricesMap = new Map<number, number[]>()
@@ -166,7 +171,7 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     olderPricesMap.set(row.tcg_product_id, arr)
   }
 
-  const atlInserts: { user_id: string; tcg_product_id: number; notified_price: number; notified_at: string }[] = []
+  const atlInserts: { user_id: string; tcg_product_id: number; notified_price: number; notified_at: string; is_atl: boolean }[] = []
   for (const row of sealedRows) {
     const price = priceMap.get(row.tcg_product_id)
     if (price == null) continue
@@ -175,17 +180,74 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
     const snapshotPrice = row.snapshot_price ?? 0
     const targetPrice = row.target_price as number | null
     const baseline = olderPrices.length > 0 ? Math.min(...olderPrices, snapshotPrice) : snapshotPrice
-    const meetsBaseline = baseline - price >= 2
+    const isAtl = baseline - price >= 2
     const meetsTarget = targetPrice != null && price <= targetPrice
-    if (!meetsBaseline && !meetsTarget) continue
-    const lastNotifPrice = lastNotifMap.get(key)
-    if (lastNotifPrice != null && price >= lastNotifPrice) continue
-    atlInserts.push({ user_id: row.user_id, tcg_product_id: row.tcg_product_id, notified_price: price, notified_at: now })
+    if (!isAtl && !meetsTarget) continue
+
+    const lastNotif = lastNotifMap.get(key)
+    if (lastNotif) {
+      const dropPct = ((lastNotif.price - price) / lastNotif.price) * 100
+      const cooldownExpired = Date.now() - new Date(lastNotif.notifiedAt).getTime() > COOLDOWN_MS
+      const urgencyOverride = dropPct >= URGENCY_DROP_PCT
+      const normalRenotify = cooldownExpired && dropPct >= NORMAL_DROP_PCT
+      if (!urgencyOverride && !normalRenotify) continue
+    }
+
+    atlInserts.push({ user_id: row.user_id, tcg_product_id: row.tcg_product_id, notified_price: price, notified_at: now, is_atl: isAtl })
   }
 
   if (atlInserts.length > 0) {
     const { error: atlError } = await supabase.from('sealed_atl_notifications').insert(atlInserts)
     if (atlError) throw new Error(`Failed to write ATL notifications: ${atlError.message}`)
+
+    // Send emails to opted-in users
+    const affectedUserIds = [...new Set(atlInserts.map(r => r.user_id))]
+    const { data: optedIn } = await supabase
+      .from('notification_preferences')
+      .select('user_id')
+      .eq('email_sealed_alerts', true)
+      .in('user_id', affectedUserIds)
+
+    const optedInSet = new Set((optedIn ?? []).map(r => r.user_id))
+    if (optedInSet.size > 0) {
+      const productDetailsMap = new Map(
+        (sealedRows ?? []).map(r => [r.tcg_product_id as number, r])
+      )
+
+      const byUser = new Map<string, typeof atlInserts>()
+      for (const insert of atlInserts) {
+        if (!optedInSet.has(insert.user_id)) continue
+        const arr = byUser.get(insert.user_id) ?? []
+        arr.push(insert)
+        byUser.set(insert.user_id, arr)
+      }
+
+      for (const [userId, inserts] of byUser) {
+        try {
+          const { data: userAuth } = await supabase.auth.admin.getUserById(userId)
+          const email = userAuth?.user?.email
+          if (!email) continue
+
+          const products: SealedAlertProduct[] = inserts.map(ins => {
+            const details = productDetailsMap.get(ins.tcg_product_id)
+            const lastNotif = lastNotifMap.get(`${userId}:${ins.tcg_product_id}`)
+            return {
+              productName: details?.product_name ?? `Product #${ins.tcg_product_id}`,
+              setName: details?.set_name ?? '',
+              imageUrl: details?.image_url ?? null,
+              currentPrice: ins.notified_price,
+              lastNotifiedPrice: lastNotif?.price ?? null,
+              targetPrice: (details?.target_price as number | null) ?? null,
+              isAtl: ins.is_atl,
+            }
+          })
+
+          await sendSealedAlertEmail(email, products)
+        } catch (err) {
+          console.error(`Failed to send alert email for user ${userId}:`, err)
+        }
+      }
+    }
   }
 
   await setSealedCronTimestamp()
