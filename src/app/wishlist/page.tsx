@@ -455,20 +455,20 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
                 onClick={openAlert}
                 className={`hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full border transition-colors ${
                   targetPrice != null
-                    ? 'bg-orange-950/40 border-orange-800/50 text-orange-400 hover:bg-orange-900/40'
-                    : 'bg-stone-800/60 border-stone-700 text-stone-500 hover:text-stone-300'
+                    ? 'bg-amber-950/40 border-amber-700/50 text-amber-400 hover:bg-amber-900/40'
+                    : 'bg-stone-800/60 border-stone-700 text-stone-500 hover:text-stone-300 hover:border-stone-500'
                 }`}
               >
                 {targetPrice != null
-                  ? <>⚑ alert &lt; ${targetPrice.toFixed(2)}</>
-                  : <>+ alert price</>
+                  ? `< $${targetPrice.toFixed(2)}`
+                  : 'Set alert'
                 }
               </button>
             )
           )}
         </div>
         {targetPrice != null && (
-          <span className="sm:hidden text-xs text-orange-400">⚑ alert &lt; ${targetPrice.toFixed(2)}</span>
+          <span className="sm:hidden text-xs text-amber-400">Alert &lt; ${targetPrice.toFixed(2)}</span>
         )}
         {sparkline && sparkline.length >= 2 && (
           <div className="mt-1">
