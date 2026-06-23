@@ -33,11 +33,6 @@ const STEPS: Step[] = [
       'Filter by art style: Showcase, Borderless, Extended Art, and more (For you Jacob)',
       'Filter by recent set to browse what\'s in the latest releases',
     ],
-    callout: {
-      label: 'NEW',
-      title: 'Brew Tab Overhaul',
-      body: '50+ keywords now organized into categories like Ramp, Tokens, Counters, and Strategies. New art style and recent set filters let you find exactly the printing you want.',
-    },
   },
   {
     title: 'Wishlist',
@@ -51,8 +46,8 @@ const STEPS: Step[] = [
     ],
     callout: {
       label: 'NEW',
-      title: 'Sealed Products',
-      body: 'Track booster boxes, collector boxes, bundles, and more! Prices are pulled from both TCGPlayer and Manapool, whichever is lowest. Set a target price or get alerted when prices hit an all-time low.',
+      title: 'Sealed Price Alerts',
+      body: 'Get an email when a sealed product on your wishlist hits an all-time low or drops to your target price. Enable alerts with the toggle in the Sealed Products section.',
     },
   },
 ]

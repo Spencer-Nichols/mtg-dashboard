@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 // Bump this when the onboarding modal content changes — resets all users
-const ONBOARDING_VERSION = 2
+const ONBOARDING_VERSION = 3
 
 export async function GET() {
   const supabase = await createClient()
