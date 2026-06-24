@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 body {
-  font-family: var(--font-serif-body), serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 h1, h2 {
