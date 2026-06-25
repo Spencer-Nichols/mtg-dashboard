@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { login } from '@/app/actions/auth'
+import { createClient } from '@/lib/supabase/client'
 
 function LoginError() {
   const error = useSearchParams().get('error')
@@ -14,7 +15,19 @@ function LoginError() {
 }
 
 export default function LoginPage() {
+  const router = useRouter()
   const [requesting, setRequesting] = useState(false)
+
+  useEffect(() => {
+    if (!window.location.hash.includes('type=invite')) return
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        router.replace('/set-password')
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [router])
   const [requestEmail, setRequestEmail] = useState('')
   const [requestStatus, setRequestStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [requestError, setRequestError] = useState('')
