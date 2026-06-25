@@ -19,7 +19,8 @@ export default function LoginPage() {
   const [requesting, setRequesting] = useState(false)
 
   useEffect(() => {
-    if (!window.location.hash.includes('type=invite')) return
+    const hash = window.location.hash
+    if (!hash.includes('type=invite') && !hash.includes('type=recovery')) return
     const supabase = createClient()
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
