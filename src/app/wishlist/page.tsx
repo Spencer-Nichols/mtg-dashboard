@@ -179,7 +179,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
             </span>
           </div>
         </a>
-        <div className="absolute top-2 right-2 flex flex-col items-end gap-1 pointer-events-none">
+        <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1 pointer-events-none">
           {row.pct != null && (
             <div className={`text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${
               row.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
@@ -1483,21 +1483,6 @@ export default function WishlistPage() {
           )}
         </div>
 
-        {sealedItems.length > 0 && (
-          <div id="sealed-email-toggle" className="flex items-center gap-2.5 py-1">
-            <button
-              onClick={toggleEmailAlerts}
-              disabled={emailAlertsLoading}
-              aria-pressed={emailAlertsEnabled}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${emailAlertsEnabled ? 'bg-amber-600' : 'bg-stone-600'}`}
-            >
-              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${emailAlertsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
-            </button>
-            <span className="text-xs text-stone-400 select-none">
-              Email me when sealed products hit my price alerts
-            </span>
-          </div>
-        )}
 
         {sealedStreaming && (
           <div className="bg-stone-800 rounded-full overflow-hidden h-1">
@@ -1508,6 +1493,19 @@ export default function WishlistPage() {
         {sealedOpen && (
           sealedItems.length > 0 ? (
             <>
+            <div id="sealed-email-toggle" className="flex items-center gap-2.5 py-1">
+              <button
+                onClick={toggleEmailAlerts}
+                disabled={emailAlertsLoading}
+                aria-pressed={emailAlertsEnabled}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${emailAlertsEnabled ? 'bg-amber-600' : 'bg-stone-600'}`}
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${emailAlertsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+              <span className="text-xs text-stone-400 select-none">
+                Email me when sealed products hit my price alerts
+              </span>
+            </div>
             <div id="wishlist-sealed-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
               {sealedItems.map(item => {
                 const result = sealedResults.get(item.id)
