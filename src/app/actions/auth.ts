@@ -41,10 +41,11 @@ export async function requestPasswordReset(formData: FormData) {
   const email = formData.get('email') as string
   const supabase = await createClient()
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-    ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || (
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : 'http://localhost:3001')
+      : 'http://localhost:3001'
+  )
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/auth/confirm`,
