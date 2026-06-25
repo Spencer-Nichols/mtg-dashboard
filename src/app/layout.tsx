@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
+import { VersionBadge } from '@/components/VersionBadge'
 import './globals.css'
 
 const geist = Geist({ subsets: ['latin'] })
@@ -77,7 +78,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </main>
         <footer className="border-t-2 border-amber-900/50 bg-stone-900/80 mt-auto">
           <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-            <span className="text-xs text-stone-500">TapNTrack <span className="text-stone-700">v0.23.2</span></span>
+            <VersionBadge />
             <a
               href="https://ko-fi.com/F1F521A8EM"
               target="_blank"
