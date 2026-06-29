@@ -103,7 +103,7 @@ export default function CollectionChart({
   const visibleCountMarkers = countMarkers.filter(m => m.delta !== 0)
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
+    <svg viewBox={`0 -12 ${width} ${height}`} className="w-full">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.15" />
@@ -134,15 +134,22 @@ export default function CollectionChart({
           const label = isAdd ? `+${delta}` : `${delta}`
           return (
             <g key={idx}>
-              <line x1={cx} y1={padY} x2={cx} y2={height - padY} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-              <text x={cx} y={padY - 3} textAnchor="middle" fontSize={countFontSize} fontWeight="600" fill={markerColor}>{label}</text>
+              <line x1={cx} y1={4} x2={cx} y2={height} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+              <text x={cx} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize={countFontSize} fontWeight="600" fill={markerColor}>{label}</text>
             </g>
           )
         })}
       </g>
-      {releaseMarkers.map(r => (
-        <line key={r.date} x1={dateToX(r.date)} y1={padY} x2={dateToX(r.date)} y2={height - padY} stroke="#a07848" strokeWidth="1" opacity="0.5" />
-      ))}
+      {releaseMarkers.map(r => {
+        const rx = dateToX(r.date)
+        const label = r.name.length <= 10 ? r.name : r.code
+        return (
+          <g key={r.date}>
+            <line x1={rx} y1={4} x2={rx} y2={height} stroke="#a07848" strokeWidth="1" opacity="0.5" />
+            <text x={rx} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="9" fill="#a07848" opacity="0.8">{label}</text>
+          </g>
+        )
+      })}
       <path d={area} fill={`url(#${gradId})`} />
       {data.length > 1
         ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />

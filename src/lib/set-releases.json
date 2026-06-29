@@ -1,7 +1,7 @@
 [
-{ "date": "2026-05-23", "name": "Strixhaven" },
-  { "date": "2026-06-26", "name": "Marvel Superheroes" },
-  { "date": "2026-08-14", "name": "The Hobbit" },
-  { "date": "2026-10-02", "name": "Reality Fracture" },
-  { "date": "2026-11-20", "name": "Star Trek" }
+  { "date": "2026-04-24", "name": "Secrets of Strixhaven", "code": "SOS" },
+  { "date": "2026-06-26", "name": "Marvel Super Heroes", "code": "MSH" },
+  { "date": "2026-08-14", "name": "The Hobbit", "code": "HOB" },
+  { "date": "2026-10-02", "name": "Reality Fracture", "code": "FRA" },
+  { "date": "2026-11-20", "name": "Star Trek", "code": "TRK" }
 ]
