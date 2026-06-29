@@ -146,7 +146,7 @@ export default function CollectionChart({
         return (
           <g key={r.date}>
             <line x1={rx} y1={4} x2={rx} y2={height} stroke="#a07848" strokeWidth="1" opacity="0.5" />
-            <text x={rx} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="9" fill="#a07848" opacity="0.8">{label}</text>
+            <text x={rx} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#a07848" opacity="0.8">{label}</text>
           </g>
         )
       })}
