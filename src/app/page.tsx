@@ -102,6 +102,7 @@ export default function HomePage() {
   useEffect(() => {
     setDismissedSealed(getDismissed())
     setDismissedWishlist(getWishlistDismissed())
+    fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'home' }) })
   }, [])
 
   function fetchHighlights() {
