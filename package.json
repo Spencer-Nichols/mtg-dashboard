@@ -1,6 +1,6 @@
 {
   "name": "mtg-dashboard",
-  "version": "0.23.5",
+  "version": "0.23.6",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
