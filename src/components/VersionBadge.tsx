@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 
-const CURRENT_VERSION = '0.23.5'
+const CURRENT_VERSION = '0.23.6'
 
 const SPARK_COLORS = ['#fbbf24', '#f59e0b', '#fcd34d', '#d97706', '#fde68a', '#fb923c']
 const SPARK_COUNTS = { patch: 8, minor: 16, major: 26 }
