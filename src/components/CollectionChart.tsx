@@ -103,12 +103,15 @@ export default function CollectionChart({
   const visibleCountMarkers = countMarkers.filter(m => m.delta !== 0)
 
   return (
-    <svg viewBox={`0 -12 ${width} ${height}`} className="w-full">
+    <svg viewBox={`0 -12 ${width} ${height + 24}`} className="w-full">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.15" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
+        <clipPath id={`${gradId}-clip`}>
+          <rect x={padX} y={0} width={width - padX * 2} height={height} />
+        </clipPath>
       </defs>
       <g className={labelsOnMobile ? undefined : 'hidden sm:block'}>
         {yLabels.map((v, i) => (
@@ -121,7 +124,7 @@ export default function CollectionChart({
           const d = data[i].date
           const label = d.length > 10 ? `${d.slice(5, 10)} ${d.slice(11, 13)}h` : d.slice(5, 10)
           return (
-            <text key={i} x={x(i)} y={height - 2} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
+            <text key={i} x={x(i)} y={height + 10} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
               {label}
             </text>
           )
@@ -150,10 +153,12 @@ export default function CollectionChart({
           </g>
         )
       })}
-      <path d={area} fill={`url(#${gradId})`} />
-      {data.length > 1
-        ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-        : <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={color} />}
+      <g clipPath={`url(#${gradId}-clip)`}>
+        <path d={area} fill={`url(#${gradId})`} />
+        {data.length > 1
+          ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+          : <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={color} />}
+      </g>
     </svg>
   )
 }
