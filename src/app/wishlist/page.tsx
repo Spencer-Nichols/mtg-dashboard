@@ -1209,7 +1209,14 @@ export default function WishlistPage() {
               <p className="text-stone-600 text-sm px-4 py-3">Loading sets…</p>
             ) : (() => {
               const filtered = sealedQuery.trim()
-                ? sealedGroups.filter(g => g.name.toLowerCase().includes(sealedQuery.toLowerCase()))
+                ? (() => {
+                    const tokens = sealedQuery.toLowerCase().trim().split(/\s+/)
+                    return sealedGroups.filter(g => {
+                      const haystack = g.name.toLowerCase()
+                      // "deck" matches commander groups since commander decks are the product type
+                      return tokens.every(t => t === 'deck' ? haystack.includes('commander') : haystack.includes(t))
+                    })
+                  })()
                 : sealedGroups.slice(0, 30)
               return filtered.length === 0 ? (
                 <p className="text-stone-600 text-sm px-4 py-3">No sets found</p>
