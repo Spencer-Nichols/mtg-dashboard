@@ -35,11 +35,15 @@ export function isSealedProduct(productName: string, groupName: string): boolean
   }
 
   for (const name of namesToTry) {
+    // Pattern 1: "{SetName} - {SealedKeyword...}" (boosters, bundles, displays, etc.)
     const idx = productName.indexOf(name + ' - ')
     if (idx !== -1) {
       const suffix = productName.slice(idx + name.length + 3)
       if (SEALED_KEYWORDS.some(k => suffix.includes(k))) return true
     }
+    // Pattern 2: "{SetName} Commander Deck..." (commander precon naming convention)
+    // e.g. "Bloomburrow Commander Deck - Squirreled Away" or "Commander Masters Commander Decks [Set of 4]"
+    if (productName.startsWith(name + ' Commander Deck')) return true
   }
   return false
 }

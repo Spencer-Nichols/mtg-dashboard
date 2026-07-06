@@ -46,8 +46,8 @@ const STEPS: Step[] = [
     ],
     callout: {
       label: 'NEW',
-      title: 'Sealed Price Alerts',
-      body: 'Get an email when a sealed product on your wishlist hits an all-time low or drops to your target price. Enable alerts with the toggle in the Sealed Products section.',
+      title: 'Commander Deck Search',
+      body: 'Commander precons are now searchable in the Sealed Products section. Search by set name (e.g. "Bloomburrow") and select the Commander group to see all available decks.',
     },
   },
 ]
