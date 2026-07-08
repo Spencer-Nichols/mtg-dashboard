@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import CollectionChart from '@/components/CollectionChart'
+import CollectionChart, { type ChartEvent } from '@/components/CollectionChart'
 import type { FoilType } from '@/lib/scryfall'
 
 interface BinderEntry {
@@ -767,6 +767,13 @@ export default function BinderPage() {
   const [bulkResults, setBulkResults] = useState<{ name: string; status: 'added' | 'skipped' | 'error'; message?: string; price?: number }[]>([])
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [sortMode, setSortMode] = useState<'default' | 'pct' | 'dollar'>('pct')
+  const [chartEvents, setChartEvents] = useState<ChartEvent[]>([])
+  const [showAddEvent, setShowAddEvent] = useState(false)
+  const [showEventsList, setShowEventsList] = useState(false)
+  const [newEventDate, setNewEventDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [newEventLabel, setNewEventLabel] = useState('')
+  const [eventSaving, setEventSaving] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [exportSince, setExportSince] = useState(() => new Date().toISOString().slice(0, 10))
   const [exportStatus, setExportStatus] = useState<string | null>(null)
@@ -850,6 +857,9 @@ export default function BinderPage() {
         setCardHistory(h)
         localStorage.setItem(LS_BINDER_CARD_HISTORY, JSON.stringify(h))
       }
+    })
+    fetch('/api/binder/events').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setChartEvents(data)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -1154,9 +1164,14 @@ export default function BinderPage() {
 
   const MIN_DAILY_PCT = 1
   const MAX_DAILY_DAYS = 5
-  const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0))
-  const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => (a.dailyPct ?? 0) - (b.dailyPct ?? 0))
-  const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT || (r.dailyDaysAgo ?? 1) > MAX_DAILY_DAYS)
+  const dailyDollar = (r: CardResult) => (r.currentPrice ?? 0) - (r.dailyBaseline ?? r.currentPrice ?? 0)
+  const sortFn = sortMode === 'pct'
+    ? (a: CardResult, b: CardResult) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0)
+    : (a: CardResult, b: CardResult) => dailyDollar(b) - dailyDollar(a)
+
+  const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort(sortFn)
+  const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => -sortFn(a, b))
+  const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT || (r.dailyDaysAgo ?? 1) > MAX_DAILY_DAYS).sort(sortFn)
   const pending = filteredRows.filter(r => r.pct === null)
 
   const totalCurrentValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
@@ -1167,6 +1182,33 @@ export default function BinderPage() {
 
   const gainersDelta = gainers.filter(r => (r.dailyDaysAgo ?? 1) <= 1).reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
   const losersDelta = losers.filter(r => (r.dailyDaysAgo ?? 1) <= 1).reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
+
+  async function addChartEvent(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newEventLabel.trim() || !newEventDate) return
+    setEventSaving(true)
+    const res = await fetch('/api/binder/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: newEventDate, label: newEventLabel.trim() }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setChartEvents(prev => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)))
+      setNewEventLabel('')
+      setShowAddEvent(false)
+    }
+    setEventSaving(false)
+  }
+
+  async function deleteChartEvent(id: string) {
+    await fetch('/api/binder/events', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    setChartEvents(prev => prev.filter(ev => ev.id !== id))
+  }
 
 return (
     <div>
@@ -1214,9 +1256,41 @@ return (
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="mt-3 bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <CollectionChart data={binderHistory} labelFontSize={7} countFontSize={7} />
+            <CollectionChart data={binderHistory} labelFontSize={7} countFontSize={7} events={chartEvents} />
           </div>
         )}
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            {chartEvents.length > 0 && (
+              <button onClick={() => setShowEventsList(o => !o)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-600 hover:text-stone-300 transition-colors">
+                Events ({chartEvents.length}) {showEventsList ? '▲' : '▼'}
+              </button>
+            )}
+            {!showAddEvent && (
+              <button onClick={() => setShowAddEvent(true)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-amber-700 hover:text-amber-400 transition-colors">+ Add event</button>
+            )}
+          </div>
+          {showEventsList && chartEvents.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {chartEvents.map(ev => (
+                <div key={ev.id} className="flex items-center gap-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                  <span className="text-amber-400/80 font-mono">{ev.date.slice(0, 10)}</span>
+                  <span className="text-stone-400 flex-1 truncate">{ev.label}</span>
+                  <button onClick={() => deleteChartEvent(ev.id)} className="text-stone-500 hover:text-red-400 transition-colors leading-none px-1">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {showAddEvent && (
+            <form onSubmit={addChartEvent} className="flex flex-wrap items-center gap-2">
+              <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 focus:outline-none focus:border-amber-600" />
+              <input type="text" value={newEventLabel} onChange={e => setNewEventLabel(e.target.value)} placeholder="Event label" maxLength={30} className="flex-1 min-w-[120px] bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+              <button type="submit" disabled={eventSaving || !newEventLabel.trim()} className="text-xs px-3 py-1 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 disabled:opacity-50 transition-colors">Save</button>
+              <button type="button" onClick={() => { setShowAddEvent(false); setNewEventLabel('') }} className="text-xs px-2 py-1 text-stone-500 hover:text-stone-300 transition-colors">Cancel</button>
+            </form>
+          )}
+        </div>
       </div>
 
       {/* Mobile quick-view card */}
@@ -1240,9 +1314,41 @@ return (
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <CollectionChart data={binderHistory} height={180} labelFontSize={7} countFontSize={14} labelsOnMobile />
+            <CollectionChart data={binderHistory} height={180} labelFontSize={7} countFontSize={14} labelsOnMobile events={chartEvents} />
           </div>
         )}
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            {chartEvents.length > 0 && (
+              <button onClick={() => setShowEventsList(o => !o)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-600 hover:text-stone-300 transition-colors">
+                Events ({chartEvents.length}) {showEventsList ? '▲' : '▼'}
+              </button>
+            )}
+            {!showAddEvent && (
+              <button onClick={() => setShowAddEvent(true)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-amber-700 hover:text-amber-400 transition-colors">+ Add event</button>
+            )}
+          </div>
+          {showEventsList && chartEvents.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {chartEvents.map(ev => (
+                <div key={ev.id} className="flex items-center gap-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                  <span className="text-amber-400/80 font-mono">{ev.date.slice(0, 10)}</span>
+                  <span className="text-stone-400 flex-1 truncate">{ev.label}</span>
+                  <button onClick={() => deleteChartEvent(ev.id)} className="text-stone-500 hover:text-red-400 transition-colors leading-none px-1">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {showAddEvent && (
+            <form onSubmit={addChartEvent} className="flex flex-wrap items-center gap-2">
+              <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 focus:outline-none focus:border-amber-600" />
+              <input type="text" value={newEventLabel} onChange={e => setNewEventLabel(e.target.value)} placeholder="Event label" maxLength={30} className="flex-1 min-w-[120px] bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+              <button type="submit" disabled={eventSaving || !newEventLabel.trim()} className="text-xs px-3 py-1 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 disabled:opacity-50 transition-colors">Save</button>
+              <button type="button" onClick={() => { setShowAddEvent(false); setNewEventLabel('') }} className="text-xs px-2 py-1 text-stone-500 hover:text-stone-300 transition-colors">Cancel</button>
+            </form>
+          )}
+        </div>
         {results.size > 0 && (
           <div className="mt-3 pt-3 border-t border-stone-800 flex items-center gap-4">
             <span className={`text-sm font-semibold whitespace-nowrap ${gainersDelta > 0 ? 'text-green-400' : 'text-stone-600'}`}>
@@ -1509,6 +1615,20 @@ return (
           {exportStatus && <span className="text-sm text-stone-400">{exportStatus}</span>}
         </div>
       )}
+
+      {/* Sort pills */}
+      <div className="flex gap-1.5 mb-4">
+        <span className="text-xs text-stone-600 self-center mr-1">Sort:</span>
+        {(['pct', 'dollar'] as const).map(mode => (
+          <button
+            key={mode}
+            onClick={() => setSortMode(mode)}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${sortMode === mode ? 'border-amber-700 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:text-stone-300 hover:border-stone-600'}`}
+          >
+            {mode === 'pct' ? '% Change' : '$ Change'}
+          </button>
+        ))}
+      </div>
 
           {/* Progress bar */}
           {streaming && (

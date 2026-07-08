@@ -6,6 +6,12 @@ interface DataPoint {
   card_count?: number | null
 }
 
+export interface ChartEvent {
+  id: string
+  date: string
+  label: string
+}
+
 interface CollectionChartProps {
   data: DataPoint[]
   width?: number
@@ -13,6 +19,7 @@ interface CollectionChartProps {
   labelFontSize?: number
   countFontSize?: number
   labelsOnMobile?: boolean
+  events?: ChartEvent[]
 }
 
 export default function CollectionChart({
@@ -22,6 +29,7 @@ export default function CollectionChart({
   labelFontSize = 9,
   countFontSize = 11,
   labelsOnMobile = false,
+  events = [],
 }: CollectionChartProps) {
   if (data.length === 0) return null
 
@@ -150,6 +158,19 @@ export default function CollectionChart({
           <g key={r.date}>
             <line x1={rx} y1={4} x2={rx} y2={height} stroke="#a07848" strokeWidth="1" opacity="0.5" />
             <text x={rx} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#a07848" opacity="0.8">{label}</text>
+          </g>
+        )
+      })}
+      {events.filter(e => {
+        const t = new Date(e.date).getTime()
+        return t >= firstDate && t <= lastDate
+      }).map(e => {
+        const ex = dateToX(e.date)
+        const label = e.label.length <= 12 ? e.label : e.label.slice(0, 11) + '…'
+        return (
+          <g key={e.id}>
+            <line x1={ex} y1={4} x2={ex} y2={height} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 2" opacity="0.7" />
+            <text x={ex} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#f59e0b" opacity="0.9">{label}</text>
           </g>
         )
       })}
