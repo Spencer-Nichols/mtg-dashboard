@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import CollectionChart from '@/components/CollectionChart'
+import CollectionChart, { type ChartEvent } from '@/components/CollectionChart'
 import OnboardingModal from '@/components/OnboardingModal'
 import setReleases from '@/lib/set-releases.json'
 
@@ -98,6 +98,7 @@ export default function HomePage() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [dismissedSealed, setDismissedSealed] = useState<Record<number, number>>({})
   const [dismissedWishlist, setDismissedWishlist] = useState<Record<string, number>>({})
+  const [chartEvents, setChartEvents] = useState<ChartEvent[]>([])
 
   useEffect(() => {
     setDismissedSealed(getDismissed())
@@ -143,6 +144,9 @@ export default function HomePage() {
         setBinderHistory(h)
         localStorage.setItem(LS_HISTORY, JSON.stringify(h))
       }
+    })
+    fetch('/api/binder/events').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setChartEvents(data)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -225,7 +229,7 @@ export default function HomePage() {
           )}
         </div>
       </div>
-      <CollectionChart data={binderHistory} />
+      <CollectionChart data={binderHistory} events={chartEvents} />
     </div>
   ) : (
     <div className="bg-stone-900 border-2 border-stone-800 rounded-xl p-5 flex flex-col items-center justify-center gap-2 min-h-[140px]">

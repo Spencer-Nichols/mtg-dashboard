@@ -22,6 +22,11 @@ const STEPS: Step[] = [
       'Tap a row to expand it and see the price history chart',
       'Export your collection as a Moxfield-compatible CSV',
     ],
+    callout: {
+      label: 'NEW',
+      title: 'Chart Events',
+      body: 'Mark moments on your binder chart with a custom label, like noting when you started a new deck or made a big purchase. Events appear as amber lines on both the binder and homepage charts.',
+    },
   },
   {
     title: 'Brew & Search',
