@@ -20,6 +20,7 @@ interface CollectionChartProps {
   countFontSize?: number
   labelsOnMobile?: boolean
   events?: ChartEvent[]
+  showMarkers?: boolean
 }
 
 export default function CollectionChart({
@@ -30,6 +31,7 @@ export default function CollectionChart({
   countFontSize = 11,
   labelsOnMobile = false,
   events = [],
+  showMarkers = true,
 }: CollectionChartProps) {
   if (data.length === 0) return null
 
@@ -139,7 +141,7 @@ export default function CollectionChart({
         })}
       </g>
       <g>
-        {visibleCountMarkers.map(({ x: cx, delta }, idx) => {
+        {showMarkers && visibleCountMarkers.map(({ x: cx, delta }, idx) => {
           const isAdd = delta > 0
           const markerColor = isAdd ? '#4ade80' : '#f87171'
           const label = isAdd ? `+${delta}` : `${delta}`
@@ -151,7 +153,7 @@ export default function CollectionChart({
           )
         })}
       </g>
-      {releaseMarkers.map(r => {
+      {showMarkers && releaseMarkers.map(r => {
         const rx = dateToX(r.date)
         const label = r.name.length <= 10 ? r.name : r.code
         return (
