@@ -1061,6 +1061,19 @@ export default function BinderPage() {
             })
           }
 
+          // Record binder total history snapshot so the chart updates immediately
+          const currentTotal = parseFloat(Array.from(prev.values()).reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0).toFixed(2))
+          fetch('/api/binder/history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ total: currentTotal, card_count: prev.size }),
+          }).then(r => r.json()).then(h => {
+            if (Array.isArray(h)) {
+              setBinderHistory(h)
+              localStorage.setItem(LS_BINDER_HISTORY, JSON.stringify(h))
+            }
+          })
+
           return prev
         })
       }
