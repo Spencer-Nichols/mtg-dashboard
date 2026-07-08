@@ -20,6 +20,7 @@ interface CollectionChartProps {
   countFontSize?: number
   labelsOnMobile?: boolean
   events?: ChartEvent[]
+  showMarkers?: boolean
 }
 
 export default function CollectionChart({
@@ -30,6 +31,7 @@ export default function CollectionChart({
   countFontSize = 11,
   labelsOnMobile = false,
   events = [],
+  showMarkers = true,
 }: CollectionChartProps) {
   if (data.length === 0) return null
 
@@ -111,7 +113,7 @@ export default function CollectionChart({
   const visibleCountMarkers = countMarkers.filter(m => m.delta !== 0)
 
   return (
-    <svg viewBox={`0 -12 ${width} ${height + 24}`} className="w-full">
+    <svg viewBox={`0 -20 ${width} ${height + 32}`} className="w-full">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.15" />
@@ -139,7 +141,7 @@ export default function CollectionChart({
         })}
       </g>
       <g>
-        {visibleCountMarkers.map(({ x: cx, delta }, idx) => {
+        {showMarkers && visibleCountMarkers.map(({ x: cx, delta }, idx) => {
           const isAdd = delta > 0
           const markerColor = isAdd ? '#4ade80' : '#f87171'
           const label = isAdd ? `+${delta}` : `${delta}`
@@ -151,7 +153,7 @@ export default function CollectionChart({
           )
         })}
       </g>
-      {releaseMarkers.map(r => {
+      {showMarkers && releaseMarkers.map(r => {
         const rx = dateToX(r.date)
         const label = r.name.length <= 10 ? r.name : r.code
         return (
@@ -170,7 +172,7 @@ export default function CollectionChart({
         return (
           <g key={e.id}>
             <line x1={ex} y1={4} x2={ex} y2={height} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 2" opacity="0.7" />
-            <text x={ex} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#f59e0b" opacity="0.9">{label}</text>
+            <text x={ex} y={-9} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#f59e0b" opacity="0.9">{label}</text>
           </g>
         )
       })}

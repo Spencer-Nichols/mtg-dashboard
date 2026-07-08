@@ -769,11 +769,15 @@ export default function BinderPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortMode, setSortMode] = useState<'default' | 'pct' | 'dollar'>('pct')
   const [chartEvents, setChartEvents] = useState<ChartEvent[]>([])
+  const [showEvents, setShowEvents] = useState(false)
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [showEventsList, setShowEventsList] = useState(false)
   const [newEventDate, setNewEventDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [newEventLabel, setNewEventLabel] = useState('')
   const [eventSaving, setEventSaving] = useState(false)
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [editingDate, setEditingDate] = useState('')
+  const [editingLabel, setEditingLabel] = useState('')
   const [showExport, setShowExport] = useState(false)
   const [exportSince, setExportSince] = useState(() => new Date().toISOString().slice(0, 10))
   const [exportStatus, setExportStatus] = useState<string | null>(null)
@@ -1214,6 +1218,23 @@ export default function BinderPage() {
     setEventSaving(false)
   }
 
+  async function saveEditChartEvent(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingLabel.trim() || !editingDate || !editingEventId) return
+    setEventSaving(true)
+    const res = await fetch('/api/binder/events', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingEventId, date: editingDate, label: editingLabel.trim() }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setChartEvents(prev => prev.map(ev => ev.id === editingEventId ? data : ev).sort((a, b) => a.date.localeCompare(b.date)))
+      setEditingEventId(null)
+    }
+    setEventSaving(false)
+  }
+
   async function deleteChartEvent(id: string) {
     await fetch('/api/binder/events', {
       method: 'DELETE',
@@ -1272,38 +1293,6 @@ return (
             <CollectionChart data={binderHistory} labelFontSize={7} countFontSize={7} events={chartEvents} />
           </div>
         )}
-        <div className="mt-2 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            {chartEvents.length > 0 && (
-              <button onClick={() => setShowEventsList(o => !o)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-600 hover:text-stone-300 transition-colors">
-                Events ({chartEvents.length}) {showEventsList ? '▲' : '▼'}
-              </button>
-            )}
-            {!showAddEvent && (
-              <button onClick={() => setShowAddEvent(true)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-amber-700 hover:text-amber-400 transition-colors">+ Add event</button>
-            )}
-          </div>
-          {showEventsList && chartEvents.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {chartEvents.map(ev => (
-                <div key={ev.id} className="flex items-center gap-2 text-xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                  <span className="text-amber-400/80 font-mono">{ev.date.slice(0, 10)}</span>
-                  <span className="text-stone-400 flex-1 truncate">{ev.label}</span>
-                  <button onClick={() => deleteChartEvent(ev.id)} className="text-stone-500 hover:text-red-400 transition-colors leading-none px-1">×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          {showAddEvent && (
-            <form onSubmit={addChartEvent} className="flex flex-wrap items-center gap-2">
-              <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 focus:outline-none focus:border-amber-600" />
-              <input type="text" value={newEventLabel} onChange={e => setNewEventLabel(e.target.value)} placeholder="Event label" maxLength={30} className="flex-1 min-w-[120px] bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600" />
-              <button type="submit" disabled={eventSaving || !newEventLabel.trim()} className="text-xs px-3 py-1 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 disabled:opacity-50 transition-colors">Save</button>
-              <button type="button" onClick={() => { setShowAddEvent(false); setNewEventLabel('') }} className="text-xs px-2 py-1 text-stone-500 hover:text-stone-300 transition-colors">Cancel</button>
-            </form>
-          )}
-        </div>
       </div>
 
       {/* Mobile quick-view card */}
@@ -1330,53 +1319,11 @@ return (
             <CollectionChart data={binderHistory} height={180} labelFontSize={7} countFontSize={14} labelsOnMobile events={chartEvents} />
           </div>
         )}
-        <div className="mt-2 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            {chartEvents.length > 0 && (
-              <button onClick={() => setShowEventsList(o => !o)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-stone-600 hover:text-stone-300 transition-colors">
-                Events ({chartEvents.length}) {showEventsList ? '▲' : '▼'}
-              </button>
-            )}
-            {!showAddEvent && (
-              <button onClick={() => setShowAddEvent(true)} className="text-xs px-2.5 py-1 rounded border border-stone-700 text-stone-400 hover:border-amber-700 hover:text-amber-400 transition-colors">+ Add event</button>
-            )}
-          </div>
-          {showEventsList && chartEvents.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {chartEvents.map(ev => (
-                <div key={ev.id} className="flex items-center gap-2 text-xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                  <span className="text-amber-400/80 font-mono">{ev.date.slice(0, 10)}</span>
-                  <span className="text-stone-400 flex-1 truncate">{ev.label}</span>
-                  <button onClick={() => deleteChartEvent(ev.id)} className="text-stone-500 hover:text-red-400 transition-colors leading-none px-1">×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          {showAddEvent && (
-            <form onSubmit={addChartEvent} className="flex flex-wrap items-center gap-2">
-              <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 focus:outline-none focus:border-amber-600" />
-              <input type="text" value={newEventLabel} onChange={e => setNewEventLabel(e.target.value)} placeholder="Event label" maxLength={30} className="flex-1 min-w-[120px] bg-stone-950 border border-stone-700 rounded px-2 py-1 text-xs text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600" />
-              <button type="submit" disabled={eventSaving || !newEventLabel.trim()} className="text-xs px-3 py-1 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 disabled:opacity-50 transition-colors">Save</button>
-              <button type="button" onClick={() => { setShowAddEvent(false); setNewEventLabel('') }} className="text-xs px-2 py-1 text-stone-500 hover:text-stone-300 transition-colors">Cancel</button>
-            </form>
-          )}
-        </div>
         {results.size > 0 && (
-          <div className="mt-3 pt-3 border-t border-stone-800 flex items-center gap-4">
-            <span className={`text-sm font-semibold whitespace-nowrap ${gainersDelta > 0 ? 'text-green-400' : 'text-stone-600'}`}>
-              ▲ {gainers.length}{gainersDelta > 0 ? ` · +$${gainersDelta.toFixed(2)}` : ''}
-            </span>
+          <div className="mt-3 pt-3 border-t border-stone-800 flex items-center gap-3">
+            <span className={`text-sm font-semibold ${gainers.length > 0 ? 'text-green-400' : 'text-stone-600'}`}>▲ {gainers.length}</span>
             <span className="text-stone-700">·</span>
-            <span className={`text-sm font-semibold whitespace-nowrap ${losersDelta < 0 ? 'text-red-400' : 'text-stone-600'}`}>
-              ▼ {losers.length}{losersDelta < 0 ? ` · -$${Math.abs(losersDelta).toFixed(2)}` : ''}
-            </span>
-            <span className="text-stone-700">·</span>
-            <span className="text-sm font-semibold text-stone-600">— {flat.length}</span>
-            <span className="text-stone-700">·</span>
-            <span className="text-xs text-stone-500">
-              {entries.length}{unlimitedBinder ? '' : ' / 500'}
-            </span>
+            <span className={`text-sm font-semibold ${losers.length > 0 ? 'text-red-400' : 'text-stone-600'}`}>▼ {losers.length}</span>
           </div>
         )}
         {binderUpdatedAt && (
@@ -1438,7 +1385,7 @@ return (
           )}
         </div>
         <button
-          onClick={() => { setShowManage(b => !b); if (showManage) { setShowBulk(false); setShowImportCsv(false); setShowExport(false) } }}
+          onClick={() => { setShowManage(b => !b); if (showManage) { setShowBulk(false); setShowImportCsv(false); setShowExport(false); setShowEvents(false) } }}
           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${showManage ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-amber-800/60 text-amber-500 hover:border-amber-700 hover:text-amber-400 bg-stone-800'}`}
         >
           Manage
@@ -1449,22 +1396,28 @@ return (
       {showManage && (
         <div className="flex gap-2 mb-4">
           <button
-            onClick={() => { setShowBulk(b => !b); setBulkResults([]); setBulkProgress(null); setShowImportCsv(false); setShowExport(false) }}
+            onClick={() => { setShowBulk(b => !b); setBulkResults([]); setBulkProgress(null); setShowImportCsv(false); setShowExport(false); setShowEvents(false) }}
             className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showBulk ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
           >
             Bulk add
           </button>
           <button
-            onClick={() => { setShowImportCsv(b => !b); setImportCsvResults([]); setImportCsvProgress(null); setShowBulk(false); setShowExport(false) }}
+            onClick={() => { setShowImportCsv(b => !b); setImportCsvResults([]); setImportCsvProgress(null); setShowBulk(false); setShowExport(false); setShowEvents(false) }}
             className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showImportCsv ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
           >
             Import CSV
           </button>
           <button
-            onClick={() => { setShowExport(b => !b); setExportStatus(null); setShowBulk(false); setShowImportCsv(false) }}
+            onClick={() => { setShowExport(b => !b); setExportStatus(null); setShowBulk(false); setShowImportCsv(false); setShowEvents(false) }}
             className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showExport ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
           >
             Export CSV
+          </button>
+          <button
+            onClick={() => { setShowEvents(b => !b); setShowAddEvent(false); setShowBulk(false); setShowImportCsv(false); setShowExport(false) }}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors border ${showEvents ? 'border-amber-700 text-amber-500 bg-amber-950/30' : 'border-stone-700 text-stone-500 hover:text-stone-300 bg-stone-900'}`}
+          >
+            Chart Events
           </button>
         </div>
       )}
@@ -1626,6 +1579,44 @@ return (
             Download CSV
           </button>
           {exportStatus && <span className="text-sm text-stone-400">{exportStatus}</span>}
+        </div>
+      )}
+
+      {/* Chart events panel */}
+      {showEvents && (
+        <div className="mb-4 bg-stone-900 border border-stone-700 rounded-xl p-4 flex flex-col gap-3">
+          {chartEvents.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {chartEvents.map(ev => editingEventId === ev.id ? (
+                <form key={ev.id} onSubmit={saveEditChartEvent} className="flex flex-wrap items-center gap-2">
+                  <input type="date" value={editingDate} onChange={e => setEditingDate(e.target.value)} className="bg-stone-950 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 focus:outline-none focus:border-amber-600" />
+                  <input type="text" value={editingLabel} onChange={e => setEditingLabel(e.target.value)} placeholder="Event label" maxLength={30} className="flex-1 min-w-[140px] bg-stone-950 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+                  <button type="submit" disabled={eventSaving || !editingLabel.trim()} className="px-4 py-1.5 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors">Save</button>
+                  <button type="button" onClick={() => setEditingEventId(null)} className="text-sm text-stone-500 hover:text-stone-300 transition-colors px-2">Cancel</button>
+                </form>
+              ) : (
+                <div key={ev.id} className="flex items-center gap-2 text-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                  <span className="text-amber-400/80 font-mono text-xs">{ev.date.slice(0, 10)}</span>
+                  <span className="text-stone-300 flex-1 truncate">{ev.label}</span>
+                  <button onClick={() => { setEditingEventId(ev.id); setEditingDate(ev.date.slice(0, 10)); setEditingLabel(ev.label) }} className="text-stone-500 hover:text-stone-300 transition-colors text-xs px-1">Edit</button>
+                  <button onClick={() => deleteChartEvent(ev.id)} className="text-stone-500 hover:text-red-400 transition-colors px-1">×</button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-stone-600">No events yet. Add one below.</p>
+          )}
+          {showAddEvent ? (
+            <form onSubmit={addChartEvent} className="flex flex-wrap items-center gap-2">
+              <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="bg-stone-950 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 focus:outline-none focus:border-amber-600" />
+              <input type="text" value={newEventLabel} onChange={e => setNewEventLabel(e.target.value)} placeholder="Event label" maxLength={30} className="flex-1 min-w-[140px] bg-stone-950 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600" />
+              <button type="submit" disabled={eventSaving || !newEventLabel.trim()} className="px-4 py-1.5 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 rounded-lg text-sm font-medium text-amber-100 transition-colors">Save</button>
+              <button type="button" onClick={() => { setShowAddEvent(false); setNewEventLabel('') }} className="text-sm text-stone-500 hover:text-stone-300 transition-colors px-2">Cancel</button>
+            </form>
+          ) : (
+            <button onClick={() => setShowAddEvent(true)} className="self-start px-3 py-1.5 rounded-lg text-sm transition-colors border border-stone-700 text-stone-400 hover:text-stone-200 bg-stone-900">+ Add event</button>
+          )}
         </div>
       )}
 
