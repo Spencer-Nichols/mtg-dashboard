@@ -111,7 +111,7 @@ export default function CollectionChart({
   const visibleCountMarkers = countMarkers.filter(m => m.delta !== 0)
 
   return (
-    <svg viewBox={`0 -12 ${width} ${height + 24}`} className="w-full">
+    <svg viewBox={`0 -20 ${width} ${height + 32}`} className="w-full">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.15" />
@@ -170,7 +170,7 @@ export default function CollectionChart({
         return (
           <g key={e.id}>
             <line x1={ex} y1={4} x2={ex} y2={height} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 2" opacity="0.7" />
-            <text x={ex} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#f59e0b" opacity="0.9">{label}</text>
+            <text x={ex} y={-9} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#f59e0b" opacity="0.9">{label}</text>
           </g>
         )
       })}
