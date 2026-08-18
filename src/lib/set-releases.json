@@ -3,5 +3,11 @@
   { "date": "2026-06-26", "name": "Marvel Super Heroes", "code": "MSH" },
   { "date": "2026-08-14", "name": "The Hobbit", "code": "HOB" },
   { "date": "2026-10-02", "name": "Reality Fracture", "code": "FRA" },
-  { "date": "2026-11-20", "name": "Star Trek", "code": "TRK" }
+  { "date": "2026-11-20", "name": "Star Trek", "code": "TRK" },
+  { "date": "2027-02-05", "name": "Nauctis: The Sunken Realm", "code": "NAU" },
+  { "date": "2027-04-09", "name": "Unannounced Universes Beyond", "code": null },
+  { "date": "2027-06-04", "name": "Kamigawa: Titanbreach", "code": "KTB" },
+  { "date": "2027-08-06", "name": "Unannounced Universes Beyond", "code": null },
+  { "date": "2027-10-01", "name": "Zhalfir", "code": "ZHA" },
+  { "date": "2027-11-19", "name": "Unannounced Universes Beyond", "code": null }
 ]
