@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
         const { data: existing } = await supabase
           .from('binder_cards')
           .select('base_name')
+          .eq('user_id', user.id)
           .ilike('base_name', name)
           .maybeSingle()
 
