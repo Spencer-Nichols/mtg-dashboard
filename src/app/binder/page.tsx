@@ -1070,7 +1070,7 @@ export default function BinderPage() {
           fetch('/api/binder/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total: currentTotal, card_count: prev.size }),
+            body: JSON.stringify({ total: currentTotal, card_count: entries.length }),
           }).then(r => r.json()).then(h => {
             if (Array.isArray(h)) {
               setBinderHistory(h)
