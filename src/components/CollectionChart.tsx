@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type MouseEvent } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import setReleases from '@/lib/set-releases.json'
 
 interface DataPoint {
@@ -39,6 +39,7 @@ export default function CollectionChart({
   showMarkers = true,
 }: CollectionChartProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   if (data.length === 0) return null
 
@@ -148,9 +149,28 @@ export default function CollectionChart({
   const tooltipWidth = active ? estimateTooltipWidth(active.label) : 0
   const tooltipX = active ? Math.min(Math.max(active.x, padX + tooltipWidth / 2 - 4), width - padX - tooltipWidth / 2 + 4) : 0
 
+  // Nearest-marker snapping: one big tap/hover strip instead of per-marker hit targets,
+  // so markers stay tappable on mobile without needing tiny precise touch zones.
+  const NEAREST_THRESHOLD = width * 0.025
+  const findNearestMarker = (clientX: number): Marker | null => {
+    if (!svgRef.current || allMarkers.length === 0) return null
+    const rect = svgRef.current.getBoundingClientRect()
+    const localX = (clientX - rect.left) * (width / rect.width)
+    let nearest = allMarkers[0]
+    let bestDist = Math.abs(nearest.x - localX)
+    for (const m of allMarkers) {
+      const d = Math.abs(m.x - localX)
+      if (d < bestDist) { nearest = m; bestDist = d }
+    }
+    return bestDist <= NEAREST_THRESHOLD ? nearest : null
+  }
+  const handleMarkerInteract = (e: MouseEvent) => {
+    const nearest = findNearestMarker(e.clientX)
+    setActiveId(nearest?.id ?? null)
+  }
+
   return (
-    <svg viewBox={`0 -20 ${width} ${height + 32}`} className="w-full" onClick={() => setActiveId(null)}>
-      <rect x="0" y="-20" width={width} height={height + 32} fill="transparent" />
+    <svg ref={svgRef} viewBox={`0 -20 ${width} ${height + 32}`} className="w-full">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.15" />
@@ -178,16 +198,11 @@ export default function CollectionChart({
         })}
       </g>
       {showMarkers && (
-        <g>
+        <g pointerEvents="none">
           {allMarkers.map(m => {
             const isActive = m.id === activeId
             const dashed = !m.id.startsWith('release-')
             const dotY = 12
-            const handlers = {
-              onMouseEnter: () => setActiveId(m.id),
-              onMouseLeave: () => setActiveId(prev => (prev === m.id ? null : prev)),
-              onClick: (e: MouseEvent) => { e.stopPropagation(); setActiveId(prev => (prev === m.id ? null : m.id)) },
-            }
             return (
               <g key={m.id}>
                 <line
@@ -198,8 +213,6 @@ export default function CollectionChart({
                   opacity={isActive ? 0.35 : 0.15}
                 />
                 <circle cx={m.x} cy={dotY} r={isActive ? 5.5 : 4} fill={m.color} stroke="#0f172a" strokeWidth="1.5" opacity={isActive ? 1 : 0.85} />
-                <circle cx={m.x} cy={dotY} r="9" fill="transparent" style={{ cursor: 'pointer' }} {...handlers} />
-                <rect x={m.x - 6} y={dotY + 4} width={12} height={height - dotY} fill="transparent" style={{ cursor: 'pointer' }} {...handlers} />
               </g>
             )
           })}
@@ -211,6 +224,16 @@ export default function CollectionChart({
           ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
           : <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={color} />}
       </g>
+      {showMarkers && allMarkers.length > 0 && (
+        <rect
+          x="0" y="-20" width={width} height={height + 32}
+          fill="transparent"
+          style={{ cursor: 'pointer' }}
+          onMouseMove={handleMarkerInteract}
+          onMouseLeave={() => setActiveId(null)}
+          onClick={handleMarkerInteract}
+        />
+      )}
       {active && (
         <g pointerEvents="none">
           <rect
