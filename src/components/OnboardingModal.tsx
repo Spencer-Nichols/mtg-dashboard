@@ -24,8 +24,8 @@ const STEPS: Step[] = [
     ],
     callout: {
       label: 'NEW',
-      title: 'Chart Events',
-      body: 'Mark moments on your binder chart with a custom label, like noting when you started a new deck or made a big purchase. Events appear as amber lines on both the binder and homepage charts.',
+      title: 'Gain vs. Value Chart',
+      body: 'Toggle the binder chart between total value and unrealized gain/loss, so you can see how much your cards have actually moved in price, separate from just adding more to your collection.',
     },
   },
   {

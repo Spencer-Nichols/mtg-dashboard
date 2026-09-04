@@ -818,6 +818,20 @@ export default function BinderPage() {
   const [binderHistory, setBinderHistory] = useState<{ date: string; total: number; card_count?: number | null }[]>([])
   const [binderUpdatedAt, setBinderUpdatedAt] = useState<Date | null>(null)
   const [cardHistory, setCardHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
+  const [chartView, setChartView] = useState<'value' | 'gain'>('value')
+  const [gainHistory, setGainHistory] = useState<{ date: string; total: number }[] | null>(null)
+  const [gainLoading, setGainLoading] = useState(false)
+
+  function selectChartView(view: 'value' | 'gain') {
+    setChartView(view)
+    if (view === 'gain' && gainHistory === null && !gainLoading) {
+      setGainLoading(true)
+      fetch('/api/binder/gain-history')
+        .then(r => r.json())
+        .then(data => { if (Array.isArray(data)) setGainHistory(data) })
+        .finally(() => setGainLoading(false))
+    }
+  }
 
   useEffect(() => {
     expandParamRef.current = new URLSearchParams(window.location.search).get('expand')
@@ -1211,6 +1225,9 @@ export default function BinderPage() {
   const totalDelta = results.size > 0 ? totalCurrentValue - totalSnapshotValue : null
   const totalPct = totalDelta != null && totalSnapshotValue > 0 ? (totalDelta / totalSnapshotValue) * 100 : null
   const binderSparkValues = binderHistory.map(h => h.total)
+  const activeChartData = chartView === 'gain' ? (gainHistory ?? []) : binderHistory
+  const currentGain = gainHistory && gainHistory.length > 0 ? gainHistory[gainHistory.length - 1].total : null
+  const gainTodayDelta = gainHistory && gainHistory.length > 1 ? gainHistory[gainHistory.length - 1].total - gainHistory[gainHistory.length - 2].total : null
 
   const gainersDelta = gainers.filter(r => (r.dailyDaysAgo ?? 1) <= 1).reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
   const losersDelta = losers.filter(r => (r.dailyDaysAgo ?? 1) <= 1).reduce((sum, r) => sum + ((r.currentPrice ?? 0) - (r.dailyBaseline ?? r.snapshotPrice)), 0)
@@ -1305,7 +1322,40 @@ return (
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="mt-3 bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <CollectionChart data={binderHistory} labelFontSize={7} countFontSize={7} events={chartEvents} />
+            <div className="flex gap-1.5 mb-2">
+              {(['value', 'gain'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => selectChartView(v)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${chartView === v ? 'border-amber-700 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:text-stone-300 hover:border-stone-600'}`}
+                >
+                  {v === 'value' ? 'Value' : 'Gain'}
+                </button>
+              ))}
+            </div>
+            {chartView === 'gain' && currentGain != null && (
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span className={`text-sm font-mono font-semibold ${currentGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {currentGain >= 0 ? '+' : '-'}${Math.abs(currentGain).toFixed(2)} unrealized
+                </span>
+                {gainTodayDelta != null && Math.abs(gainTodayDelta) >= 0.01 && (
+                  <span className={`text-xs font-mono ${gainTodayDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ({gainTodayDelta >= 0 ? '+' : '-'}${Math.abs(gainTodayDelta).toFixed(2)} today)
+                  </span>
+                )}
+              </div>
+            )}
+            {chartView === 'gain' && gainLoading && activeChartData.length === 0 ? (
+              <p className="text-xs text-stone-600 py-8 text-center">Loading…</p>
+            ) : (
+              <CollectionChart
+                data={activeChartData}
+                labelFontSize={7}
+                events={chartView === 'value' ? chartEvents : []}
+                showMarkers={chartView === 'value'}
+                zeroBaseline={chartView === 'gain'}
+              />
+            )}
           </div>
         )}
       </div>
@@ -1331,7 +1381,42 @@ return (
         </div>
         {binderSparkValues.length >= 1 && (
           <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <CollectionChart data={binderHistory} height={180} labelFontSize={7} countFontSize={14} labelsOnMobile events={chartEvents} />
+            <div className="flex gap-1.5 mb-2">
+              {(['value', 'gain'] as const).map(v => (
+                <button
+                  key={v}
+                  onClick={() => selectChartView(v)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${chartView === v ? 'border-amber-700 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500'}`}
+                >
+                  {v === 'value' ? 'Value' : 'Gain'}
+                </button>
+              ))}
+            </div>
+            {chartView === 'gain' && currentGain != null && (
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span className={`text-base font-mono font-semibold ${currentGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {currentGain >= 0 ? '+' : '-'}${Math.abs(currentGain).toFixed(2)} unrealized
+                </span>
+                {gainTodayDelta != null && Math.abs(gainTodayDelta) >= 0.01 && (
+                  <span className={`text-sm font-mono ${gainTodayDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ({gainTodayDelta >= 0 ? '+' : '-'}${Math.abs(gainTodayDelta).toFixed(2)} today)
+                  </span>
+                )}
+              </div>
+            )}
+            {chartView === 'gain' && gainLoading && activeChartData.length === 0 ? (
+              <p className="text-sm text-stone-600 py-8 text-center">Loading…</p>
+            ) : (
+              <CollectionChart
+                data={activeChartData}
+                height={180}
+                labelFontSize={16}
+                labelsOnMobile
+                events={chartView === 'value' ? chartEvents : []}
+                showMarkers={chartView === 'value'}
+                zeroBaseline={chartView === 'gain'}
+              />
+            )}
           </div>
         )}
         {results.size > 0 && (

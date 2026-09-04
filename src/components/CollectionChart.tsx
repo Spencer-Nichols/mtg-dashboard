@@ -20,10 +20,13 @@ interface CollectionChartProps {
   width?: number
   height?: number
   labelFontSize?: number
-  countFontSize?: number
   labelsOnMobile?: boolean
   events?: ChartEvent[]
   showMarkers?: boolean
+  /** Renders a diverging chart around a zero baseline (green above / red below) instead of
+   *  a single-color area filled to the chart's bottom edge — for series that can go negative,
+   *  like unrealized gain/loss, where "filled to the bottom regardless of sign" is misleading. */
+  zeroBaseline?: boolean
 }
 
 type Marker = { id: string; x: number; label: string; color: string }
@@ -33,10 +36,10 @@ export default function CollectionChart({
   width = 600,
   height = 120,
   labelFontSize = 9,
-  countFontSize = 11,
   labelsOnMobile = false,
   events = [],
   showMarkers = true,
+  zeroBaseline = false,
 }: CollectionChartProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -54,11 +57,12 @@ export default function CollectionChart({
   const max = Math.max(...totals)
   const clippedRange = p95 - p05 || 1
   const buffer = clippedRange * 0.1
-  const yMin = p05 - buffer
-  const yMax = Math.max(p95, max) + buffer
+  const yMin = zeroBaseline ? Math.min(p05 - buffer, 0) : p05 - buffer
+  const yMax = zeroBaseline ? Math.max(p95, max, 0) + buffer : Math.max(p95, max) + buffer
   const range = yMax - yMin
 
   const y = (v: number) => padY + (1 - (v - yMin) / range) * (height - padY * 2)
+  const baselineY = zeroBaseline ? Math.max(0, Math.min(height, y(0))) : height
 
   const firstDate = new Date(data[0].date).getTime()
   const lastDate = new Date(data[data.length - 1].date).getTime()
@@ -80,9 +84,9 @@ export default function CollectionChart({
     : []
 
   const points = data.map((d, i) => `${x(i).toFixed(1)},${y(d.total).toFixed(1)}`).join(' ')
-  const area = `M${x(0).toFixed(1)},${height} ` +
+  const area = `M${x(0).toFixed(1)},${baselineY.toFixed(1)} ` +
     data.map((d, i) => `L${x(i).toFixed(1)},${y(d.total).toFixed(1)}`).join(' ') +
-    ` L${x(data.length - 1).toFixed(1)},${height} Z`
+    ` L${x(data.length - 1).toFixed(1)},${baselineY.toFixed(1)} Z`
 
   const trend = data.length > 1 ? data[data.length - 1].total - data[0].total : 0
   const color = trend >= 0 ? '#4ade80' : '#f87171'
@@ -172,10 +176,29 @@ export default function CollectionChart({
   return (
     <svg ref={svgRef} viewBox={`0 -20 ${width} ${height + 32}`} className="w-full">
       <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
+        {zeroBaseline ? (
+          <>
+            <linearGradient id={`${gradId}-up`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#4ade80" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id={`${gradId}-down`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f87171" stopOpacity="0" />
+              <stop offset="100%" stopColor="#f87171" stopOpacity="0.18" />
+            </linearGradient>
+            <clipPath id={`${gradId}-above`}>
+              <rect x={padX} y={0} width={width - padX * 2} height={baselineY} />
+            </clipPath>
+            <clipPath id={`${gradId}-below`}>
+              <rect x={padX} y={baselineY} width={width - padX * 2} height={height - baselineY} />
+            </clipPath>
+          </>
+        ) : (
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.15" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        )}
         <clipPath id={`${gradId}-clip`}>
           <rect x={padX} y={0} width={width - padX * 2} height={height} />
         </clipPath>
@@ -184,7 +207,7 @@ export default function CollectionChart({
         {yLabels.map((v, i) => (
           <g key={i}>
             <line x1={padX} y1={y(v)} x2={width - padX} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
-            <text x={padX - 4} y={y(v) + 4} textAnchor="end" fontSize={labelFontSize} fill="#475569">${Math.round(v)}</text>
+            <text x={padX - 4} y={y(v) + 4} textAnchor="end" fontSize={labelFontSize} fill="#475569">{v < 0 ? `-$${Math.abs(Math.round(v))}` : `$${Math.round(v)}`}</text>
           </g>
         ))}
         {xIndices.map(i => {
@@ -218,11 +241,30 @@ export default function CollectionChart({
           })}
         </g>
       )}
+      {zeroBaseline && (
+        <line x1={padX} y1={baselineY} x2={width - padX} y2={baselineY} stroke="#475569" strokeWidth="1" strokeDasharray="2 2" opacity="0.6" />
+      )}
       <g clipPath={`url(#${gradId}-clip)`}>
-        <path d={area} fill={`url(#${gradId})`} />
-        {data.length > 1
-          ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-          : <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={color} />}
+        {zeroBaseline ? (
+          <>
+            <g clipPath={`url(#${gradId}-above)`}>
+              <path d={area} fill={`url(#${gradId}-up)`} />
+              {data.length > 1 && <polyline points={points} fill="none" stroke="#4ade80" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />}
+            </g>
+            <g clipPath={`url(#${gradId}-below)`}>
+              <path d={area} fill={`url(#${gradId}-down)`} />
+              {data.length > 1 && <polyline points={points} fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />}
+            </g>
+            {data.length === 1 && <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={data[0].total >= 0 ? '#4ade80' : '#f87171'} />}
+          </>
+        ) : (
+          <>
+            <path d={area} fill={`url(#${gradId})`} />
+            {data.length > 1
+              ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+              : <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={color} />}
+          </>
+        )}
       </g>
       {showMarkers && allMarkers.length > 0 && (
         <rect
