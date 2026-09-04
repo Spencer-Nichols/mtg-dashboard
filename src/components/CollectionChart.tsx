@@ -1,3 +1,6 @@
+'use client'
+
+import { useState, type MouseEvent } from 'react'
 import setReleases from '@/lib/set-releases.json'
 
 interface DataPoint {
@@ -23,6 +26,8 @@ interface CollectionChartProps {
   showMarkers?: boolean
 }
 
+type Marker = { id: string; x: number; label: string; color: string }
+
 export default function CollectionChart({
   data,
   width = 600,
@@ -33,6 +38,8 @@ export default function CollectionChart({
   events = [],
   showMarkers = true,
 }: CollectionChartProps) {
+  const [activeId, setActiveId] = useState<string | null>(null)
+
   if (data.length === 0) return null
 
   const padX = 48
@@ -92,7 +99,10 @@ export default function CollectionChart({
     if (last === undefined || x(i) - x(last) >= MIN_LABEL_GAP) xIndices.push(i)
   }
 
-  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
+  // Merge window scales with the chart's total span so a multi-month view doesn't
+  // spawn a separate tick for every import that happened within a few hours of another.
+  const spanMs = lastDate - firstDate
+  const mergeWindowMs = Math.max(4 * 60 * 60 * 1000, spanMs * 0.01)
   const countMarkers: { x: number; delta: number; lastTs: number }[] = []
   for (let k = 1; k < data.length; k++) {
     const prev = data[k - 1].card_count
@@ -100,7 +110,7 @@ export default function CollectionChart({
     if (curr != null && prev != null && curr !== prev) {
       const ts = new Date(data[k].date).getTime()
       const last = countMarkers[countMarkers.length - 1]
-      if (last && ts - last.lastTs <= FOUR_HOURS_MS) {
+      if (last && ts - last.lastTs <= mergeWindowMs) {
         last.delta += curr - prev
         last.x = x(k)
         last.lastTs = ts
@@ -112,8 +122,35 @@ export default function CollectionChart({
 
   const visibleCountMarkers = countMarkers.filter(m => m.delta !== 0)
 
+  const countMarkerList: Marker[] = visibleCountMarkers.map((m, idx) => ({
+    id: `count-${idx}`,
+    x: m.x,
+    label: m.delta > 0 ? `+${m.delta}` : `${m.delta}`,
+    color: m.delta > 0 ? '#4ade80' : '#f87171',
+  }))
+  const releaseMarkerList: Marker[] = releaseMarkers.map(r => ({
+    id: `release-${r.date}`,
+    x: dateToX(r.date),
+    label: r.name,
+    color: '#a07848',
+  }))
+  const eventMarkerList: Marker[] = events
+    .filter(e => {
+      const t = new Date(e.date).getTime()
+      return t >= firstDate && t <= lastDate
+    })
+    .map(e => ({ id: `event-${e.id}`, x: dateToX(e.date), label: e.label, color: '#f59e0b' }))
+
+  const allMarkers = [...countMarkerList, ...releaseMarkerList, ...eventMarkerList]
+  const active = allMarkers.find(m => m.id === activeId) ?? null
+
+  const estimateTooltipWidth = (label: string) => Math.max(36, label.length * 6.2 + 16)
+  const tooltipWidth = active ? estimateTooltipWidth(active.label) : 0
+  const tooltipX = active ? Math.min(Math.max(active.x, padX + tooltipWidth / 2 - 4), width - padX - tooltipWidth / 2 + 4) : 0
+
   return (
-    <svg viewBox={`0 -20 ${width} ${height + 32}`} className="w-full">
+    <svg viewBox={`0 -20 ${width} ${height + 32}`} className="w-full" onClick={() => setActiveId(null)}>
+      <rect x="0" y="-20" width={width} height={height + 32} fill="transparent" />
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.15" />
@@ -140,48 +177,51 @@ export default function CollectionChart({
           )
         })}
       </g>
-      <g>
-        {showMarkers && visibleCountMarkers.map(({ x: cx, delta }, idx) => {
-          const isAdd = delta > 0
-          const markerColor = isAdd ? '#4ade80' : '#f87171'
-          const label = isAdd ? `+${delta}` : `${delta}`
-          return (
-            <g key={idx}>
-              <line x1={cx} y1={4} x2={cx} y2={height} stroke={markerColor} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-              <text x={cx} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize={countFontSize} fontWeight="600" fill={markerColor}>{label}</text>
-            </g>
-          )
-        })}
-      </g>
-      {showMarkers && releaseMarkers.map(r => {
-        const rx = dateToX(r.date)
-        const label = r.name.length <= 10 ? r.name : r.code
-        return (
-          <g key={r.date}>
-            <line x1={rx} y1={4} x2={rx} y2={height} stroke="#a07848" strokeWidth="1" opacity="0.5" />
-            <text x={rx} y={-2} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#a07848" opacity="0.8">{label}</text>
-          </g>
-        )
-      })}
-      {events.filter(e => {
-        const t = new Date(e.date).getTime()
-        return t >= firstDate && t <= lastDate
-      }).map(e => {
-        const ex = dateToX(e.date)
-        const label = e.label.length <= 12 ? e.label : e.label.slice(0, 11) + '…'
-        return (
-          <g key={e.id}>
-            <line x1={ex} y1={4} x2={ex} y2={height} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 2" opacity="0.7" />
-            <text x={ex} y={-9} dominantBaseline="auto" textAnchor="middle" fontSize="7" fill="#f59e0b" opacity="0.9">{label}</text>
-          </g>
-        )
-      })}
+      {showMarkers && (
+        <g>
+          {allMarkers.map(m => {
+            const isActive = m.id === activeId
+            const dashed = !m.id.startsWith('release-')
+            const dotY = 12
+            const handlers = {
+              onMouseEnter: () => setActiveId(m.id),
+              onMouseLeave: () => setActiveId(prev => (prev === m.id ? null : prev)),
+              onClick: (e: MouseEvent) => { e.stopPropagation(); setActiveId(prev => (prev === m.id ? null : m.id)) },
+            }
+            return (
+              <g key={m.id}>
+                <line
+                  x1={m.x} y1={dotY + 4} x2={m.x} y2={height}
+                  stroke={m.color}
+                  strokeWidth="1"
+                  strokeDasharray={dashed ? (m.id.startsWith('event-') ? '4 2' : '3 3') : undefined}
+                  opacity={isActive ? 0.35 : 0.15}
+                />
+                <circle cx={m.x} cy={dotY} r={isActive ? 5.5 : 4} fill={m.color} stroke="#0f172a" strokeWidth="1.5" opacity={isActive ? 1 : 0.85} />
+                <circle cx={m.x} cy={dotY} r="9" fill="transparent" style={{ cursor: 'pointer' }} {...handlers} />
+                <rect x={m.x - 6} y={dotY + 4} width={12} height={height - dotY} fill="transparent" style={{ cursor: 'pointer' }} {...handlers} />
+              </g>
+            )
+          })}
+        </g>
+      )}
       <g clipPath={`url(#${gradId}-clip)`}>
         <path d={area} fill={`url(#${gradId})`} />
         {data.length > 1
           ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
           : <circle cx={x(0)} cy={y(data[0].total)} r="3" fill={color} />}
       </g>
+      {active && (
+        <g pointerEvents="none">
+          <rect
+            x={tooltipX - tooltipWidth / 2} y={-18} width={tooltipWidth} height={16} rx={3}
+            fill="#0f172a" stroke={active.color} strokeWidth="1" opacity="0.95"
+          />
+          <text x={tooltipX} y={-6} textAnchor="middle" fontSize={10} fontWeight="600" fill={active.color}>
+            {active.label}
+          </text>
+        </g>
+      )}
     </svg>
   )
 }

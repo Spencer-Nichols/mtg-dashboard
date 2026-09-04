@@ -848,7 +848,7 @@ export default function BinderPage() {
         }
         const lastStreamAt = localStorage.getItem(LS_STREAM_AT)
         const isStale = !lastStreamAt || Date.now() - parseInt(lastStreamAt) > STREAM_TTL
-        if (isStale) startStream()
+        if (isStale) startStream(data.entries.length)
       })
     fetch('/api/binder/history').then(r => r.json()).then(h => {
       if (Array.isArray(h)) {
@@ -955,14 +955,14 @@ export default function BinderPage() {
     fetch('/api/binder').then(r => r.json()).then(d => {
       setEntries(d.entries)
       localStorage.setItem(LS_BINDER_ENTRIES, JSON.stringify(d.entries))
-      startStream()
+      startStream(d.entries.length)
     })
   }
 
   function handleAddedFromModal() {
     fetch('/api/binder').then(r => r.json()).then(d => {
       setEntries(d.entries)
-      startStream()
+      startStream(d.entries.length)
     })
   }
 
@@ -1000,7 +1000,7 @@ export default function BinderPage() {
         } else if (msg.type === 'done') {
           fetch('/api/binder').then(r => r.json()).then(d => {
             setEntries(d.entries)
-            startStream()
+            startStream(d.entries.length)
           })
         }
       }
@@ -1009,11 +1009,12 @@ export default function BinderPage() {
     setBulkLoading(false)
   }
 
-  function startStream() {
+  function startStream(expectedCount?: number) {
     if (streaming) return
     esRef.current?.close()
     setProgress(0)
     setStreaming(true)
+    const countForHistory = expectedCount ?? entries.length
 
     const es = new EventSource('/api/binder/stream')
     esRef.current = es
@@ -1070,7 +1071,7 @@ export default function BinderPage() {
           fetch('/api/binder/history', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ total: currentTotal, card_count: entries.length }),
+            body: JSON.stringify({ total: currentTotal, card_count: countForHistory }),
           }).then(r => r.json()).then(h => {
             if (Array.isArray(h)) {
               setBinderHistory(h)
@@ -1118,7 +1119,7 @@ export default function BinderPage() {
         } else if (msg.type === 'done') {
           fetch('/api/binder').then(r => r.json()).then(d => {
             setEntries(d.entries)
-            startStream()
+            startStream(d.entries.length)
           })
         }
       }
