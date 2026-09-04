@@ -40,6 +40,7 @@ interface CardResult {
   typeLine?: string
   foilType?: FoilType
   rowKey?: string
+  dateAdded?: string | null
 }
 
 const CONDITIONS = ['NM', 'LP', 'MP', 'HP', 'Damaged'] as const
@@ -403,6 +404,11 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
           {row.foilType && row.foilType !== 'none' && <span className="text-xs px-1 py-0.5 rounded bg-amber-950/60 text-amber-500 font-mono border border-amber-900/40 shrink-0">{row.foilType}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {row.pct != null && Math.abs(row.pct) >= 0.05 && (
+            <span className={`text-xs font-mono ${row.pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {row.pct >= 0 ? '▲' : '▼'}{Math.abs(row.pct).toFixed(1)}%
+            </span>
+          )}
           <span className="text-sm text-stone-500 font-mono">${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}</span>
           <span className="text-stone-600 text-xs">{expanded ? '▲' : '▼'}</span>
         </div>
@@ -790,6 +796,7 @@ export default function BinderPage() {
   }, [importCsvResults])
   const [importCsvProgress, setImportCsvProgress] = useState<{ current: number; total: number } | null>(null)
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null)
+  const [recentOpen, setRecentOpen] = useState(false)
   const [gainersOpen, setGainersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [losersOpen, setLosersOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const [flatOpen, setFlatOpen] = useState(false)
@@ -1172,8 +1179,8 @@ export default function BinderPage() {
       ? Math.round((new Date(todayStr).getTime() - new Date(baselineEntry.date.split('T')[0]).getTime()) / 86400000)
       : null
     return result
-      ? { ...result, pct, dailyPct, dailyBaseline, dailyDaysAgo, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined }
-      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, dailyDaysAgo: null, imageUrl: null, fromCache: false, rowKey: rKey, foilType: e.foilType, note: e.note ?? undefined }
+      ? { ...result, pct, dailyPct, dailyBaseline, dailyDaysAgo, rowKey: rKey, foilType: e.foilType, purchasePrice: e.purchasePrice, condition: e.condition, note: e.note ?? undefined, dateAdded: e.dateAdded }
+      : { displayName: e.displayName, snapshotPrice: e.snapshotPrice, purchasePrice: e.purchasePrice, condition: e.condition, currentPrice: null, pct: null, dailyPct: null, dailyBaseline: null, dailyDaysAgo: null, imageUrl: null, fromCache: false, rowKey: rKey, foilType: e.foilType, note: e.note ?? undefined, dateAdded: e.dateAdded }
   })
 
   const filteredRows = searchQuery.trim()
@@ -1187,10 +1194,17 @@ export default function BinderPage() {
     ? (a: CardResult, b: CardResult) => (b.dailyPct ?? 0) - (a.dailyPct ?? 0)
     : (a: CardResult, b: CardResult) => dailyDollar(b) - dailyDollar(a)
 
+  const RECENT_DAYS = 7
+  const recentCutoff = new Date(Date.now() - RECENT_DAYS * 86400000).toISOString().split('T')[0]
+  const recentlyAdded = filteredRows
+    .filter(r => r.dateAdded != null && r.dateAdded >= recentCutoff)
+    .sort((a, b) => (b.currentPrice ?? b.snapshotPrice) - (a.currentPrice ?? a.snapshotPrice))
+  const recentlyAddedValue = recentlyAdded.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
+
   const gainers = filteredRows.filter(r => (r.dailyPct ?? 0) >= MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort(sortFn)
   const losers = filteredRows.filter(r => (r.dailyPct ?? 0) <= -MIN_DAILY_PCT && (r.dailyDaysAgo ?? 1) <= MAX_DAILY_DAYS).sort((a, b) => -sortFn(a, b))
   const flat = filteredRows.filter(r => r.dailyPct === null || Math.abs(r.dailyPct) < MIN_DAILY_PCT || (r.dailyDaysAgo ?? 1) > MAX_DAILY_DAYS).sort(sortFn)
-  const pending = filteredRows.filter(r => r.pct === null)
+  const flatValue = flat.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
 
   const totalCurrentValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
   const totalSnapshotValue = rows.reduce((sum, r) => sum + r.snapshotPrice, 0)
@@ -1655,6 +1669,30 @@ return (
             </div>
           )}
 
+          {/* Recently added */}
+          {recentlyAdded.length > 0 && (
+            <div id="binder-recently-added" className="mb-8">
+              <button
+                onClick={() => setRecentOpen(o => !o)}
+                className="w-full flex items-center gap-2 mb-3 text-left"
+              >
+                <span className="text-amber-400 font-semibold">Recently Added</span>
+                <span className="text-stone-600 font-normal text-sm">{recentlyAdded.length} cards &middot; last {RECENT_DAYS}d</span>
+                <span className="text-amber-400 font-mono text-sm ml-auto">${recentlyAddedValue.toFixed(2)}</span>
+                <span className="text-stone-400 text-sm shrink-0">{recentOpen ? '▲' : '▼'}</span>
+              </button>
+              {recentOpen && (
+                <CompactCardGrid
+                  rows={recentlyAdded}
+                  onDelete={requestDelete}
+                  pendingDelete={pendingDelete}
+                  sparklines={new Map(Object.entries(cardHistory).map(([k, v]) => [k, { values: v.map(p => p.price), dates: v.map(p => p.date) }]))}
+                  onSaved={handleSavedFromModal}
+                />
+              )}
+            </div>
+          )}
+
           {/* Two-column layout */}
           {entries.length > 0 && <><div id="binder-gainers-losers" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div id="binder-gainers">
@@ -1721,7 +1759,8 @@ return (
               >
                 <span className="text-stone-400 font-semibold text-sm">Unchanged</span>
                 <span className="text-stone-600 font-normal text-sm">{flat.length} cards</span>
-                <span className="text-stone-600 text-xs ml-auto">{flatOpen ? '▲' : '▼'}</span>
+                <span className="text-stone-400 font-mono text-sm ml-auto">${flatValue.toFixed(2)}</span>
+                <span className="text-stone-600 text-xs">{flatOpen ? '▲' : '▼'}</span>
               </button>
               {flatOpen && (
                 <CompactCardGrid
