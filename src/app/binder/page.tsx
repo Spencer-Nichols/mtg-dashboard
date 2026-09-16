@@ -107,7 +107,7 @@ function CardImage({ src, alt, className }: { src: string | null | undefined; al
   return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
 }
 
-function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts, labelsOnMobile = false, labelFontSize = 7 }: {
+function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, showLabels = false, counts, labelsOnMobile = false, labelFontSize = 7, purchasePrice = null }: {
   values: number[]
   width?: number
   height?: number
@@ -117,10 +117,14 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
   counts?: (number | null)[]
   labelsOnMobile?: boolean
   labelFontSize?: number
+  /** Cost-basis reference line — Moxfield's purchase price never enters the daily
+   *  price-history table (it'd collide with the day's real market snapshot), so it's
+   *  drawn as a static dashed line instead of a data point. */
+  purchasePrice?: number | null
 }) {
   if (values.length === 0) return null
-  const min = Math.min(...values)
-  const max = Math.max(...values)
+  const min = Math.min(...values, ...(purchasePrice != null ? [purchasePrice] : []))
+  const max = Math.max(...values, ...(purchasePrice != null ? [purchasePrice] : []))
   const range = max - min || 1
   const padLeft = showLabels ? 36 : 1.5
   const padRight = showLabels ? 8 : 1.5
@@ -209,9 +213,19 @@ function Sparkline({ values, width = 72, height = 22, fullWidth = false, dates, 
           )
         })}
       </g>
+      {purchasePrice != null && (
+        <g>
+          <line x1={padLeft} y1={y(purchasePrice)} x2={width - padRight} y2={y(purchasePrice)} stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" opacity="0.7" />
+          {showLabels && (
+            <text x={width - padRight} y={y(purchasePrice) - 3} textAnchor="end" fontSize={11} fontWeight="600" fill="#f59e0b">
+              paid ${purchasePrice.toFixed(2)}
+            </text>
+          )}
+        </g>
+      )}
       {showLabels && <path d={area} fill={`url(#${gradId})`} />}
       {values.length > 1
-        ? <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+        ? <polyline points={points} fill="none" stroke={color} strokeWidth="1" strokeLinejoin="round" strokeLinecap="round" />
         : <circle cx={x(0)} cy={y(values[0])} r="3" fill={color} />}
     </svg>
   )
@@ -450,7 +464,7 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
           <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
             <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
               {sparkline && sparkline.values.length >= 2
-                ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} />
+                ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} purchasePrice={row.purchasePrice} />
                 : <SparklinePlaceholder height={80} />}
             </div>
             <input
@@ -649,7 +663,7 @@ function CardRow({
               </div>
               <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
                 {sparkline && sparkline.values.length >= 2
-                  ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} />
+                  ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} purchasePrice={row.purchasePrice} />
                   : <SparklinePlaceholder height={80} />}
               </div>
               <input
@@ -1361,8 +1375,8 @@ return (
       </div>
 
       {/* Mobile quick-view card */}
-      <div className="lg:hidden bg-stone-900 border border-stone-800 rounded-xl p-4 mb-4">
-        <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="lg:hidden -mx-4 sm:-mx-6 bg-stone-900 border-y border-stone-800 py-4 mb-4">
+        <div className="flex items-start justify-between gap-3 mb-3 px-4">
           <div>
             {results.size > 0 ? (
               <>
@@ -1380,8 +1394,8 @@ return (
           {streaming && <span className="text-xs text-stone-500 shrink-0 mt-1">Loading… {progress}/{total}</span>}
         </div>
         {binderSparkValues.length >= 1 && (
-          <div className="bg-stone-800/40 border border-stone-700 rounded-xl px-4 py-3">
-            <div className="flex gap-1.5 mb-2">
+          <div className="bg-stone-800/40 border-y border-stone-700 py-3">
+            <div className="flex gap-1.5 mb-2 px-2">
               {(['value', 'gain'] as const).map(v => (
                 <button
                   key={v}
@@ -1393,7 +1407,7 @@ return (
               ))}
             </div>
             {chartView === 'gain' && currentGain != null && (
-              <div className="flex items-center gap-2 flex-wrap mb-2">
+              <div className="flex items-center gap-2 flex-wrap mb-2 px-2">
                 <span className={`text-base font-mono font-semibold ${currentGain >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {currentGain >= 0 ? '+' : '-'}${Math.abs(currentGain).toFixed(2)} unrealized
                 </span>
@@ -1412,6 +1426,7 @@ return (
                 height={180}
                 labelFontSize={16}
                 labelsOnMobile
+                compactLabels
                 events={chartView === 'value' ? chartEvents : []}
                 showMarkers={chartView === 'value'}
                 zeroBaseline={chartView === 'gain'}
@@ -1420,14 +1435,14 @@ return (
           </div>
         )}
         {results.size > 0 && (
-          <div className="mt-3 pt-3 border-t border-stone-800 flex items-center gap-3">
+          <div className="mt-3 pt-3 px-4 border-t border-stone-800 flex items-center gap-3">
             <span className={`text-sm font-semibold ${gainers.length > 0 ? 'text-green-400' : 'text-stone-600'}`}>▲ {gainers.length}</span>
             <span className="text-stone-700">·</span>
             <span className={`text-sm font-semibold ${losers.length > 0 ? 'text-red-400' : 'text-stone-600'}`}>▼ {losers.length}</span>
           </div>
         )}
         {binderUpdatedAt && (
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 px-4 flex justify-end">
             <p className="text-xs text-stone-700">
               Updated {binderUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>

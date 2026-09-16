@@ -137,16 +137,20 @@ function KeywordLegend({ onInsert, activeKeywords }: {
   )
 }
 
-function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
+function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded, onPreview }: {
   card: BrewCard
   onAddToWishlist: () => void
   isAdding: boolean
   isAdded: boolean
+  onPreview: () => void
 }) {
   const isOnWishlist = card.onWishlist || isAdded
   return (
     <div className="flex flex-col gap-1.5 group relative lg:hover:z-50">
-      <div className={`relative rounded-xl shadow-lg transition-transform duration-200 origin-center lg:group-hover:scale-150 lg:group-hover:ring-2 lg:group-hover:ring-amber-500/70 ${card.owned ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-green-600/60' : isOnWishlist ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-amber-600/60' : ''}`}>
+      <div
+        onClick={onPreview}
+        className={`relative rounded-xl shadow-lg transition-transform duration-200 origin-bottom lg:group-hover:scale-150 lg:group-hover:ring-2 lg:group-hover:ring-amber-500/70 cursor-pointer ${card.owned ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-green-600/60' : isOnWishlist ? 'ring-[3px] ring-offset-2 ring-offset-stone-950 ring-amber-600/60' : ''}`}
+      >
         {card.imageUrl
           ? <img src={card.imageUrl} alt={card.name} className="w-full block rounded-xl" />
           : <div className="aspect-[5/7] bg-stone-800 rounded-xl flex items-center justify-center text-stone-600 text-xs p-2 text-center">{card.name}</div>}
@@ -167,16 +171,6 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
             <p className="text-xs text-amber-400">Adding…</p>
           </div>
         )}
-        {!card.owned && !isOnWishlist && !isAdding && (
-          <div className="absolute bottom-2 left-0 right-0 flex justify-center sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={e => { e.stopPropagation(); onAddToWishlist() }}
-              className="text-xs px-3 py-1 rounded-full bg-stone-900/90 border-2 border-amber-700/50 text-amber-400 hover:bg-amber-900/40 transition-colors"
-            >
-              + Wishlist
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="px-0.5 flex flex-col gap-0.5">
@@ -184,8 +178,62 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded }: {
         {card.typeLine && <p className="text-xs text-stone-400 leading-tight">{card.typeLine}</p>}
         <div className="flex items-center justify-between gap-1">
           <p className={`text-xs font-medium capitalize ${RARITY_COLOR[card.rarity] ?? 'text-stone-400'}`}>{card.rarity}</p>
-          {card.price != null && <p className="text-sm font-mono text-stone-400">${card.price.toFixed(2)}</p>}
+          <div className="flex items-center gap-2 shrink-0">
+            {card.price != null && <p className="text-sm font-mono text-stone-400">${card.price.toFixed(2)}</p>}
+            {!card.owned && !isOnWishlist && !isAdding && (
+              <button
+                onClick={e => { e.stopPropagation(); onAddToWishlist() }}
+                className="text-xs px-2.5 py-1 rounded-full bg-amber-950/60 border-2 border-amber-700 text-amber-400 hover:bg-amber-700 hover:text-stone-950 hover:border-amber-600 transition-colors"
+              >
+                + Wishlist
+              </button>
+            )}
+          </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function CardPreviewModal({ card, onClose, onAddToWishlist, isAdding }: {
+  card: BrewCard
+  onClose: () => void
+  onAddToWishlist: () => void
+  isAdding: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative flex flex-col items-center gap-3 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-stone-900 border border-stone-700 text-stone-400 hover:text-stone-100 hover:border-stone-500 flex items-center justify-center text-lg leading-none transition-colors"
+          aria-label="Close"
+        >
+          ×
+        </button>
+        {card.imageUrl
+          ? <img src={card.imageUrl} alt={card.name} className="w-full rounded-xl shadow-2xl cursor-pointer" onClick={onClose} />
+          : <div className="aspect-[5/7] w-full bg-stone-800 rounded-xl flex items-center justify-center text-stone-600 text-sm p-4 text-center cursor-pointer" onClick={onClose}>{card.name}</div>}
+        <div className="w-full flex items-center justify-between gap-2 px-1">
+          <div>
+            <p className="text-sm text-stone-200 font-semibold">{card.name}</p>
+            {card.typeLine && <p className="text-xs text-stone-500">{card.typeLine}</p>}
+          </div>
+          {card.price != null && <p className="text-sm font-mono text-stone-400 shrink-0">${card.price.toFixed(2)}</p>}
+        </div>
+        {card.owned ? (
+          <p className="text-sm font-bold text-green-300">Owned</p>
+        ) : card.onWishlist ? (
+          <p className="text-sm font-bold text-amber-300">On Wishlist</p>
+        ) : (
+          <button
+            onClick={() => { onAddToWishlist(); onClose() }}
+            disabled={isAdding}
+            className="w-full text-sm px-4 py-2.5 rounded-lg bg-amber-950/60 border-2 border-amber-700 text-amber-400 hover:bg-amber-700 hover:text-stone-950 hover:border-amber-600 transition-colors disabled:opacity-50"
+          >
+            {isAdding ? 'Adding…' : '+ Add to Wishlist'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -320,6 +368,7 @@ export default function SearchPage() {
   const [wishlistAdded, setWishlistAdded] = useState<Set<string>>(new Set())
   const [wishlistLoading, setWishlistLoading] = useState<Set<string>>(new Set())
   const [printingsModal, setPrintingsModal] = useState<string | null>(null)
+  const [previewCard, setPreviewCard] = useState<BrewCard | null>(null)
 
   const brewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -550,6 +599,15 @@ export default function SearchPage() {
             setPrintingsModal(null)
             addToWishlist(name, scryfallId ?? '')
           }}
+        />
+      )}
+
+      {previewCard && (
+        <CardPreviewModal
+          card={previewCard}
+          onClose={() => setPreviewCard(null)}
+          onAddToWishlist={() => addToWishlist(previewCard.name, previewCard.id)}
+          isAdding={wishlistLoading.has(previewCard.name)}
         />
       )}
 
@@ -1002,6 +1060,7 @@ export default function SearchPage() {
                     onAddToWishlist={() => activeArtTypes.size > 0 ? addToWishlist(c.name, c.id) : setPrintingsModal(c.name)}
                     isAdding={wishlistLoading.has(c.name)}
                     isAdded={wishlistAdded.has(c.name)}
+                    onPreview={() => setPreviewCard(c)}
                   />
                 ))}
               </div>
