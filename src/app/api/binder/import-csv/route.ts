@@ -17,7 +17,7 @@ function normalizeCondition(raw: string | undefined): string | null {
 }
 
 function parseCSV(content: string): Record<string, string>[] {
-  const lines = content.split('\n').filter(l => l.trim())
+  const lines = content.split(/\r\n|\n/).filter(l => l.trim())
   if (lines.length < 2) return []
 
   const parseRow = (line: string): string[] => {

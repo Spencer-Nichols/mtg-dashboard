@@ -27,6 +27,9 @@ interface CollectionChartProps {
    *  a single-color area filled to the chart's bottom edge — for series that can go negative,
    *  like unrealized gain/loss, where "filled to the bottom regardless of sign" is misleading. */
   zeroBaseline?: boolean
+  /** Drops the Y-axis $ labels (reclaiming that margin for the plot itself) and formats
+   *  X-axis dates as bare "M-D" with no leading zeros and no hour suffix. Mobile-only use. */
+  compactLabels?: boolean
 }
 
 type Marker = { id: string; x: number; label: string; color: string }
@@ -40,13 +43,14 @@ export default function CollectionChart({
   events = [],
   showMarkers = true,
   zeroBaseline = false,
+  compactLabels = false,
 }: CollectionChartProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
   if (data.length === 0) return null
 
-  const padX = 48
+  const padX = compactLabels ? 22 : 48
   const padY = 16
 
   const totals = data.map(d => d.total)
@@ -204,7 +208,7 @@ export default function CollectionChart({
         </clipPath>
       </defs>
       <g className={labelsOnMobile ? undefined : 'hidden sm:block'}>
-        {yLabels.map((v, i) => (
+        {!compactLabels && yLabels.map((v, i) => (
           <g key={i}>
             <line x1={padX} y1={y(v)} x2={width - padX} y2={y(v)} stroke="#1e293b" strokeWidth="1" />
             <text x={padX - 4} y={y(v) + 4} textAnchor="end" fontSize={labelFontSize} fill="#475569">{v < 0 ? `-$${Math.abs(Math.round(v))}` : `$${Math.round(v)}`}</text>
@@ -212,7 +216,9 @@ export default function CollectionChart({
         ))}
         {xIndices.map(i => {
           const d = data[i].date
-          const label = d.length > 10 ? `${d.slice(5, 10)} ${d.slice(11, 13)}h` : d.slice(5, 10)
+          const label = compactLabels
+            ? `${parseInt(d.slice(5, 7), 10)}-${parseInt(d.slice(8, 10), 10)}`
+            : d.length > 10 ? `${d.slice(5, 10)} ${d.slice(11, 13)}h` : d.slice(5, 10)
           return (
             <text key={i} x={x(i)} y={height + 10} textAnchor="middle" fontSize={labelFontSize} fill="#475569">
               {label}
