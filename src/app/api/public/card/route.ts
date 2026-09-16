@@ -44,21 +44,23 @@ function curateCandidate(card: ScryfallCard) {
   }
 }
 
+const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, max-age=0' }
+
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim()
-  if (!q) return NextResponse.json({ error: 'Missing query param: q' }, { status: 400 })
+  if (!q) return NextResponse.json({ error: 'Missing query param: q' }, { status: 400, headers: NO_STORE_HEADERS })
 
   const set = req.nextUrl.searchParams.get('set')?.trim() || undefined
 
   const card = await fetchByName(q, set)
-  if (card) return NextResponse.json({ card: curate(card), candidates: null })
+  if (card) return NextResponse.json({ card: curate(card), candidates: null }, { headers: NO_STORE_HEADERS })
 
   const candidates = await searchCards(q)
   if (candidates.length === 0) {
-    return NextResponse.json({ error: 'No cards found' }, { status: 404 })
+    return NextResponse.json({ error: 'No cards found' }, { status: 404, headers: NO_STORE_HEADERS })
   }
   if (candidates.length === 1) {
-    return NextResponse.json({ card: curate(candidates[0]), candidates: null })
+    return NextResponse.json({ card: curate(candidates[0]), candidates: null }, { headers: NO_STORE_HEADERS })
   }
-  return NextResponse.json({ card: null, candidates: candidates.map(curateCandidate) })
+  return NextResponse.json({ card: null, candidates: candidates.map(curateCandidate) }, { headers: NO_STORE_HEADERS })
 }
