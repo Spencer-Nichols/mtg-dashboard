@@ -185,17 +185,28 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
 
+  const marketplaceUrl = row.priceSource === 'manapool'
+    ? (row.manapoolUrl ?? `https://manapool.com/card/${manapoolSlug}`)
+    : `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(row.displayName)}`
+  const marketplaceLabel = row.priceSource === 'manapool' ? 'Manapool' : 'TCGPlayer'
+
   return (
     <div className="group relative flex flex-col gap-1.5">
       <div className="relative rounded-xl overflow-hidden shadow-lg">
         <a
-          href={row.priceSource === 'manapool'
-            ? (row.manapoolUrl ?? `https://manapool.com/card/${manapoolSlug}`)
-            : `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(row.displayName)}`}
+          href={marketplaceUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="block"
-          title={row.priceSource === 'manapool' ? 'View on Manapool' : 'View on TCGPlayer'}
+          title={`View on ${marketplaceLabel}`}
+          onClick={e => {
+            // Touch devices have no hover preview, so the first tap should reveal
+            // details instead of immediately leaving for the marketplace
+            if (window.matchMedia('(hover: none)').matches) {
+              e.preventDefault()
+              setChartOpen(o => !o)
+            }
+          }}
         >
           {row.imageUrl
             ? <img src={row.imageUrl} alt={row.displayName} className="w-full block group-hover:brightness-110 transition-all" />
@@ -206,7 +217,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl
                 ? 'border-blue-600/60 text-blue-400'
                 : 'border-amber-700/60 text-amber-400'
             }`}>
-              {row.priceSource === 'manapool' ? 'View on Manapool' : 'View on TCGPlayer'}
+              View on {marketplaceLabel}
             </span>
           </div>
         </a>
@@ -279,7 +290,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl
             )}
             <div className="flex items-center gap-1.5 flex-wrap">
               {row.priceSource && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${
+                <span className={`hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${
                   row.priceSource === 'manapool'
                     ? 'bg-blue-950/50 text-blue-400 border-blue-800/40'
                     : 'bg-amber-950/50 text-amber-400 border-amber-800/40'
@@ -291,6 +302,14 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl
                 <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
               )}
             </div>
+            <a
+              href={marketplaceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`text-xs font-medium w-fit ${row.priceSource === 'manapool' ? 'text-blue-400 hover:text-blue-300' : 'text-amber-400 hover:text-amber-300'}`}
+            >
+              View on {marketplaceLabel} →
+            </a>
           </div>
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
