@@ -51,8 +51,8 @@ const STEPS: Step[] = [
     ],
     callout: {
       label: 'NEW',
-      title: 'Commander Deck Search',
-      body: 'Commander precons are now searchable in the Sealed Products section. Search by set name (e.g. "Bloomburrow") and select the Commander group to see all available decks.',
+      title: 'Price Alerts for Singles',
+      body: 'Set a target price on any wishlisted card and get an email when it drops below it (or hits a new all-time low). Manage email alerts for both singles and sealed products from the Manage alerts dropdown.',
     },
   },
 ]

@@ -65,6 +65,7 @@ interface CardResult {
   typeLine?: string
   priceSource?: 'manapool' | 'scryfall' | null
   manapoolUrl?: string | null
+  targetPrice?: number | null
 }
 
 type Candidate = { scryfallId?: string; name: string; setCode: string; setName: string; price: number | null; foilPrice?: number | null; type_line: string; collectorNumber?: string; rarity?: string; releasedAt?: string; imageUrl?: string | null }
@@ -110,13 +111,42 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
-function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { row: CardResult; onDelete: (name: string) => void; onMoveToBinder: (name: string) => void; sparkline?: number[]; isStale?: boolean }) {
+function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl, targetPrice, onSetTargetPrice }: {
+  row: CardResult
+  onDelete: (name: string) => void
+  onMoveToBinder: (name: string) => void
+  sparkline?: number[]
+  isStale?: boolean
+  isAtl?: boolean
+  targetPrice?: number | null
+  onSetTargetPrice?: (name: string, price: number | null) => void
+}) {
   const [editingNote, setEditingNote] = useState(false)
   const [noteVal, setNoteVal] = useState(row.note ?? '')
   const [currentNote, setCurrentNote] = useState(row.note ?? '')
   const [showMenu, setShowMenu] = useState(false)
   const [menuNote, setMenuNote] = useState('')
+  const [editingAlert, setEditingAlert] = useState(false)
+  const [alertValue, setAlertValue] = useState('')
+  const [menuAlertValue, setMenuAlertValue] = useState('')
+  const [chartOpen, setChartOpen] = useState(false)
   const cancelNoteRef = useRef(false)
+
+  function openAlert() {
+    setAlertValue(targetPrice != null ? targetPrice.toFixed(2) : '')
+    setEditingAlert(true)
+  }
+
+  function saveAlert() {
+    const parsed = alertValue.trim() ? parseFloat(alertValue) : null
+    onSetTargetPrice?.(row.displayName, parsed && !isNaN(parsed) ? parsed : null)
+    setEditingAlert(false)
+  }
+
+  function saveMenuAlert() {
+    const parsed = menuAlertValue.trim() ? parseFloat(menuAlertValue) : null
+    onSetTargetPrice?.(row.displayName, parsed && !isNaN(parsed) ? parsed : null)
+  }
 
   function commitNote() {
     setEditingNote(false)
@@ -133,6 +163,7 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
 
   function openMenu() {
     setMenuNote(currentNote)
+    setMenuAlertValue(targetPrice != null ? targetPrice.toFixed(2) : '')
     setShowMenu(true)
   }
 
@@ -180,13 +211,9 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
           </div>
         </a>
         <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1 pointer-events-none">
-          {row.pct != null && (
-            <div className={`text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm ${
-              row.pct > 0.05 ? 'bg-green-900/80 text-green-300' :
-              row.pct < -0.05 ? 'bg-red-900/80 text-red-300' :
-              'bg-stone-800/80 text-stone-400'
-            }`}>
-              {pctLabel(row.pct)}
+          {isAtl && (
+            <div className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-900/90 text-green-300 backdrop-blur-sm">
+              ↓ ATL
             </div>
           )}
           {isStale && (
@@ -212,49 +239,96 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
       </div>
       <div className="px-0.5 flex flex-col gap-0.5">
         <div className="flex items-start justify-between gap-1">
-          <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-            <p className="text-sm text-stone-200 font-semibold leading-tight" title={row.displayName}>{row.displayName}</p>
-            {row.typeLine && <p className="text-xs text-stone-500 leading-tight">{row.typeLine}</p>}
-            {(row.setName || row.setCode) && (
-              <p className="text-xs text-stone-500">
-                {row.setName ?? ''}{row.setCode ? ` (${row.setCode.toUpperCase()})` : ''}
-              </p>
-            )}
+          <p className="text-sm text-stone-200 font-semibold leading-tight flex items-start gap-1.5 min-w-0 flex-1" title={row.displayName}>
             {row.rarity && (
-              <p className={`text-xs font-medium capitalize ${
-                row.rarity === 'mythic' ? 'text-orange-400' :
-                row.rarity === 'rare' ? 'text-yellow-400' :
-                row.rarity === 'uncommon' ? 'text-blue-400' : 'text-stone-500'
-              }`}>{row.rarity}</p>
+              <span
+                title={row.rarity}
+                className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${
+                  row.rarity === 'mythic' ? 'bg-orange-400' :
+                  row.rarity === 'rare' ? 'bg-yellow-400' :
+                  row.rarity === 'uncommon' ? 'bg-blue-400' : 'bg-stone-500'
+                }`}
+              />
             )}
-          </div>
+            <span>{row.displayName}</span>
+          </p>
           <button
             onClick={openMenu}
             className="sm:hidden shrink-0 text-stone-400 border border-stone-700 bg-stone-800 rounded-full px-2 py-0.5 text-sm leading-none transition-colors active:bg-stone-700"
           >⋯</button>
         </div>
-        {sparkline && sparkline.length >= 2 && (
-          <div className="mt-1">
-            <Sparkline values={sparkline} />
-          </div>
-        )}
-        <div className="flex items-center gap-2 mt-0.5">
+        <button
+          type="button"
+          onClick={() => setChartOpen(o => !o)}
+          title={chartOpen ? 'Hide details' : 'Show details'}
+          className="flex items-center gap-1.5 mt-0.5 text-left"
+        >
           <span className={`text-sm font-mono font-semibold ${pctColor(row.pct)}`}>
             ${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}
           </span>
-          {row.priceSource && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${
-              row.priceSource === 'manapool'
-                ? 'bg-blue-950/50 text-blue-400 border-blue-800/40'
-                : 'bg-amber-950/50 text-amber-400 border-amber-800/40'
-            }`}>
-              {row.priceSource === 'manapool' ? 'MP' : 'TCG'}
-            </span>
-          )}
-          {row.snapshotPrice > 0 && row.currentPrice != null && row.currentPrice !== row.snapshotPrice && (
-            <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
+          {row.pct != null && <span className={`text-xs font-semibold ${pctColor(row.pct)}`}>{pctLabel(row.pct)}</span>}
+        </button>
+        <div className={`grid transition-all duration-200 ${chartOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'} sm:group-hover:grid-rows-[1fr]`}>
+          <div className="overflow-hidden flex flex-col gap-1">
+            {row.typeLine && <p className="text-xs text-stone-500 leading-tight pt-1">{row.typeLine}</p>}
+            {(row.setName || row.setCode) && (
+              <p className="text-xs text-stone-500 truncate">{row.setName ?? ''}{row.setCode ? ` (${row.setCode.toUpperCase()})` : ''}</p>
+            )}
+            {sparkline && sparkline.length >= 2 && (
+              <div className="mt-0.5"><Sparkline values={sparkline} /></div>
+            )}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {row.priceSource && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border ${
+                  row.priceSource === 'manapool'
+                    ? 'bg-blue-950/50 text-blue-400 border-blue-800/40'
+                    : 'bg-amber-950/50 text-amber-400 border-amber-800/40'
+                }`}>
+                  {row.priceSource === 'manapool' ? 'MP' : 'TCG'}
+                </span>
+              )}
+              {row.snapshotPrice > 0 && row.currentPrice != null && row.currentPrice !== row.snapshotPrice && (
+                <span className="text-xs text-stone-600 font-mono">was ${row.snapshotPrice.toFixed(2)}</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          {onSetTargetPrice && (
+            editingAlert ? (
+              <div className="hidden sm:flex items-center gap-1">
+                <span className="text-stone-500 text-xs">Alert &lt; $</span>
+                <input
+                  autoFocus
+                  type="number"
+                  step="0.01"
+                  value={alertValue}
+                  onChange={e => setAlertValue(e.target.value)}
+                  onBlur={saveAlert}
+                  onKeyDown={e => { if (e.key === 'Enter') saveAlert(); if (e.key === 'Escape') setEditingAlert(false) }}
+                  className="w-16 bg-stone-800 border border-stone-600 rounded px-1.5 py-0.5 text-xs text-stone-100 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+            ) : (
+              <button
+                onClick={openAlert}
+                className={`hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                  targetPrice != null
+                    ? 'bg-amber-950/40 border-amber-700/50 text-amber-400 hover:bg-amber-900/40'
+                    : 'bg-stone-800/60 border-stone-700 text-stone-500 hover:text-stone-300 hover:border-stone-500'
+                }`}
+              >
+                {targetPrice != null
+                  ? `< $${targetPrice.toFixed(2)}`
+                  : 'Set alert'
+                }
+              </button>
+            )
           )}
         </div>
+        {targetPrice != null && (
+          <span className="sm:hidden text-xs text-amber-400">Alert &lt; ${targetPrice.toFixed(2)}</span>
+        )}
         {currentNote && <span className="sm:hidden text-xs text-stone-500 px-0.5">{currentNote}</span>}
         {editingNote ? (
           <input
@@ -296,14 +370,37 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale }: { r
                 onKeyDown={e => { if (e.key === 'Enter') { saveMenuNote(); setShowMenu(false) } }}
               />
             </div>
+            {onSetTargetPrice && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-stone-500">Alert price</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-stone-500 text-sm shrink-0">Alert &lt; $</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={menuAlertValue}
+                    onChange={e => setMenuAlertValue(e.target.value)}
+                    placeholder="0.00"
+                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+                    onKeyDown={e => { if (e.key === 'Enter') { saveMenuNote(); saveMenuAlert(); setShowMenu(false) } }}
+                  />
+                </div>
+              </div>
+            )}
             <button
-              onClick={() => { saveMenuNote(); onMoveToBinder(row.displayName); setShowMenu(false) }}
+              onClick={() => { saveMenuNote(); saveMenuAlert(); setShowMenu(false) }}
+              className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-stone-800 border border-stone-700 text-stone-300 active:bg-stone-700 transition-colors"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => { saveMenuNote(); saveMenuAlert(); onMoveToBinder(row.displayName); setShowMenu(false) }}
               className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-stone-800 border border-amber-700/50 text-amber-400 active:bg-stone-700 transition-colors"
             >
               → Move to Binder
             </button>
             <button
-              onClick={() => { saveMenuNote(); onDelete(row.displayName); setShowMenu(false) }}
+              onClick={() => { onDelete(row.displayName); setShowMenu(false) }}
               className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-red-950/40 border border-red-800/50 text-red-400 active:bg-red-900/40 transition-colors"
             >
               Remove from Wishlist
@@ -524,7 +621,7 @@ function SealedProductTile({ item, onDelete, sparkline, isAtl, targetPrice, onSe
 }
 
 export default function WishlistPage() {
-  const [singles, setSingles] = useState<{ name: string; note?: string; snapshotPrice: number | null }[]>([])
+  const [singles, setSingles] = useState<{ name: string; note?: string; snapshotPrice: number | null; targetPrice?: number | null }[]>([])
   const [results, setResults] = useState<Map<string, CardResult>>(new Map())
   const [streaming, setStreaming] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -543,6 +640,10 @@ export default function WishlistPage() {
   const [addPrintings, setAddPrintings] = useState<Candidate[]>([])
   const [addPrintingName, setAddPrintingName] = useState<string | null>(null)
   const [printingModalOpen, setPrintingModalOpen] = useState(false)
+  const [moveToBinderTarget, setMoveToBinderTarget] = useState<{ name: string; suggestedPrice: number | null } | null>(null)
+  const [moveToBinderPriceInput, setMoveToBinderPriceInput] = useState('')
+  const [moveToBinderSaving, setMoveToBinderSaving] = useState(false)
+  const [moveToBinderError, setMoveToBinderError] = useState('')
   const [wishlistHistory, setWishlistHistory] = useState<Record<string, Array<{ date: string; price: number }>>>({})
   const [sealedHistory, setSealedHistory] = useState<Record<number, Array<{ date: string; price: number }>>>({})
   const [sealedLastRun, setSealedLastRun] = useState<Date | null>(null)
@@ -583,6 +684,34 @@ export default function WishlistPage() {
     }
   }
 
+  async function toggleSinglesEmailAlerts() {
+    setSinglesEmailAlertsLoading(true)
+    const next = !singlesEmailAlertsEnabled
+    try {
+      const res = await fetch('/api/notifications/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailSinglesAlerts: next }),
+      })
+      if (res.ok) setSinglesEmailAlertsEnabled(next)
+    } finally {
+      setSinglesEmailAlertsLoading(false)
+    }
+  }
+
+  async function updateWishlistTargetPrice(name: string, targetPrice: number | null) {
+    setSingles(prev => {
+      const next = prev.map(s => s.name === name ? { ...s, targetPrice } : s)
+      localStorage.setItem(LS_WISHLIST_SINGLES, JSON.stringify(next))
+      return next
+    })
+    await fetch('/api/wishlist/target', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, targetPrice }),
+    })
+  }
+
   function dismissSealed(productId: number, price: number) {
     const next = { ...getSealedDismissed(), [productId]: price }
     localStorage.setItem('tnk:sealed:dismissed', JSON.stringify(next))
@@ -596,6 +725,8 @@ export default function WishlistPage() {
   }
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(false)
   const [emailAlertsLoading, setEmailAlertsLoading] = useState(false)
+  const [singlesEmailAlertsEnabled, setSinglesEmailAlertsEnabled] = useState(false)
+  const [singlesEmailAlertsLoading, setSinglesEmailAlertsLoading] = useState(false)
   const [sealedItems, setSealedItems] = useState<SealedWishlistItem[]>([])
   const [sealedResults, setSealedResults] = useState<Map<string, SealedResult>>(new Map())
   const [sealedStreaming, setSealedStreaming] = useState(false)
@@ -619,6 +750,8 @@ export default function WishlistPage() {
   const staleResetRef = useRef<Set<string>>(new Set())
   const addDropdownRef = useRef<HTMLDivElement>(null)
   const sealedDropdownRef = useRef<HTMLDivElement>(null)
+  const manageDropdownRef = useRef<HTMLDivElement>(null)
+  const [manageOpen, setManageOpen] = useState(false)
 
   useEffect(() => {
     fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'wishlist' }) })
@@ -658,6 +791,7 @@ export default function WishlistPage() {
     })
     fetch('/api/notifications/preferences').then(r => r.json()).then(d => {
       if (typeof d.emailSealedAlerts === 'boolean') setEmailAlertsEnabled(d.emailSealedAlerts)
+      if (typeof d.emailSinglesAlerts === 'boolean') setSinglesEmailAlertsEnabled(d.emailSinglesAlerts)
     })
     fetch('/api/sealed/history').then(r => r.json()).then(h => {
       if (h && typeof h === 'object') {
@@ -713,6 +847,9 @@ export default function WishlistPage() {
       }
       if (sealedDropdownRef.current && !sealedDropdownRef.current.contains(e.target as Node)) {
         setSealedShowDropdown(false)
+      }
+      if (manageDropdownRef.current && !manageDropdownRef.current.contains(e.target as Node)) {
+        setManageOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -1036,21 +1173,45 @@ export default function WishlistPage() {
     setResults(prev => { const next = new Map(prev); next.delete(name); return next })
   }
 
-  async function moveToBinder(name: string) {
+  function requestMoveToBinder(name: string) {
+    const row = rows.find(r => r.displayName === name)
+    const suggested = row?.currentPrice ?? row?.snapshotPrice ?? null
+    setMoveToBinderError('')
+    setMoveToBinderPriceInput(suggested != null ? suggested.toFixed(2) : '')
+    setMoveToBinderTarget({ name, suggestedPrice: suggested ?? null })
+  }
+
+  async function confirmMoveToBinder() {
+    if (!moveToBinderTarget) return
+    const name = moveToBinderTarget.name
+    const trimmed = moveToBinderPriceInput.trim()
+    const parsed = trimmed === '' ? null : parseFloat(trimmed)
+    const purchasePrice = parsed != null && !isNaN(parsed) ? parsed : null
+
+    setMoveToBinderSaving(true)
+    setMoveToBinderError('')
     const res = await fetch('/api/wishlist/move-to-binder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, purchasePrice }),
     })
-    if (res.ok) {
-      setSingles(prev => prev.filter(s => s.name !== name))
-      setResults(prev => { const next = new Map(prev); next.delete(name); return next })
+    const data = await res.json().catch(() => ({}))
+    setMoveToBinderSaving(false)
+    if (!res.ok) {
+      setMoveToBinderError(data.error ?? 'Something went wrong')
+      return
     }
+    setSingles(prev => prev.filter(s => s.name !== name))
+    setResults(prev => { const next = new Map(prev); next.delete(name); return next })
+    setMoveToBinderTarget(null)
   }
 
-  const rows: CardResult[] = singles.map(s =>
-    results.get(s.name) ?? { displayName: s.name, snapshotPrice: s.snapshotPrice ?? 0, currentPrice: null, pct: null, imageUrl: null, note: s.note }
-  )
+  const rows: CardResult[] = singles.map(s => {
+    const r = results.get(s.name)
+    return r
+      ? { ...r, targetPrice: s.targetPrice ?? null }
+      : { displayName: s.name, snapshotPrice: s.snapshotPrice ?? 0, currentPrice: null, pct: null, imageUrl: null, note: s.note, targetPrice: s.targetPrice ?? null }
+  })
 
   const STALE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000
   const STALE_RESET_WINDOW_MS = 4 * 24 * 60 * 60 * 1000
@@ -1104,6 +1265,16 @@ export default function WishlistPage() {
     const currentPrice = sealedResults.get(item.id)?.currentPrice
     return isAtlPrice(currentPrice, item.tcgProductId, item.snapshotPrice, item.targetPrice)
   })
+
+  function isAtlWishlistCard(currentPrice: number | null | undefined, displayName: string, snapshotPrice: number, targetPrice?: number | null) {
+    if (currentPrice == null) return false
+    if (targetPrice != null && currentPrice <= targetPrice) return true
+    const older = (wishlistHistory[displayName] ?? []).filter(h => new Date(h.date).getTime() < atlCutoff)
+    const baseline = older.length > 0 ? Math.min(...older.map(h => h.price), snapshotPrice) : snapshotPrice
+    return baseline - currentPrice >= ATL_MIN_DELTA
+  }
+
+  const atlWishlistRows = rows.filter(r => isAtlWishlistCard(r.currentPrice, r.displayName, r.snapshotPrice, r.targetPrice))
   const totalValue = rows.reduce((sum, r) => sum + (r.currentPrice ?? r.snapshotPrice), 0)
   const totalSnapshot = rows.reduce((sum, r) => sum + r.snapshotPrice, 0)
   const totalDelta = results.size > 0 ? totalValue - totalSnapshot : null
@@ -1149,19 +1320,56 @@ export default function WishlistPage() {
 
       {/* Add inputs */}
       <div className="flex flex-col gap-2 mb-6">
-        <div className="flex gap-1 bg-stone-900 border border-stone-700 rounded-lg p-1 w-fit">
-          <button
-            onClick={() => setAddMode('single')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${addMode === 'single' ? 'bg-stone-700 text-stone-100' : 'text-stone-500 hover:text-stone-300'}`}
-          >
-            Singles
-          </button>
-          <button
-            onClick={() => setAddMode('sealed')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${addMode === 'sealed' ? 'bg-stone-700 text-stone-100' : 'text-stone-500 hover:text-stone-300'}`}
-          >
-            Sealed product
-          </button>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-1 bg-stone-900 border border-stone-700 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setAddMode('single')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${addMode === 'single' ? 'bg-stone-700 text-stone-100' : 'text-stone-500 hover:text-stone-300'}`}
+            >
+              Singles
+            </button>
+            <button
+              onClick={() => setAddMode('sealed')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${addMode === 'sealed' ? 'bg-stone-700 text-stone-100' : 'text-stone-500 hover:text-stone-300'}`}
+            >
+              Sealed product
+            </button>
+          </div>
+          <div className="relative" ref={manageDropdownRef}>
+            <button
+              onClick={() => setManageOpen(o => !o)}
+              className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-stone-700 text-stone-400 hover:text-stone-200 hover:border-stone-500 transition-colors"
+            >
+              Manage alerts <span className="text-xs text-stone-500">{manageOpen ? '▲' : '▼'}</span>
+            </button>
+            {manageOpen && (
+              <div className="absolute z-40 top-full right-0 mt-1 w-72 bg-stone-900 border border-stone-700 rounded-xl shadow-2xl p-4 flex flex-col gap-3">
+                <p className="text-xs text-stone-500 uppercase tracking-wider">Email price alerts</p>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={toggleEmailAlerts}
+                    disabled={emailAlertsLoading}
+                    aria-pressed={emailAlertsEnabled}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${emailAlertsEnabled ? 'bg-amber-600' : 'bg-stone-600'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${emailAlertsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                  <span className="text-xs text-stone-400 select-none">Sealed products</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={toggleSinglesEmailAlerts}
+                    disabled={singlesEmailAlertsLoading}
+                    aria-pressed={singlesEmailAlertsEnabled}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${singlesEmailAlertsEnabled ? 'bg-amber-600' : 'bg-stone-600'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${singlesEmailAlertsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                  <span className="text-xs text-stone-400 select-none">Singles</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       {addMode === 'single' && <div className="relative" ref={addDropdownRef}>
         <div className="flex gap-2">
@@ -1291,6 +1499,65 @@ export default function WishlistPage() {
         </div>
       )}
 
+      {/* Move to Binder confirmation modal */}
+      {moveToBinderTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70"
+          onClick={e => { if (e.target === e.currentTarget && !moveToBinderSaving) setMoveToBinderTarget(null) }}
+          onKeyDown={e => { if (e.key === 'Escape' && !moveToBinderSaving) setMoveToBinderTarget(null) }}
+        >
+          <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
+              <h2 className="text-stone-100 font-semibold truncate pr-4">Move to Binder</h2>
+              <button
+                onClick={() => setMoveToBinderTarget(null)}
+                disabled={moveToBinderSaving}
+                className="text-stone-500 hover:text-stone-300 transition-colors text-xl leading-none shrink-0 disabled:opacity-50"
+              >✕</button>
+            </div>
+            <div className="p-5 flex flex-col gap-4">
+              <p className="text-sm text-stone-300">{moveToBinderTarget.name}</p>
+              {moveToBinderError && (
+                <p className="text-red-400 text-xs bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2">{moveToBinderError}</p>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-stone-500 uppercase tracking-wider">Purchase price</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-stone-500 text-sm shrink-0">$</span>
+                  <input
+                    autoFocus
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Optional"
+                    value={moveToBinderPriceInput}
+                    onChange={e => setMoveToBinderPriceInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') confirmMoveToBinder() }}
+                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+                  />
+                  <button
+                    onClick={() => setMoveToBinderPriceInput('0')}
+                    className="text-xs px-2 py-1 rounded border border-stone-700 text-stone-500 hover:border-stone-500 hover:text-stone-300 transition-colors whitespace-nowrap shrink-0"
+                  >
+                    Booster pull
+                  </button>
+                </div>
+                <p className="text-xs text-stone-600">
+                  {moveToBinderTarget.suggestedPrice != null ? `Wishlist price was $${moveToBinderTarget.suggestedPrice.toFixed(2)}` : 'Leave blank to use current market price'}
+                </p>
+              </div>
+              <button
+                onClick={confirmMoveToBinder}
+                disabled={moveToBinderSaving}
+                className="w-full px-4 py-3 rounded-xl text-sm font-medium bg-amber-950/60 border border-amber-700/50 hover:bg-amber-900/60 text-amber-200 disabled:opacity-50 transition-colors"
+              >
+                {moveToBinderSaving ? 'Adding…' : '→ Move to Binder'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sealed product modal */}
       {sealedModalOpen && sealedSelectedGroup && (
         <div
@@ -1392,9 +1659,10 @@ export default function WishlistPage() {
       {/* Buy Opportunities — merged ATL + Good Time to Buy */}
       {(() => {
         const visibleAtl = atlSealedItems.filter(item => !isSealedDismissed(item.tcgProductId, sealedResults.get(item.id)?.currentPrice ?? Infinity))
-        const visibleBuy = buySuggestions
+        const visibleAtlWishlist = atlWishlistRows.filter(r => r.currentPrice != null && !isWishlistCardDismissed(r.displayName, r.currentPrice))
+        const visibleBuy = buySuggestions.filter(r => !visibleAtlWishlist.some(a => a.displayName === r.displayName))
 
-        if (visibleAtl.length === 0 && visibleBuy.length === 0) return null
+        if (visibleAtl.length === 0 && visibleAtlWishlist.length === 0 && visibleBuy.length === 0) return null
 
         return (
           <div className="mb-6 bg-stone-900 border border-stone-800 rounded-xl p-4">
@@ -1420,6 +1688,29 @@ export default function WishlistPage() {
                     )}
                     {currentPrice != null && (
                       <button onClick={() => dismissSealed(item.tcgProductId, currentPrice)} className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors">Dismiss</button>
+                    )}
+                  </div>
+                )
+              })}
+
+
+              {visibleAtlWishlist.map(r => {
+                const pct = r.currentPrice != null && r.snapshotPrice > 0 ? (r.currentPrice - r.snapshotPrice) / r.snapshotPrice : null
+                const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
+                return (
+                  <div key={r.displayName} className="group relative bg-green-950/30 border border-green-800/50 rounded-lg px-3 py-2 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-0.5 min-w-0">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-green-900/80 text-green-300 shrink-0">↓ ATL</span>
+                      <p className="text-stone-200 text-sm font-medium truncate min-w-0">{r.displayName}</p>
+                    </div>
+                    {r.currentPrice != null && (
+                      <p className="text-green-400 text-[10px] sm:text-xs font-mono">
+                        ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice.toFixed(2)} ({pctLabel(pct)})
+                        {saved != null && <span className="hidden sm:inline ml-1 text-green-500">−${saved.toFixed(2)}</span>}
+                      </p>
+                    )}
+                    {r.currentPrice != null && (
+                      <button onClick={() => dismissWishlistCard(r.displayName, r.currentPrice!)} className="mt-1.5 text-xs px-2 py-0.5 rounded-full bg-red-950/60 border border-red-900/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors">Dismiss</button>
                     )}
                   </div>
                 )
@@ -1500,19 +1791,6 @@ export default function WishlistPage() {
         {sealedOpen && (
           sealedItems.length > 0 ? (
             <>
-            <div id="sealed-email-toggle" className="flex items-center gap-2.5 py-1">
-              <button
-                onClick={toggleEmailAlerts}
-                disabled={emailAlertsLoading}
-                aria-pressed={emailAlertsEnabled}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50 ${emailAlertsEnabled ? 'bg-amber-600' : 'bg-stone-600'}`}
-              >
-                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${emailAlertsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-              <span className="text-xs text-stone-400 select-none">
-                Email me when sealed products hit my price alerts
-              </span>
-            </div>
             <div id="wishlist-sealed-grid" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
               {sealedItems.map(item => {
                 const result = sealedResults.get(item.id)
@@ -1572,11 +1850,23 @@ export default function WishlistPage() {
             )}
           </button>
           {cardsOpen && (
+            <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 lg:gap-3">
               {[...rows].sort((a, b) => (a.pct ?? 1) - (b.pct ?? 1)).map(row => (
-                <WishlistCard key={row.displayName} row={row} onDelete={deleteCard} onMoveToBinder={moveToBinder} sparkline={wishlistHistory[row.displayName]?.map(h => h.price)} isStale={isStaleLoser(row) && (row.pct ?? 0) < -0.05} />
+                <WishlistCard
+                  key={row.displayName}
+                  row={row}
+                  onDelete={deleteCard}
+                  onMoveToBinder={requestMoveToBinder}
+                  sparkline={wishlistHistory[row.displayName]?.map(h => h.price)}
+                  isStale={isStaleLoser(row) && (row.pct ?? 0) < -0.05}
+                  isAtl={isAtlWishlistCard(row.currentPrice, row.displayName, row.snapshotPrice, row.targetPrice)}
+                  targetPrice={row.targetPrice}
+                  onSetTargetPrice={updateWishlistTargetPrice}
+                />
               ))}
             </div>
+            </>
           )}
         </div>
       )}

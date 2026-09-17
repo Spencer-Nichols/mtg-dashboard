@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service'
 import { setSealedCronTimestamp } from '@/lib/cache'
 import { fetchTcgPlayerPrice } from '@/lib/tcgplayer'
-import { sendSealedAlertEmail, type SealedAlertProduct } from '@/lib/email'
+import { sendAlertEmail, type AlertItem } from '@/lib/email'
 
 const COOLDOWN_MS = 8 * 60 * 60 * 1000
 const NORMAL_DROP_PCT = 5
@@ -228,11 +228,11 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
           const email = userAuth?.user?.email
           if (!email) continue
 
-          const products: SealedAlertProduct[] = inserts.map(ins => {
+          const products: AlertItem[] = inserts.map(ins => {
             const details = productDetailsMap.get(ins.tcg_product_id)
             const lastNotif = lastNotifMap.get(`${userId}:${ins.tcg_product_id}`)
             return {
-              productName: details?.product_name ?? `Product #${ins.tcg_product_id}`,
+              name: details?.product_name ?? `Product #${ins.tcg_product_id}`,
               setName: details?.set_name ?? '',
               imageUrl: details?.image_url ?? null,
               currentPrice: ins.notified_price,
@@ -242,7 +242,7 @@ export async function refreshSealedPrices(): Promise<SealedRefreshResult> {
             }
           })
 
-          await sendSealedAlertEmail(email, products)
+          await sendAlertEmail(email, products, 'sealed')
         } catch (err) {
           console.error(`Failed to send alert email for user ${userId}:`, err)
         }

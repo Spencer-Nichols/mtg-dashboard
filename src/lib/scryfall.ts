@@ -42,9 +42,9 @@ export function frameSuffix(card: ScryfallCard): string {
   if (card.frame_effects?.includes('showcase')) return ' (showcase)'
   if (card.frame_effects?.includes('extendedart')) return ' (extended art)'
   if (card.frame_effects?.includes('poster')) return ' (poster)'
+  if (card.frame_effects?.includes('inverted')) return ' (inverted)'
   if (card.border_color === 'borderless') return ' (borderless)'
   if (card.frame_effects?.includes('etched')) return ' (etched)'
-  if (card.frame_effects?.includes('inverted')) return ' (inverted)'
   if (card.textless) return ' (textless)'
   return ''
 }

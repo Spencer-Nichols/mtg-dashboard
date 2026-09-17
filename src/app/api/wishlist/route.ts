@@ -22,6 +22,7 @@ export async function GET() {
       scryfallId: row.scryfall_id,
       snapshotPrice: row.snapshot_price,
       addedAt: row.snapshot_added_at,
+      targetPrice: row.target_price,
     })))
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
