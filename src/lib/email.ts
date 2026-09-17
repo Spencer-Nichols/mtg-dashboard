@@ -2,8 +2,8 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-export interface SealedAlertProduct {
-  productName: string
+export interface AlertItem {
+  name: string
   setName: string
   imageUrl: string | null
   currentPrice: number
@@ -12,11 +12,19 @@ export interface SealedAlertProduct {
   isAtl: boolean
 }
 
+type AlertKind = 'sealed' | 'singles'
+
+const NOUN: Record<AlertKind, { one: string; many: string }> = {
+  sealed: { one: 'sealed product', many: 'sealed products' },
+  singles: { one: 'card', many: 'cards' },
+}
+
 function formatPrice(p: number) {
   return `$${p.toFixed(2)}`
 }
 
-function buildEmailHtml(products: SealedAlertProduct[]): string {
+function buildEmailHtml(products: AlertItem[], kind: AlertKind): string {
+  const noun = NOUN[kind]
   const productRows = products.map(p => {
     const badge = p.isAtl
       ? `<span style="background:#92400e;color:#fef3c7;font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600;margin-left:8px;">↓ ATL</span>`
@@ -33,7 +41,7 @@ function buildEmailHtml(products: SealedAlertProduct[]): string {
       : ''
 
     const img = p.imageUrl
-      ? `<img src="${p.imageUrl}" alt="${p.productName}" width="60" style="border-radius:4px;display:block;" />`
+      ? `<img src="${p.imageUrl}" alt="${p.name}" width="60" style="border-radius:4px;display:block;" />`
       : `<div style="width:60px;height:60px;background:#292524;border-radius:4px;"></div>`
 
     return `
@@ -44,7 +52,7 @@ function buildEmailHtml(products: SealedAlertProduct[]): string {
               <td style="width:68px;vertical-align:top;padding-right:12px;">${img}</td>
               <td style="vertical-align:top;">
                 <div style="color:#e7e5e4;font-size:15px;font-weight:600;line-height:1.3;">
-                  ${p.productName}${badge}
+                  ${p.name}${badge}
                 </div>
                 <div style="color:#78716c;font-size:12px;margin-top:2px;">${p.setName}</div>
                 <div style="color:#fcd34d;font-size:16px;font-weight:700;margin-top:6px;">${priceLine}</div>
@@ -88,8 +96,8 @@ function buildEmailHtml(products: SealedAlertProduct[]): string {
             <td style="background:#1c1917;padding:16px 24px 4px;">
               <p style="margin:0;color:#a8a29e;font-size:14px;line-height:1.5;">
                 ${products.length === 1
-                  ? 'A sealed product on your wishlist hit a price alert.'
-                  : `${products.length} sealed products on your wishlist hit price alerts.`}
+                  ? `A ${noun.one} on your wishlist hit a price alert.`
+                  : `${products.length} ${noun.many} on your wishlist hit price alerts.`}
               </p>
             </td>
           </tr>
@@ -117,7 +125,7 @@ function buildEmailHtml(products: SealedAlertProduct[]): string {
           <tr>
             <td style="background:#171412;border-radius:0 0 12px 12px;padding:16px 24px;">
               <p style="margin:0;color:#44403c;font-size:12px;line-height:1.6;">
-                You're receiving this because you enabled sealed price alerts on TapNTrack.<br/>
+                You're receiving this because you enabled ${kind} price alerts on TapNTrack.<br/>
                 <a href="https://tapntrack.app/wishlist" style="color:#78716c;text-decoration:underline;">Manage alerts</a>
               </p>
             </td>
@@ -131,16 +139,17 @@ function buildEmailHtml(products: SealedAlertProduct[]): string {
 </html>`
 }
 
-export async function sendSealedAlertEmail(to: string, products: SealedAlertProduct[]) {
+export async function sendAlertEmail(to: string, products: AlertItem[], kind: AlertKind) {
   if (products.length === 0) return
+  const noun = NOUN[kind]
   const subject = products.length === 1
-    ? `Price alert: ${products[0].productName}`
-    : `Price alert: ${products.length} sealed products on your wishlist`
+    ? `Price alert: ${products[0].name}`
+    : `Price alert: ${products.length} ${noun.many} on your wishlist`
 
   await resend.emails.send({
     from: 'TapNTrack <noreply@tapntrack.app>',
     to,
     subject,
-    html: buildEmailHtml(products),
+    html: buildEmailHtml(products, kind),
   })
 }
