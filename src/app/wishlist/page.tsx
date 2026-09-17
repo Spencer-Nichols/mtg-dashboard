@@ -250,22 +250,12 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl
       </div>
       <div className="px-0.5 flex flex-col gap-0.5">
         <div className="flex items-start justify-between gap-1">
-          <p className="text-sm text-stone-200 font-semibold leading-tight flex items-start gap-1.5 min-w-0 flex-1" title={row.displayName}>
-            {row.rarity && (
-              <span
-                title={row.rarity}
-                className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-1 ${
-                  row.rarity === 'mythic' ? 'bg-orange-400' :
-                  row.rarity === 'rare' ? 'bg-yellow-400' :
-                  row.rarity === 'uncommon' ? 'bg-blue-400' : 'bg-stone-500'
-                }`}
-              />
-            )}
-            <span>{row.displayName}</span>
+          <p className="hidden sm:block text-sm text-stone-200 font-semibold leading-tight min-w-0 flex-1" title={row.displayName}>
+            {row.displayName}
           </p>
           <button
             onClick={openMenu}
-            className="sm:hidden shrink-0 text-stone-400 border border-stone-700 bg-stone-800 rounded-full px-2 py-0.5 text-sm leading-none transition-colors active:bg-stone-700"
+            className="sm:hidden shrink-0 ml-auto text-stone-400 border border-stone-700 bg-stone-800 rounded-full px-2 py-0.5 text-sm leading-none transition-colors active:bg-stone-700"
           >⋯</button>
         </div>
         <button
@@ -280,8 +270,9 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl
           {row.pct != null && <span className={`text-xs font-semibold ${pctColor(row.pct)}`}>{pctLabel(row.pct)}</span>}
         </button>
         <div className={`grid transition-all duration-200 ${chartOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'} sm:group-hover:grid-rows-[1fr]`}>
-          <div className="overflow-hidden flex flex-col gap-1">
-            {row.typeLine && <p className="text-xs text-stone-500 leading-tight pt-1">{row.typeLine}</p>}
+          <div className="overflow-hidden flex flex-col gap-1 pt-1">
+            <p className="sm:hidden text-sm text-stone-200 font-semibold leading-tight">{row.displayName}</p>
+            {row.typeLine && <p className="text-xs text-stone-500 leading-tight">{row.typeLine}</p>}
             {(row.setName || row.setCode) && (
               <p className="text-xs text-stone-500 truncate">{row.setName ?? ''}{row.setCode ? ` (${row.setCode.toUpperCase()})` : ''}</p>
             )}
