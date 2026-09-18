@@ -461,7 +461,7 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
               {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
             </button>
           </div>
-          <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
+          <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
             <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
               {sparkline && sparkline.values.length >= 2
                 ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} purchasePrice={row.purchasePrice} />
@@ -656,7 +656,7 @@ function CardRow({
                 {pendingDelete === (row.rowKey ?? row.displayName) ? 'Sure?' : 'Remove'}
               </button>
             </div>
-            <div className="flex-1 min-w-0 flex flex-col gap-2 justify-between">
+            <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
               <div className="md:hidden flex items-baseline gap-2">
                 <span className="text-stone-200 font-mono font-semibold">{row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}</span>
                 <span className="text-stone-500 font-mono text-xs">{row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}</span>

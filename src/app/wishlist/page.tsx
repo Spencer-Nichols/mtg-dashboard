@@ -249,20 +249,31 @@ function WishlistCard({ row, onDelete, onMoveToBinder, sparkline, isStale, isAtl
         </div>
       </div>
       <div className="px-0.5 flex flex-col gap-0.5">
-        <div className="flex items-start justify-between gap-1">
+        <div className="flex items-center justify-between gap-1">
           <p className="hidden sm:block text-sm text-stone-200 font-semibold leading-tight min-w-0 flex-1" title={row.displayName}>
             {row.displayName}
           </p>
           <button
+            type="button"
+            onClick={() => setChartOpen(o => !o)}
+            title={chartOpen ? 'Hide details' : 'Show details'}
+            className="sm:hidden flex items-center gap-1.5 text-left"
+          >
+            <span className={`text-sm font-mono font-semibold ${pctColor(row.pct)}`}>
+              ${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}
+            </span>
+            {row.pct != null && <span className={`text-xs font-semibold ${pctColor(row.pct)}`}>{pctLabel(row.pct)}</span>}
+          </button>
+          <button
             onClick={openMenu}
-            className="sm:hidden shrink-0 ml-auto text-stone-400 border border-stone-700 bg-stone-800 rounded-full px-2 py-0.5 text-sm leading-none transition-colors active:bg-stone-700"
+            className="sm:hidden shrink-0 text-stone-400 border border-stone-700 bg-stone-800 rounded-full px-2 py-0.5 text-sm leading-none transition-colors active:bg-stone-700"
           >⋯</button>
         </div>
         <button
           type="button"
           onClick={() => setChartOpen(o => !o)}
           title={chartOpen ? 'Hide details' : 'Show details'}
-          className="flex items-center gap-1.5 mt-0.5 text-left"
+          className="hidden sm:flex items-center gap-1.5 mt-0.5 text-left"
         >
           <span className={`text-sm font-mono font-semibold ${pctColor(row.pct)}`}>
             ${(row.currentPrice ?? row.snapshotPrice).toFixed(2)}
