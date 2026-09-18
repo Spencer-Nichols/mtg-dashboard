@@ -83,3 +83,19 @@ export async function setSealedCronTimestamp() {
 export async function getSealedCronTimestamp(): Promise<number | null> {
   return redis.get<number>(SEALED_CRON_TIMESTAMP_KEY)
 }
+
+// Curated lookups for /api/public/card — oracle text/type/mana cost don't change
+// day-to-day, so caching these avoids re-hitting Scryfall for repeat queries.
+const PUBLIC_CARD_TTL = 24 * 60 * 60
+
+export function publicCardCacheKey(query: string, setCode?: string) {
+  return `public-card:${query.trim().toLowerCase()}|${(setCode ?? '').toLowerCase()}`
+}
+
+export async function getCachedPublicCard<T>(key: string): Promise<T | null> {
+  return redis.get<T>(key)
+}
+
+export async function setCachedPublicCard<T>(key: string, value: T) {
+  await redis.set(key, value, { ex: PUBLIC_CARD_TTL })
+}

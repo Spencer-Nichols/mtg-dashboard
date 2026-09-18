@@ -49,25 +49,40 @@ export function frameSuffix(card: ScryfallCard): string {
   return ''
 }
 
+export class ScryfallRateLimitError extends Error {
+  constructor() {
+    super('Rate limited by Scryfall')
+    this.name = 'ScryfallRateLimitError'
+  }
+}
+
+// Throws ScryfallRateLimitError on 429 instead of swallowing it — used where the
+// caller needs to tell "rate limited" apart from "genuinely not found".
+export async function fetchByNameChecked(name: string, setCode?: string): Promise<ScryfallCard | null> {
+  const params: Record<string, string> = { fuzzy: name }
+  if (setCode) params.set = setCode
+  const url = `${BASE}/cards/named?` + new URLSearchParams(params)
+  const res = await fetch(url, { headers: HEADERS })
+
+  if (res.status === 429) throw new ScryfallRateLimitError()
+
+  if (res.status === 404) {
+    const body = await res.json().catch(() => ({}))
+    // Only fall back to search for genuinely ambiguous names (no set code — set+name should be unambiguous)
+    if (body?.type === 'ambiguous' && !setCode) {
+      const results = await searchCardsChecked(name)
+      return results[0] ?? null
+    }
+    return null
+  }
+
+  if (!res.ok) return null
+  return res.json()
+}
+
 export async function fetchByName(name: string, setCode?: string): Promise<ScryfallCard | null> {
   try {
-    const params: Record<string, string> = { fuzzy: name }
-    if (setCode) params.set = setCode
-    const url = `${BASE}/cards/named?` + new URLSearchParams(params)
-    const res = await fetch(url, { headers: HEADERS })
-
-    if (res.status === 404) {
-      const body = await res.json().catch(() => ({}))
-      // Only fall back to search for genuinely ambiguous names (no set code — set+name should be unambiguous)
-      if (body?.type === 'ambiguous' && !setCode) {
-        const results = await searchCards(name)
-        return results[0] ?? null
-      }
-      return null
-    }
-
-    if (!res.ok) return null
-    return res.json()
+    return await fetchByNameChecked(name, setCode)
   } catch {
     return null
   }
@@ -93,13 +108,18 @@ export async function fetchById(id: string): Promise<ScryfallCard | null> {
   }
 }
 
+export async function searchCardsChecked(name: string): Promise<ScryfallCard[]> {
+  const url = `${BASE}/cards/search?` + new URLSearchParams({ q: name, order: 'edhrec' })
+  const res = await fetch(url, { headers: HEADERS })
+  if (res.status === 429) throw new ScryfallRateLimitError()
+  if (!res.ok) return []
+  const data = await res.json()
+  return data?.data?.slice(0, 8) ?? []
+}
+
 export async function searchCards(name: string): Promise<ScryfallCard[]> {
   try {
-    const url = `${BASE}/cards/search?` + new URLSearchParams({ q: name, order: 'edhrec' })
-    const res = await fetch(url, { headers: HEADERS })
-    if (!res.ok) return []
-    const data = await res.json()
-    return data?.data?.slice(0, 8) ?? []
+    return await searchCardsChecked(name)
   } catch {
     return []
   }

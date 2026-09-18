@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchByName, searchCards, type ScryfallCard } from '@/lib/scryfall'
+import { fetchByNameChecked, searchCardsChecked, ScryfallRateLimitError, type ScryfallCard } from '@/lib/scryfall'
+import { getCachedPublicCard, setCachedPublicCard, publicCardCacheKey } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,11 @@ function curateCandidate(card: ScryfallCard) {
 }
 
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, max-age=0' }
+const RATE_LIMITED_HEADERS = { 'Cache-Control': 'no-store, max-age=0', 'Retry-After': '5' }
+
+type PublicCardResponse =
+  | { card: ReturnType<typeof curate>; candidates: null }
+  | { card: null; candidates: ReturnType<typeof curateCandidate>[] }
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q')?.trim()
@@ -52,15 +58,31 @@ export async function GET(req: NextRequest) {
 
   const set = req.nextUrl.searchParams.get('set')?.trim() || undefined
 
-  const card = await fetchByName(q, set)
-  if (card) return NextResponse.json({ card: curate(card), candidates: null }, { headers: NO_STORE_HEADERS })
+  const cacheKey = publicCardCacheKey(q, set)
+  const cached = await getCachedPublicCard<PublicCardResponse>(cacheKey)
+  if (cached) return NextResponse.json(cached, { headers: NO_STORE_HEADERS })
 
-  const candidates = await searchCards(q)
-  if (candidates.length === 0) {
-    return NextResponse.json({ error: 'No cards found' }, { status: 404, headers: NO_STORE_HEADERS })
+  let body: PublicCardResponse
+  try {
+    const card = await fetchByNameChecked(q, set)
+    if (card) {
+      body = { card: curate(card), candidates: null }
+    } else {
+      const candidates = await searchCardsChecked(q)
+      if (candidates.length === 0) {
+        return NextResponse.json({ error: 'No cards found' }, { status: 404, headers: NO_STORE_HEADERS })
+      }
+      body = candidates.length === 1
+        ? { card: curate(candidates[0]), candidates: null }
+        : { card: null, candidates: candidates.map(curateCandidate) }
+    }
+  } catch (err) {
+    if (err instanceof ScryfallRateLimitError) {
+      return NextResponse.json({ error: 'Rate limited, try again shortly' }, { status: 503, headers: RATE_LIMITED_HEADERS })
+    }
+    throw err
   }
-  if (candidates.length === 1) {
-    return NextResponse.json({ card: curate(candidates[0]), candidates: null }, { headers: NO_STORE_HEADERS })
-  }
-  return NextResponse.json({ card: null, candidates: candidates.map(curateCandidate) }, { headers: NO_STORE_HEADERS })
+
+  await setCachedPublicCard(cacheKey, body)
+  return NextResponse.json(body, { headers: NO_STORE_HEADERS })
 }
