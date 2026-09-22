@@ -1697,9 +1697,9 @@ export default function WishlistPage() {
                 const saved = currentPrice != null ? item.snapshotPrice - currentPrice : null
                 return (
                   <div key={item.id} className="group relative bg-green-950/30 border border-green-800/50 rounded-lg px-3 py-2 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-0.5 min-w-0">
-                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-green-900/80 text-green-300 shrink-0">↓ ATL</span>
-                      <p className="text-stone-200 text-sm font-medium truncate min-w-0">{item.setName} — {name}</p>
+                    <div className="flex flex-col gap-1 mb-0.5">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-green-900/80 text-green-300 self-start">↓ ATL</span>
+                      <p className="text-stone-200 text-sm font-medium leading-snug line-clamp-2">{item.setName} — {name}</p>
                     </div>
                     {currentPrice != null && (
                       <p className="text-green-400 text-[10px] sm:text-xs font-mono">
@@ -1720,9 +1720,9 @@ export default function WishlistPage() {
                 const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
                 return (
                   <div key={r.displayName} className="group relative bg-green-950/30 border border-green-800/50 rounded-lg px-3 py-2 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-0.5 min-w-0">
-                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-green-900/80 text-green-300 shrink-0">↓ ATL</span>
-                      <p className="text-stone-200 text-sm font-medium truncate min-w-0">{r.displayName}</p>
+                    <div className="flex flex-col gap-1 mb-0.5">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-green-900/80 text-green-300 self-start">↓ ATL</span>
+                      <p className="text-stone-200 text-sm font-medium leading-snug line-clamp-2">{r.displayName}</p>
                     </div>
                     {r.currentPrice != null && (
                       <p className="text-green-400 text-[10px] sm:text-xs font-mono">
@@ -1742,9 +1742,9 @@ export default function WishlistPage() {
                 const saved = r.currentPrice != null ? r.snapshotPrice - r.currentPrice : null
                 return (
                   <div key={r.displayName} className="group relative bg-amber-950/30 border border-amber-800/50 rounded-lg px-3 py-2 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-0.5 min-w-0">
-                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-900/80 text-amber-300 shrink-0">↓ {Math.abs(BUY_THRESHOLD)}%+</span>
-                      <p className="text-stone-200 text-sm font-medium truncate min-w-0">{r.displayName}</p>
+                    <div className="flex flex-col gap-1 mb-0.5">
+                      <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-900/80 text-amber-300 self-start">↓ {Math.abs(BUY_THRESHOLD)}%+</span>
+                      <p className="text-stone-200 text-sm font-medium leading-snug line-clamp-2">{r.displayName}</p>
                     </div>
                     <p className="text-amber-400 text-[10px] sm:text-xs font-mono">
                       ${r.snapshotPrice.toFixed(2)} → ${r.currentPrice?.toFixed(2)} ({pctLabel(r.pct)})

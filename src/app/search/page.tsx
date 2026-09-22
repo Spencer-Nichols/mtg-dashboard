@@ -155,17 +155,6 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded, onPreview }:
           ? <img src={card.imageUrl} alt={card.name} className="w-full block rounded-xl" />
           : <div className="aspect-[5/7] bg-stone-800 rounded-xl flex items-center justify-center text-stone-600 text-xs p-2 text-center">{card.name}</div>}
 
-        {card.owned && (
-          <div className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm bg-green-900/80 text-green-300">
-            Owned
-          </div>
-        )}
-        {!card.owned && isOnWishlist && (
-          <div className="absolute top-2 left-2 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm bg-amber-900/80 text-amber-300">
-            {isAdded ? '✓ Added' : 'Wishlist'}
-          </div>
-        )}
-
         {isAdding && (
           <div className="absolute inset-0 bg-stone-900/60 flex items-center justify-center">
             <p className="text-xs text-amber-400">Adding…</p>
@@ -174,7 +163,15 @@ function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded, onPreview }:
       </div>
 
       <div className="px-0.5 flex flex-col gap-0.5">
-        <p className="text-sm text-stone-200 font-semibold leading-tight">{card.name}</p>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {card.owned && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-900/80 text-green-300 shrink-0">Owned</span>
+          )}
+          {!card.owned && isOnWishlist && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-900/80 text-amber-300 shrink-0">{isAdded ? '✓ Added' : 'Wishlist'}</span>
+          )}
+          <p className="text-sm text-stone-200 font-semibold leading-tight truncate min-w-0">{card.name}</p>
+        </div>
         {card.typeLine && <p className="text-xs text-stone-400 leading-tight">{card.typeLine}</p>}
         <div className="flex items-center justify-between gap-1">
           <p className={`text-xs font-medium capitalize ${RARITY_COLOR[card.rarity] ?? 'text-stone-400'}`}>{card.rarity}</p>
