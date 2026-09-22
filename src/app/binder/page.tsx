@@ -569,7 +569,7 @@ function CardRow({
         </div>
       </td>
       <td className="hidden md:table-cell lg:hidden xl:table-cell px-4 py-3.5 text-right text-stone-500 font-mono text-sm">
-        {row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}
+        {row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : ''}
       </td>
       <td className="hidden md:table-cell lg:hidden xl:table-cell px-4 py-3.5 text-right font-mono text-stone-200">
         {row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}
@@ -659,7 +659,9 @@ function CardRow({
             <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
               <div className="md:hidden flex items-baseline gap-2">
                 <span className="text-stone-200 font-mono font-semibold">{row.currentPrice != null ? `$${row.currentPrice.toFixed(2)}` : '—'}</span>
-                <span className="text-stone-500 font-mono text-xs">{row.purchasePrice === 0 ? 'pull' : row.purchasePrice != null ? `paid $${row.purchasePrice.toFixed(2)}` : `was $${row.snapshotPrice.toFixed(2)}`}</span>
+                {row.purchasePrice != null && (
+                  <span className="text-stone-500 font-mono text-xs">{row.purchasePrice === 0 ? 'pull' : `paid $${row.purchasePrice.toFixed(2)}`}</span>
+                )}
               </div>
               <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
                 {sparkline && sparkline.values.length >= 2
