@@ -16,10 +16,9 @@ export async function GET() {
 
   const { data: decks, error } = await supabase
     .from('deck_ideas')
-    .select('id, name, color_identity, cheapest_total, exact_total, unpriced_count, last_viewed_at, created_at')
+    .select('id, name, color_identity, cheapest_total, exact_total, unpriced_count, created_at')
     .eq('user_id', user.id)
-    .order('last_viewed_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: true })
     .limit(MAX_DECK_IDEAS)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!decks || decks.length === 0) return NextResponse.json({ decks: [], max: MAX_DECK_IDEAS })

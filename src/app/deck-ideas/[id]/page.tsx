@@ -25,6 +25,7 @@ interface DeckDetail {
 }
 
 const POLL_MS = 5000
+const MAX_POLLS = 36
 
 const TYPE_GROUPS = ['Planeswalkers', 'Creatures', 'Sorceries', 'Instants', 'Enchantments', 'Artifacts', 'Battles', 'Lands', 'Other'] as const
 
@@ -87,6 +88,7 @@ export default function DeckIdeaPage() {
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [openCard, setOpenCard] = useState<{ groupTitle: string; cards: DeckCard[]; index: number } | null>(null)
 
   const load = useCallback(() => {
@@ -98,11 +100,16 @@ export default function DeckIdeaPage() {
   useEffect(() => { load() }, [load])
 
   const pendingCheapest = data?.cards.filter(c => !c.cheapestChecked).length ?? 0
+  const isPending = pendingCheapest > 0
   useEffect(() => {
-    if (pendingCheapest === 0) return
-    const timer = setInterval(load, POLL_MS)
+    if (!isPending) return
+    let polls = 0
+    const timer = setInterval(() => {
+      if (++polls >= MAX_POLLS) clearInterval(timer)
+      load()
+    }, POLL_MS)
     return () => clearInterval(timer)
-  }, [pendingCheapest, load])
+  }, [isPending, load])
 
   if (loading) return <p className="text-stone-500 text-sm">Loading deck…</p>
   if (!data) return <p className="text-red-400 text-sm">Deck not found.</p>
@@ -287,13 +294,25 @@ export default function DeckIdeaPage() {
 
           {groups.map(group => (
             <section key={group.title} className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
-              <div className="flex justify-between items-center px-4 py-2.5 border-b border-stone-800">
-                <h2 className="text-xs font-semibold text-stone-300 uppercase tracking-widest">
-                  {group.title} <span className="text-stone-500 font-normal">({group.cards.reduce((n, c) => n + c.qty, 0)})</span>
-                </h2>
-                <span className="text-xs font-mono text-stone-500">{money(group.cards.reduce((s, c) => s + c.qty * (unitPrice(c, mode) ?? 0), 0))}</span>
-              </div>
-              <div className="flex flex-col divide-y divide-stone-800/60">
+              <h2>
+                <button
+                  onClick={() => setCollapsed(prev => {
+                    const next = new Set(prev)
+                    if (next.has(group.title)) next.delete(group.title)
+                    else next.add(group.title)
+                    return next
+                  })}
+                  aria-expanded={!collapsed.has(group.title)}
+                  className={`flex justify-between items-center w-full px-4 py-2.5 text-left hover:bg-stone-800/40 transition-colors ${collapsed.has(group.title) ? '' : 'border-b border-stone-800'}`}
+                >
+                  <span className="flex items-center gap-2 text-xs font-semibold text-stone-300 uppercase tracking-widest">
+                    <span aria-hidden className={`text-stone-500 transition-transform ${collapsed.has(group.title) ? '-rotate-90' : ''}`}>▾</span>
+                    {group.title} <span className="text-stone-500 font-normal">({group.cards.reduce((n, c) => n + c.qty, 0)})</span>
+                  </span>
+                  <span className="text-xs font-mono text-stone-500">{money(group.cards.reduce((s, c) => s + c.qty * (unitPrice(c, mode) ?? 0), 0))}</span>
+                </button>
+              </h2>
+              {!collapsed.has(group.title) && <div className="flex flex-col divide-y divide-stone-800/60">
                 {group.cards.map(card => {
                   const p = printing(card, mode)
                   const price = unitPrice(card, mode)
@@ -327,7 +346,7 @@ export default function DeckIdeaPage() {
                     </button>
                   )
                 })}
-              </div>
+              </div>}
             </section>
           ))}
           {groups.length === 0 && <p className="text-sm text-stone-500">No cards match this filter.</p>}

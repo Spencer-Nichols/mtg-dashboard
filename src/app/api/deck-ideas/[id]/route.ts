@@ -38,8 +38,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
   const wishlistNames = (wishlist ?? []).map(w => w.name.toLowerCase())
 
-  await supabase.from('deck_ideas').update({ last_viewed_at: new Date().toISOString() }).eq('id', id)
-
   return NextResponse.json({
     deck: {
       id: deck.id,
