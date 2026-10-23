@@ -151,6 +151,18 @@ export default function DeckIdeaPage() {
   const historyBaseline = firstHistory ? (mode === 'exact' ? firstHistory.exactTotal : firstHistory.cheapestTotal) : null
   const trend = historyBaseline != null && history.length > 1 ? deckTotal - historyBaseline : null
 
+  const priciestSection = (visibility: string) => (
+    <section className={`${visibility} bg-stone-900 border border-stone-800 rounded-xl p-4 flex-col gap-2`}>
+      <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold mb-1">Priciest cards</p>
+      {priciest.map(card => (
+        <div key={card.id} className="flex justify-between gap-3 text-sm">
+          <span className="text-stone-200 truncate">{card.name}</span>
+          <span className="font-mono text-stone-200 shrink-0">{money(unitPrice(card, mode)!)}</span>
+        </div>
+      ))}
+    </section>
+  )
+
   async function sendToWishlist() {
     setSending(true)
     setSendResult(null)
@@ -240,7 +252,13 @@ export default function DeckIdeaPage() {
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-stone-900 border-2 border-amber-900/40 rounded-xl p-4 flex flex-col gap-1">
           <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold">Deck total · {modeLabel(mode)}</p>
-          <p className="text-2xl font-bold font-mono text-stone-100">{money(deckTotal)}{unpricedFor(mode) > 0 ? '+' : ''}</p>
+          <div className="flex items-end justify-between gap-4">
+            <p className="text-2xl font-bold font-mono text-stone-100">{money(deckTotal)}{unpricedFor(mode) > 0 ? '+' : ''}</p>
+            <div className="sm:hidden text-right">
+              <p className="text-[11px] text-stone-500 uppercase tracking-wider">{modeLabel(otherMode)}</p>
+              <p className="text-lg font-bold font-mono text-stone-400">{money(totalFor(otherMode))}{unpricedFor(otherMode) > 0 ? '+' : ''}</p>
+            </div>
+          </div>
           {unpricedFor(mode) > 0 ? (
             <p className="text-xs text-yellow-400">{unpricedFor(mode)} card{unpricedFor(mode) === 1 ? '' : 's'} with no price yet</p>
           ) : trend != null && Math.abs(trend) >= 0.01 ? (
@@ -249,7 +267,7 @@ export default function DeckIdeaPage() {
             </p>
           ) : null}
         </div>
-        <div className="bg-stone-900 border border-stone-800 rounded-xl p-4 flex flex-col gap-1">
+        <div className="hidden sm:flex bg-stone-900 border border-stone-800 rounded-xl p-4 flex-col gap-1">
           <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold">Total · {modeLabel(otherMode)}</p>
           <p className="text-2xl font-bold font-mono text-stone-400">{money(totalFor(otherMode))}{unpricedFor(otherMode) > 0 ? '+' : ''}</p>
           <p className="text-xs text-stone-500">For comparison</p>
@@ -262,6 +280,8 @@ export default function DeckIdeaPage() {
           </div>
         </div>
       </section>
+
+      {priciestSection('flex lg:hidden')}
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <main className="flex-1 min-w-0 w-full flex flex-col gap-4">
@@ -362,15 +382,7 @@ export default function DeckIdeaPage() {
             )}
           </section>
 
-          <section className="bg-stone-900 border border-stone-800 rounded-xl p-4 flex flex-col gap-2">
-            <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold mb-1">Priciest cards</p>
-            {priciest.map(card => (
-              <div key={card.id} className="flex justify-between gap-3 text-sm">
-                <span className="text-stone-200 truncate">{card.name}</span>
-                <span className="font-mono text-stone-200 shrink-0">{money(unitPrice(card, mode)!)}</span>
-              </div>
-            ))}
-          </section>
+          {priciestSection('hidden lg:flex')}
 
           <section className="bg-stone-900 border border-stone-800 rounded-xl p-4 flex flex-col gap-3">
             <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold">Track the expensive ones</p>
