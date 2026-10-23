@@ -18,6 +18,7 @@ interface DeckIdeaSummary {
 
 const LS_DECK_IDEAS = 'tnk:deck-ideas'
 const POLL_MS = 5000
+const MAX_POLLS = 36
 
 function formatDelta(delta: number | null) {
   if (delta == null || Math.abs(delta) < 0.01) return { text: '— 7d', className: 'text-stone-500' }
@@ -51,7 +52,11 @@ export default function DeckIdeasWidget() {
   const pricing = decks?.some(d => d.pendingCheapest > 0)
   useEffect(() => {
     if (!pricing) return
-    const timer = setInterval(load, POLL_MS)
+    let polls = 0
+    const timer = setInterval(() => {
+      if (++polls >= MAX_POLLS) clearInterval(timer)
+      load()
+    }, POLL_MS)
     return () => clearInterval(timer)
   }, [pricing])
 

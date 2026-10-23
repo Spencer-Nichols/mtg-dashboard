@@ -325,7 +325,8 @@ export async function discoverCheapest(
       cheapest = await findCheapestPrinting(first.name, oracleId)
     } catch (err) {
       if (err instanceof ScryfallRateLimitError) break
-      throw err
+      console.error(`Cheapest printing lookup failed for ${first.name}:`, err)
+      continue
     }
     await supabase.from('deck_idea_cards')
       .update({ ...(cheapest ?? {}), cheapest_checked_at: checkedAt })
