@@ -462,6 +462,9 @@ function CompactCard({ row, onDelete, onEdit, pendingDelete, sparkline, expanded
             </button>
           </div>
           <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
+            {row.purchasePrice != null && (
+              <p className="text-xs text-stone-500 font-mono">{row.purchasePrice === 0 ? 'pull' : `paid $${row.purchasePrice.toFixed(2)}`}</p>
+            )}
             <div className="border border-stone-700/60 rounded-lg p-2 bg-stone-800">
               {sparkline && sparkline.values.length >= 2
                 ? <Sparkline values={sparkline.values} dates={sparkline.dates} fullWidth showLabels width={400} height={80} labelFontSize={9} purchasePrice={row.purchasePrice} />

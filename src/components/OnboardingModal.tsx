@@ -55,6 +55,23 @@ const STEPS: Step[] = [
       body: 'Set a target price on any wishlisted card and get an email when it drops below it (or hits a new all-time low). Manage email alerts for both singles and sealed products from the Manage alerts dropdown.',
     },
   },
+  {
+    title: 'Deck Ideas',
+    nav: 'Home',
+    description: 'Thinking about building a deck for real? Paste a Moxfield list and TapNTrack prices every card from Scryfall, then keeps the total up to date. Your deck ideas live on the homepage, right under Binder Value.',
+    detail: [
+      'Paste a list from Moxfield (Export → Copy for Moxfield)',
+      'Put your commander(s) in their own block at the top',
+      'Compare the exact printings in the list against the cheapest printing of every card',
+      'See which cards are already in your binder',
+      'Tap a card to compare printings or add it to your wishlist',
+    ],
+    callout: {
+      label: 'NEW',
+      title: 'Deck Ideas',
+      body: 'Save up to 3 deck ideas and watch their price over time. Send the expensive cards you don\'t own to your wishlist in one tap to get price alerts on them.',
+    },
+  },
 ]
 
 export default function OnboardingModal({ onDismiss }: { onDismiss: () => void }) {
