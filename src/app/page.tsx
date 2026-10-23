@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import CollectionChart, { type ChartEvent } from '@/components/CollectionChart'
 import OnboardingModal from '@/components/OnboardingModal'
+import DeckIdeasWidget from '@/components/DeckIdeasWidget'
 import setReleases from '@/lib/set-releases.json'
 
 interface Card {
@@ -244,6 +245,7 @@ export default function HomePage() {
 
       {/* On mobile: chart sits above the sidebar (gainers/drops) */}
       {!isDesktop && binderChart}
+      {!isDesktop && <DeckIdeasWidget />}
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
 
@@ -252,6 +254,7 @@ export default function HomePage() {
 
         {/* On desktop: chart lives here, level with the sidebar */}
         {isDesktop && binderChart}
+        {isDesktop && <DeckIdeasWidget />}
 
         <div className="flex items-center justify-between">
           <div>
