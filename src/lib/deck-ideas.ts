@@ -285,28 +285,38 @@ export interface CheapestCandidate {
   exact_price: number | null
 }
 
+export interface DiscoverResult {
+  checked: number
+  stoppedBy: 'done' | 'deadline' | 'rate-limit'
+  lookupErrors: number
+  writeError: string | null
+}
+
 export async function discoverCheapest(
   supabase: SupabaseClient,
   cards: CheapestCandidate[],
   oracleIds: Map<string, string>,
   deadline: number,
-): Promise<number> {
+): Promise<DiscoverResult> {
   const groups = new Map<string, CheapestCandidate[]>()
   for (const card of cards) {
     const key = card.name.toLowerCase()
     groups.set(key, [...(groups.get(key) ?? []), card])
   }
 
-  let checked = 0
+  const result: DiscoverResult = { checked: 0, stoppedBy: 'done', lookupErrors: 0, writeError: null }
   for (const group of groups.values()) {
-    if (Date.now() > deadline) break
+    if (Date.now() > deadline) {
+      result.stoppedBy = 'deadline'
+      break
+    }
     const first = group[0]
     const checkedAt = new Date().toISOString()
     const ids = group.map(c => c.id)
 
     if (first.type_line?.includes('Basic Land')) {
       for (const card of group) {
-        await supabase.from('deck_idea_cards').update({
+        const { error } = await supabase.from('deck_idea_cards').update({
           cheapest_scryfall_id: card.scryfall_id,
           cheapest_set_code: card.set_code,
           cheapest_collector_number: card.collector_number,
@@ -314,8 +324,9 @@ export async function discoverCheapest(
           cheapest_price: card.exact_price,
           cheapest_checked_at: checkedAt,
         }).eq('id', card.id)
+        if (error) result.writeError = error.message
       }
-      checked += group.length
+      result.checked += group.length
       continue
     }
 
@@ -324,17 +335,27 @@ export async function discoverCheapest(
       const oracleId = first.scryfall_id ? oracleIds.get(first.scryfall_id) ?? null : null
       cheapest = await findCheapestPrinting(first.name, oracleId)
     } catch (err) {
-      if (err instanceof ScryfallRateLimitError) break
+      if (err instanceof ScryfallRateLimitError) {
+        result.stoppedBy = 'rate-limit'
+        break
+      }
+      result.lookupErrors++
       console.error(`Cheapest printing lookup failed for ${first.name}:`, err)
       continue
     }
-    await supabase.from('deck_idea_cards')
+    const { error } = await supabase.from('deck_idea_cards')
       .update({ ...(cheapest ?? {}), cheapest_checked_at: checkedAt })
       .in('id', ids)
-    checked += group.length
+    if (error) {
+      result.writeError = error.message
+      console.error(`Cheapest printing write failed for ${first.name}:`, error.message)
+      continue
+    }
+    result.checked += group.length
     await sleep(REQUEST_DELAY)
   }
-  return checked
+  if (result.stoppedBy !== 'done' || result.writeError) console.error('Deck idea cheapest check incomplete:', result)
+  return result
 }
 
 export async function recomputeTotals(supabase: SupabaseClient, deckIds: string[], writeHistory: boolean) {
@@ -383,12 +404,18 @@ export interface DeckIdeaRefreshResult {
   deckIdeas: number
   deckIdeaCards: number
   cheapestChecked: number
+  cheapestStale: number
+  stoppedBy: DiscoverResult['stoppedBy']
+  lookupErrors: number
+  writeError: string | null
 }
 
 export async function refreshDeckIdeaPrices(deadline: number): Promise<DeckIdeaRefreshResult> {
   const supabase = createServiceClient()
   const { data: cards } = await supabase.from('deck_idea_cards').select('*')
-  if (!cards || cards.length === 0) return { deckIdeas: 0, deckIdeaCards: 0, cheapestChecked: 0 }
+  if (!cards || cards.length === 0) {
+    return { deckIdeas: 0, deckIdeaCards: 0, cheapestChecked: 0, cheapestStale: 0, stoppedBy: 'done', lookupErrors: 0, writeError: null }
+  }
 
   const ids = [...new Set(cards.flatMap(c => [c.scryfall_id, c.cheapest_scryfall_id]).filter(Boolean) as string[])]
   const fetched = await fetchCollection(ids) as Map<string, DeckScryfallCard>
@@ -410,12 +437,20 @@ export async function refreshDeckIdeaPrices(deadline: number): Promise<DeckIdeaR
   const startOfDay = new Date()
   startOfDay.setUTCHours(0, 0, 0, 0)
   const stale = updated.filter(c => !c.cheapest_checked_at || new Date(c.cheapest_checked_at) < startOfDay)
-  const cheapestChecked = await discoverCheapest(supabase, stale, oracleIds, deadline)
+  const discovered = await discoverCheapest(supabase, stale, oracleIds, deadline)
 
   const deckIds = [...new Set(cards.map(c => c.deck_id as string))]
   await recomputeTotals(supabase, deckIds, true)
 
-  return { deckIdeas: deckIds.length, deckIdeaCards: cards.length, cheapestChecked }
+  return {
+    deckIdeas: deckIds.length,
+    deckIdeaCards: cards.length,
+    cheapestChecked: discovered.checked,
+    cheapestStale: stale.length,
+    stoppedBy: discovered.stoppedBy,
+    lookupErrors: discovered.lookupErrors,
+    writeError: discovered.writeError,
+  }
 }
 
 export interface PreparedDeck {
