@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
 
   const started = Date.now()
   const result = await refreshAllPrices()
+  const pricesElapsed = ((Date.now() - started) / 1000).toFixed(1)
 
   let deckIdeas = null
   try {
@@ -24,5 +25,5 @@ export async function GET(req: NextRequest) {
   }
   const elapsed = ((Date.now() - started) / 1000).toFixed(1)
 
-  return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, ...result, deckIdeas })
+  return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, pricesElapsed: `${pricesElapsed}s`, ...result, deckIdeas })
 }
