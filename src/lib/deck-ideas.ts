@@ -42,22 +42,27 @@ export interface ResolvedDeckCard extends DeckCardRow {
 
 type Identifier = { set: string; collector_number: string } | { name: string }
 
-async function postCollection(identifiers: Identifier[]): Promise<DeckScryfallCard[]> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(`${BASE}/cards/collection`, {
-      method: 'POST',
-      headers: { ...HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifiers }),
-    })
-    if (res.status === 429) {
-      await sleep(1000)
-      continue
-    }
-    if (!res.ok) return []
-    const data = await res.json()
-    return data?.data ?? []
+const MAX_RATE_LIMIT_RETRIES = 3
+
+async function fetchWithBackoff(url: string, init?: RequestInit): Promise<Response> {
+  for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
+    const res = await fetch(url, init)
+    if (res.status !== 429) return res
+    const retryAfter = Number(res.headers.get('retry-after'))
+    await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000 * 2 ** attempt)
   }
   throw new ScryfallRateLimitError()
+}
+
+async function postCollection(identifiers: Identifier[]): Promise<DeckScryfallCard[]> {
+  const res = await fetchWithBackoff(`${BASE}/cards/collection`, {
+    method: 'POST',
+    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifiers }),
+  })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data?.data ?? []
 }
 
 async function collectInBatches(identifiers: Identifier[]): Promise<DeckScryfallCard[]> {
@@ -242,12 +247,7 @@ export async function findCheapestPrinting(name: string, oracleId: string | null
 
   for (let page = 0; url && page < MAX_SEARCH_PAGES; page++) {
     if (page > 0) await sleep(REQUEST_DELAY)
-    let res: Response = await fetch(url, { headers: HEADERS })
-    if (res.status === 429) {
-      await sleep(1000)
-      res = await fetch(url, { headers: HEADERS })
-      if (res.status === 429) throw new ScryfallRateLimitError()
-    }
+    const res = await fetchWithBackoff(url, { headers: HEADERS })
     if (!res.ok) return best
     const data: { data?: DeckScryfallCard[]; has_more?: boolean; next_page?: string } = await res.json()
 
