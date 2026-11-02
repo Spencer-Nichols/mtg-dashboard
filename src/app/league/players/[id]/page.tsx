@@ -8,10 +8,13 @@ import { RARITY_COLOR } from '@/components/league/LeagueModal'
 import LeagueCardSheet from '@/components/league/LeagueCardSheet'
 import AddToBinderModal from '@/components/league/AddToBinderModal'
 import DeckUpload from '@/components/league/DeckUpload'
+import TradeModal from '@/components/league/TradeModal'
+import BackLink from '@/components/BackLink'
 import { CardImageGrid, CardViewToggle, useCardViewMode, useHoverPreview } from '@/components/CardImages'
 
 type Player = NonNullable<ReturnType<typeof playerView>> & { binderImportEnabled: boolean }
 type Tab = 'main' | 'side'
+type TradeStart = { giveId?: string; getId?: string }
 
 const TYPE_GROUPS = ['Commander', 'Planeswalkers', 'Creatures', 'Sorceries', 'Instants', 'Enchantments', 'Artifacts', 'Battles', 'Lands', 'Other'] as const
 
@@ -54,6 +57,8 @@ export default function LeaguePlayerPage() {
   const [binderOpen, setBinderOpen] = useState(searchParams.get('binder') === '1')
   const [replacing, setReplacing] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [trade, setTrade] = useState<TradeStart | null>(null)
+  const [offerSent, setOfferSent] = useState(false)
 
   function toggleGroup(title: string) {
     setCollapsed(prev => {
@@ -94,17 +99,41 @@ export default function LeaguePlayerPage() {
 
   const canSwap = (c: CardView) => data.isOwner && data.seasonOpen && c.zone === 'side'
   const swapOptions = stack(data.main.filter(c => !c.commander)).map(o => ({ id: o.card.id, name: o.card.name, qty: o.qty }))
+  const canTradeWith = !data.isOwner && data.seasonOpen
+  const tradeLabel = (c: CardView) => {
+    if (!data.seasonOpen || c.commander) return null
+    return data.isOwner ? 'Offer this in a trade' : `Ask ${member.name} for this`
+  }
+  const startTrade = (c: CardView) => {
+    setOpenCard(null)
+    setOfferSent(false)
+    setTrade(data.isOwner ? { giveId: c.id } : { getId: c.id })
+  }
 
   return (
     <div className="flex flex-col gap-5 min-[1800px]:mx-[calc((100%_-_min(1720px,_100vw_-_6rem))/2)] [&_button:not(:disabled)]:cursor-pointer">
       <div className="flex flex-col gap-1">
-        <Link href="/league" className="text-sm text-stone-500 hover:text-stone-300">← League</Link>
+        <BackLink href="/league" label="League" />
         <h1 className="text-2xl font-bold text-stone-100">{member.name}</h1>
         <p className="text-sm text-stone-400">{member.precon} · #{member.rank} · {member.points} pts</p>
         <p className="text-sm text-stone-400">
           Main deck <span className="font-mono text-stone-200">{money(data.mainValue)}</span>
           {data.sideValue > 0 && <> · Sideboard <span className="font-mono text-stone-200">{money(data.sideValue)}</span></>}
         </p>
+        {canTradeWith && (
+          <button
+            id="league-deck-trade"
+            onClick={() => { setOfferSent(false); setTrade({}) }}
+            className="self-start mt-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber-950/60 border border-amber-700/50 hover:bg-amber-900/60 text-amber-200 transition-colors"
+          >
+            Trade with {member.name}
+          </button>
+        )}
+        {offerSent && (
+          <p className="text-sm text-green-300">
+            Offer sent. {data.isOwner ? 'Your partner' : member.name} has to accept it on the <Link href="/league" className="underline">league page</Link>.
+          </p>
+        )}
         {data.canUploadDeck && data.main.length > 0 && !replacing && (
           <button onClick={() => setReplacing(true)} className="self-start mt-2 text-sm text-amber-500 hover:text-amber-400">
             Replace deck
@@ -128,17 +157,18 @@ export default function LeaguePlayerPage() {
         />
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="tablist" aria-label="Card pools" className="flex gap-2">
+      <div id="league-deck-toolbar" className="flex items-center justify-between gap-2 sm:gap-3">
+        <div role="tablist" aria-label="Card pools" className="flex gap-2 min-w-0">
           {(['main', 'side'] as Tab[]).map(t => (
             <button
               key={t}
               role="tab"
               aria-selected={tab === t}
               onClick={() => setTab(t)}
-              className={`min-h-11 px-4 rounded-lg text-sm font-semibold border transition-colors ${tab === t ? 'bg-amber-950/70 border-amber-700/70 text-amber-200' : 'border-stone-700 text-stone-300 hover:border-stone-500'}`}
+              className={`min-h-11 px-3 sm:px-4 rounded-lg text-sm font-semibold whitespace-nowrap border transition-colors ${tab === t ? 'bg-amber-950/70 border-amber-700/70 text-amber-200' : 'border-stone-700 text-stone-300 hover:border-stone-500'}`}
             >
-              {t === 'main' ? `Main deck · ${data.main.length}` : `Sideboard · ${data.side.length}`}
+              <span className="sm:hidden">{t === 'main' ? `Main · ${data.main.length}` : `Side · ${data.side.length}`}</span>
+              <span className="hidden sm:inline">{t === 'main' ? `Main deck · ${data.main.length}` : `Sideboard · ${data.side.length}`}</span>
             </button>
           ))}
         </div>
@@ -224,10 +254,22 @@ export default function LeaguePlayerPage() {
         />
       )}
 
+      {trade && (
+        <TradeModal
+          initialPartnerId={data.isOwner ? undefined : member.id}
+          initialGiveId={trade.giveId}
+          initialGetId={trade.getId}
+          onClose={() => setTrade(null)}
+          onSaved={() => { setTrade(null); setOfferSent(true); load() }}
+        />
+      )}
+
       {openCard && (
         <LeagueCardSheet
           card={openCard}
           swapOptions={canSwap(openCard) ? swapOptions : null}
+          tradeLabel={tradeLabel(openCard)}
+          onTrade={() => startTrade(openCard)}
           onClose={() => setOpenCard(null)}
           onSwapped={() => { setOpenCard(null); load() }}
         />

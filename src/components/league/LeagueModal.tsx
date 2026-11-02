@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { DragHandle, useSheet } from '@/components/useSheet'
 
 interface LeagueModalProps {
   title: string
@@ -17,22 +18,29 @@ export default function LeagueModal({ title, wide, size, busy, onClose, children
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [busy, onClose])
+  const { panelRef, dragProps } = useSheet(onClose, busy)
 
   return (
     <div
+      id="league-modal-backdrop"
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70"
       onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
     >
       <div
+        id="league-modal"
+        ref={panelRef}
         role="dialog"
         aria-label={title}
         className={`bg-stone-900 border border-stone-700 rounded-t-2xl sm:rounded-2xl w-full ${wide ? 'sm:max-w-4xl' : size === 'lg' ? 'sm:max-w-3xl' : 'sm:max-w-xl'} max-h-[90vh] flex flex-col shadow-2xl`}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800 shrink-0">
-          <h2 className="text-stone-100 font-semibold truncate pr-4">{title}</h2>
-          <button onClick={onClose} disabled={busy} aria-label="Close" className="text-stone-500 hover:text-stone-300 transition-colors text-xl leading-none shrink-0 disabled:opacity-50">✕</button>
+        <div {...dragProps} className="shrink-0 touch-none sm:touch-auto">
+          <DragHandle />
+          <div className="flex items-center justify-between px-5 py-4 border-b border-stone-800">
+            <h2 className="text-stone-100 font-semibold truncate pr-4">{title}</h2>
+            <button onClick={onClose} disabled={busy} aria-label="Close" className="text-stone-500 hover:text-stone-300 transition-colors text-xl leading-none shrink-0 disabled:opacity-50">✕</button>
+          </div>
         </div>
-        <div className="p-5 flex flex-col gap-4 overflow-y-auto">{children}</div>
+        <div id="league-modal-body" className="p-5 flex flex-col gap-4 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>
   )

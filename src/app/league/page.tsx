@@ -25,6 +25,14 @@ const BADGES: Record<string, { label: string; className: string }> = {
 
 const sectionTitle = 'text-xs text-stone-400 uppercase tracking-widest font-semibold'
 const card = 'bg-stone-900 border border-stone-800 rounded-xl'
+const actionButton = 'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber-950/60 border border-amber-700/50 hover:bg-amber-900/60 text-amber-200 transition-colors'
+
+function CountBadge({ count, label }: { count: number; label: string }) {
+  if (count <= 0) return null
+  return (
+    <span aria-label={label} className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold inline-flex items-center justify-center">{count}</span>
+  )
+}
 
 function finishLabel(place: number | null) {
   return place == null ? '–' : String(place)
@@ -36,7 +44,6 @@ export default function LeaguePage() {
   const [modal, setModal] = useState<ModalName>(null)
   const [confirmBye, setConfirmBye] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [busyOffer, setBusyOffer] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -83,8 +90,9 @@ export default function LeaguePage() {
 
   const { league, viewer } = data
   const packsLeft = viewer.openPacks.reduce((n, p) => n + p.left, 0)
-  const pendingCount = packsLeft + data.offers.filter(o => o.incoming).length
+  const incomingOffers = data.offers.filter(o => o.incoming).length
   const bulkWithCards = data.bulk.filter(b => b.count > 0)
+  const canCallBye = !viewer.byeUsed && !league.complete && !league.ended
   const playersWithChanges = data.changes.filter(c => c.items.length > 0)
 
   return (
@@ -113,63 +121,29 @@ export default function LeaguePage() {
         </div>
       )}
 
-      <section className="flex flex-wrap items-end justify-between gap-4">
+      <section id="league-header" className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <p className="text-xs text-stone-400 uppercase tracking-widest">
             Season {league.seasonNumber} · {league.ended ? 'Ended' : league.complete ? 'All games played' : `Game ${league.nextGame} of ${league.totalGames}`}
           </p>
           <h1 className="text-2xl font-bold text-stone-100">{league.name}</h1>
+          <p id="league-links" className="flex items-center gap-2 text-sm font-semibold">
+            <Link href={`/league/players/${viewer.id}`} className="py-1 text-amber-500 hover:text-amber-400 transition-colors">My deck</Link>
+            <span aria-hidden className="text-stone-600">·</span>
+            <Link href="/league/rules" className="py-1 text-amber-500 hover:text-amber-400 transition-colors">Rules</Link>
+          </p>
         </div>
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-expanded={menuOpen}
-          className="sm:hidden w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-stone-700 text-stone-200"
-        >
-          <span className="flex items-center gap-2">
-            Manage
-            {pendingCount > 0 && (
-              <span aria-label={`${pendingCount} waiting`} className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold inline-flex items-center justify-center">{pendingCount}</span>
-            )}
-          </span>
-          <span aria-hidden className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`}>▾</span>
-        </button>
-        <div
-          onClick={e => { if ((e.target as HTMLElement).closest('a, button') && !confirmBye) setMenuOpen(false) }}
-          className={`${menuOpen ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full sm:w-auto`}
-        >
-        <Link href={`/league/players/${viewer.id}`} className="w-full sm:w-auto text-left sm:text-center px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-stone-700 hover:border-stone-500 text-stone-200 transition-colors">
-          My deck
-        </Link>
-        <button onClick={() => setModal('pack')} className="w-full sm:w-auto text-left sm:text-center px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-stone-700 hover:border-stone-500 text-stone-200 transition-colors">
-          + Open pack{packsLeft > 0 ? ` (${packsLeft})` : ''}
-        </button>
-        {!league.ended && (
-          <button onClick={() => setModal('trade')} className="w-full sm:w-auto text-left sm:text-center px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-stone-700 hover:border-stone-500 text-stone-200 transition-colors">
-            + Trade
+        <div id="league-actions" className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
+          <button onClick={() => setModal('pack')} className={`${actionButton} ${league.ended ? 'col-span-2' : ''}`}>
+            Open pack
+            <CountBadge count={packsLeft} label={`${packsLeft} pack${packsLeft === 1 ? '' : 's'} to open`} />
           </button>
-        )}
-        <Link href="/league/rules" className="w-full sm:w-auto text-left sm:text-center px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-stone-700 hover:border-stone-500 text-stone-200 transition-colors">
-          Rules
-        </Link>
-        {viewer.canLogGame && (
-          <button onClick={() => setModal('game')} className="w-full sm:w-auto text-left sm:text-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 text-amber-200 transition-colors">
-            + Log game
-          </button>
-        )}
-        {!viewer.byeUsed && !league.complete && !league.ended && (
-          confirmBye ? (
-            <span className="flex flex-wrap items-center gap-2">
-              <button onClick={() => { setConfirmBye(false); act({ action: 'callBye' }) }} className="w-full sm:w-auto text-left sm:text-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-red-950/50 border-2 border-red-900/60 text-red-200">
-                Skip this week
-              </button>
-              <button onClick={() => setConfirmBye(false)} className="px-3 py-2.5 text-sm text-stone-400 hover:text-stone-200">Cancel</button>
-            </span>
-          ) : (
-            <button onClick={() => setConfirmBye(true)} className="w-full sm:w-auto text-left sm:text-center px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-stone-800 text-stone-400 hover:text-stone-200 transition-colors">
-              Call bye week
-            </button>
-          )
-        )}
+          {!league.ended && (
+            <button onClick={() => setModal('trade')} className={actionButton}>Trade</button>
+          )}
+          {viewer.canLogGame && (
+            <button onClick={() => setModal('game')} className={`${actionButton} col-span-2 sm:col-auto`}>Log game</button>
+          )}
         </div>
       </section>
 
@@ -212,7 +186,21 @@ export default function LeaguePage() {
             changeCount={data.changes.reduce((n, c) => n + c.items.length, 0)}
             boostNote={data.standings.filter(s => s.badges.includes('boost')).map(s => ` · ${s.name} starts at ${league.boostLife}`).join('')}
             onSave={(at, note) => act({ action: 'scheduleGame', at, note })}
-          />
+          >
+            {canCallBye && (confirmBye ? (
+              <span id="league-bye-confirm" className="flex flex-wrap items-center gap-2 mt-1 text-xs text-stone-300">
+                Skip this week&apos;s game?
+                <button onClick={() => { setConfirmBye(false); act({ action: 'callBye' }) }} className="px-3 py-1.5 rounded-lg font-semibold bg-red-950/50 border border-red-900/60 text-red-200">
+                  Call bye
+                </button>
+                <button onClick={() => setConfirmBye(false)} className="px-2 py-1.5 text-stone-400 hover:text-stone-200">Cancel</button>
+              </span>
+            ) : (
+              <button onClick={() => setConfirmBye(true)} className="self-start text-xs text-stone-500 hover:text-stone-300 transition-colors">
+                Call bye week
+              </button>
+            ))}
+          </NextGame>
         )}
         <div className={`${card} p-4 flex flex-col gap-2`}>
           <p className={sectionTitle}>Your packs</p>
@@ -238,8 +226,11 @@ export default function LeaguePage() {
       </section>
 
       {data.offers.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className={sectionTitle}>Trade offers</h2>
+        <section id="league-trade-offers" className="flex flex-col gap-2 scroll-mt-4">
+          <h2 className={`${sectionTitle} flex items-center gap-2`}>
+            Trade offers
+            <CountBadge count={incomingOffers} label={`${incomingOffers} waiting for you`} />
+          </h2>
           <div className={card}>
             {data.offers.map(o => (
               <div key={o.id} className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-stone-800 last:border-b-0">

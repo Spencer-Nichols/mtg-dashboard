@@ -6,6 +6,7 @@ import type { LeagueCard, LeagueState, PackKind } from './types'
 export interface CardView {
   id: string
   name: string
+  realName: string
   typeLine: string
   rarity: string
   origin: LeagueCard['origin']
@@ -35,6 +36,7 @@ function cardView(c: LeagueCard, state: LeagueState, prices: PriceMap): CardView
   return {
     id: c.id,
     name: cardLabel(c),
+    realName: c.name,
     typeLine: c.typeLine,
     rarity: c.rarity,
     origin: c.origin,
