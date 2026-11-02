@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import OracleText from './OracleText'
+import { DragHandle, useSheet } from './useSheet'
 
 type FoilType = 'none' | 'foil' | 'etched'
 
@@ -112,6 +114,7 @@ export default function DeckCardModal({ cards, index, groupTitle, deckName, onIn
   const [face, setFace] = useState(0)
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const { panelRef, dragProps } = useSheet(onClose)
 
   const ids = rows.map(r => r.scryfallId).filter((id): id is string => !!id && !printings[id])
   const idsKey = ids.join(',')
@@ -177,30 +180,34 @@ export default function DeckCardModal({ cards, index, groupTitle, deckName, onIn
 
   return (
     <div
+      id="deck-card-modal-backdrop"
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/70"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div role="dialog" aria-label={card.name} className="bg-stone-900 border border-stone-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
-        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-stone-800 shrink-0">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goTo(index - 1)}
-              disabled={index === 0}
-              aria-label="Previous card"
-              className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg border border-stone-700 text-stone-300 hover:border-stone-500 disabled:opacity-30 transition-colors"
-            >‹</button>
-            <button
-              onClick={() => goTo(index + 1)}
-              disabled={index === cards.length - 1}
-              aria-label="Next card"
-              className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg border border-stone-700 text-stone-300 hover:border-stone-500 disabled:opacity-30 transition-colors"
-            >›</button>
-            <span className="text-xs text-stone-500 ml-1">{groupTitle} · {index + 1} of {cards.length}</span>
+      <div id="deck-card-modal" ref={panelRef} role="dialog" aria-label={card.name} className="bg-stone-900 border border-stone-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
+        <div {...dragProps} className="shrink-0 touch-none sm:touch-auto">
+          <DragHandle />
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-stone-800">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => goTo(index - 1)}
+                disabled={index === 0}
+                aria-label="Previous card"
+                className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg border border-stone-700 text-stone-300 hover:border-stone-500 disabled:opacity-30 transition-colors"
+              >‹</button>
+              <button
+                onClick={() => goTo(index + 1)}
+                disabled={index === cards.length - 1}
+                aria-label="Next card"
+                className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg border border-stone-700 text-stone-300 hover:border-stone-500 disabled:opacity-30 transition-colors"
+              >›</button>
+              <span className="text-xs text-stone-500 ml-1">{groupTitle} · {index + 1} of {cards.length}</span>
+            </div>
+            <button onClick={onClose} aria-label="Close" className="w-10 h-10 sm:w-8 sm:h-8 text-stone-500 hover:text-stone-300 transition-colors text-xl leading-none">✕</button>
           </div>
-          <button onClick={onClose} aria-label="Close" className="w-10 h-10 sm:w-8 sm:h-8 text-stone-500 hover:text-stone-300 transition-colors text-xl leading-none">✕</button>
         </div>
 
-        <div className="p-4 sm:p-5 flex flex-col sm:flex-row gap-4 sm:gap-6 overflow-y-auto">
+        <div id="deck-card-modal-body" className="p-4 sm:p-5 flex flex-col sm:flex-row gap-4 sm:gap-6 overflow-y-auto overscroll-contain">
           <div className="flex sm:flex-col items-start sm:items-center gap-3 shrink-0">
             <div className="w-32 sm:w-60 aspect-[5/7] rounded-lg sm:rounded-xl bg-stone-800 overflow-hidden">
               {image && (
@@ -234,6 +241,8 @@ export default function DeckCardModal({ cards, index, groupTitle, deckName, onIn
             {card.ownership === 'missing' && (
               <p className="text-xs text-stone-300 border border-stone-700 rounded-lg px-3 py-2">Not in your binder.</p>
             )}
+
+            <OracleText name={card.name} />
 
             <div role="radiogroup" aria-label="Printing" className="flex flex-col gap-1.5">
               {rows.map(row => {

@@ -11,6 +11,7 @@ interface NextGameProps {
   changeCount: number
   boostNote: string
   onSave: (at: string | null, note: string) => Promise<void>
+  children?: React.ReactNode
 }
 
 function toLocalInput(iso: string | null) {
@@ -20,7 +21,7 @@ function toLocalInput(iso: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export default function NextGame({ gameNumber, at, note, timeZone, canSchedule, changeCount, boostNote, onSave }: NextGameProps) {
+export default function NextGame({ gameNumber, at, note, timeZone, canSchedule, changeCount, boostNote, onSave, children }: NextGameProps) {
   const [editing, setEditing] = useState(false)
   const [when, setWhen] = useState(toLocalInput(at))
   const [text, setText] = useState(note ?? '')
@@ -38,7 +39,7 @@ export default function NextGame({ gameNumber, at, note, timeZone, canSchedule, 
   }
 
   return (
-    <div className="bg-stone-900 border-2 border-amber-900/40 rounded-xl p-4 flex flex-col gap-2">
+    <div id="league-next-game" className="bg-stone-900 border-2 border-amber-900/40 rounded-xl p-4 flex flex-col gap-2">
       <p className="text-xs text-stone-400 uppercase tracking-widest font-semibold">Next up · Game {gameNumber}</p>
       <p className="text-stone-100">{label}</p>
       {note && <p className="text-xs text-stone-300">{note}</p>}
@@ -86,6 +87,7 @@ export default function NextGame({ gameNumber, at, note, timeZone, canSchedule, 
           </div>
         </div>
       )}
+      {children}
     </div>
   )
 }

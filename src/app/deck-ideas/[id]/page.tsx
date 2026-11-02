@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import BackLink from '@/components/BackLink'
 import CollectionChart from '@/components/CollectionChart'
 import DeckIdeaModal from '@/components/DeckIdeaModal'
 import DeckCardModal, { type DeckIdeaCard } from '@/components/DeckCardModal'
@@ -205,7 +205,7 @@ export default function DeckIdeaPage() {
 
   return (
     <div className="flex flex-col gap-6 min-[1800px]:mx-[calc((100%_-_min(1720px,_100vw_-_6rem))/2)]">
-      <Link href="/" className="text-sm text-stone-500 hover:text-stone-300 transition-colors">← Home</Link>
+      <BackLink href="/" label="Home" />
 
       {error && <p className="text-red-400 text-xs bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2">{error}</p>}
 

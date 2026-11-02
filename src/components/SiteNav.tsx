@@ -16,10 +16,9 @@ function OfferBadge({ count }: { count: number }) {
   return (
     <span
       aria-label={`${count} trade offer${count === 1 ? '' : 's'} waiting`}
-      className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold inline-flex items-center justify-center"
-    >
-      {count}
-    </span>
+      role="status"
+      className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"
+    />
   )
 }
 
@@ -85,7 +84,7 @@ export default function SiteNav({ logoClassName, isAdmin, leagueOffers }: SiteNa
               key={l.href}
               href={l.href}
               onClick={() => setOpen(false)}
-              className={`flex items-center justify-between py-3 text-base border-b border-stone-800/70 ${active(l.href) ? 'text-amber-400' : 'text-stone-200'}`}
+              className={`flex items-center gap-2 py-3 text-base border-b border-stone-800/70 ${active(l.href) ? 'text-amber-400' : 'text-stone-200'}`}
             >
               {l.label}
               {'badge' in l && <OfferBadge count={l.badge ?? 0} />}

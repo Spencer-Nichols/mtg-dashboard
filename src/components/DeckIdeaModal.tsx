@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useScrollLock } from './useSheet'
 
 interface Preview {
   counts: { commander: number; main: number; sideboard: number }
@@ -34,6 +35,7 @@ export default function DeckIdeaModal({ deckId, initialName, initialSourceUrl, o
   const [commanders, setCommanders] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  useScrollLock()
 
   async function loadPreview() {
     setBusy(true)

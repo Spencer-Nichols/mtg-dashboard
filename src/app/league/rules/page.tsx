@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import BackLink from '@/components/BackLink'
 import { leagueContext } from '@/lib/league/store'
 import { LeagueError } from '@/lib/league/types'
 
@@ -27,7 +27,7 @@ export default async function LeagueRulesPage() {
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
       <div className="flex flex-col gap-1">
-        <Link href="/league" className="text-sm text-stone-500 hover:text-stone-300">← League</Link>
+        <BackLink href="/league" label="League" />
         <h1 className="text-2xl font-bold text-stone-100">{settings.name} rules</h1>
         <p className="text-sm text-stone-400">4 players · {settings.totalGames} games · Star Trek precons</p>
       </div>
