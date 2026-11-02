@@ -43,3 +43,6 @@ next-env.d.ts
 # claude
 CLAUDE.md
 AGENTS.md
+
+# league mock data
+.league-mock.json

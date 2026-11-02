@@ -153,3 +153,43 @@ export async function sendAlertEmail(to: string, products: AlertItem[], kind: Al
     html: buildEmailHtml(products, kind),
   })
 }
+
+export interface LeagueEmail {
+  heading: string
+  lines: string[]
+  ctaLabel: string
+  ctaPath: string
+}
+
+function leagueEmailHtml(email: LeagueEmail) {
+  const lines = email.lines.map(l => `<p style="margin:0 0 10px;color:#d6d3d1;font-size:15px;line-height:1.5;">${l}</p>`).join('')
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0c0a09;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0c0a09;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#1c1917;border:1px solid #292524;border-radius:12px;">
+        <tr><td style="padding:24px 24px 8px;">
+          <p style="margin:0 0 6px;color:#f59e0b;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">TapNTrack League</p>
+          <h1 style="margin:0 0 16px;color:#f5f5f4;font-size:20px;">${email.heading}</h1>
+          ${lines}
+        </td></tr>
+        <tr><td style="padding:8px 24px 24px;">
+          <a href="https://tapntrack.app${email.ctaPath}" style="display:inline-block;background:#451a03;border:1px solid #b45309;color:#fde68a;font-size:14px;font-weight:600;text-decoration:none;padding:10px 18px;border-radius:8px;">${email.ctaLabel}</a>
+        </td></tr>
+        <tr><td style="padding:0 24px 20px;color:#78716c;font-size:12px;">You can turn off league emails on the league page.</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+}
+
+export async function sendLeagueEmail(to: string, subject: string, email: LeagueEmail) {
+  await resend.emails.send({
+    from: 'TapNTrack <noreply@tapntrack.app>',
+    to,
+    subject,
+    html: leagueEmailHtml(email),
+  })
+}

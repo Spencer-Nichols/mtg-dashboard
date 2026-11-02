@@ -26,6 +26,11 @@ export async function getCached(key: string): Promise<CacheEntry | null> {
   return redis.get<CacheEntry>(key)
 }
 
+export async function getCachedMany(keys: string[]): Promise<(CacheEntry | null)[]> {
+  if (keys.length === 0) return []
+  return redis.mget<(CacheEntry | null)[]>(...keys)
+}
+
 export async function setCached(
   key: string,
   price: number | null,
