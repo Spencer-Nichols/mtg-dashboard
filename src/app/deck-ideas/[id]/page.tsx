@@ -6,6 +6,7 @@ import Link from 'next/link'
 import CollectionChart from '@/components/CollectionChart'
 import DeckIdeaModal from '@/components/DeckIdeaModal'
 import DeckCardModal, { type DeckIdeaCard } from '@/components/DeckCardModal'
+import { CardImageGrid, CardViewToggle, useCardViewMode, useHoverPreview } from '@/components/CardImages'
 
 type Ownership = DeckIdeaCard['ownership']
 type DeckCard = DeckIdeaCard
@@ -90,6 +91,8 @@ export default function DeckIdeaPage() {
   const [error, setError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [openCard, setOpenCard] = useState<{ groupTitle: string; cards: DeckCard[]; index: number } | null>(null)
+  const [viewMode, setViewMode] = useCardViewMode('tnk:deck-idea-view')
+  const preview = useHoverPreview()
 
   const load = useCallback(() => {
     return fetch(`/api/deck-ideas/${id}`)
@@ -155,7 +158,7 @@ export default function DeckIdeaPage() {
     <section className={`${visibility} bg-stone-900 border border-stone-800 rounded-xl p-4 flex-col gap-2`}>
       <p className="text-xs text-stone-500 uppercase tracking-widest font-semibold mb-1">Priciest cards</p>
       {priciest.map(card => (
-        <div key={card.id} className="flex justify-between gap-3 text-sm">
+        <div key={card.id} {...preview.bind(card.imageUrl)} className="flex justify-between gap-3 text-sm">
           <span className="text-stone-200 truncate">{card.name}</span>
           <span className="font-mono text-stone-200 shrink-0">{money(unitPrice(card, mode)!)}</span>
         </div>
@@ -201,7 +204,7 @@ export default function DeckIdeaPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 min-[1800px]:mx-[calc((100%_-_min(1720px,_100vw_-_6rem))/2)]">
       <Link href="/" className="text-sm text-stone-500 hover:text-stone-300 transition-colors">← Home</Link>
 
       {error && <p className="text-red-400 text-xs bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2">{error}</p>}
@@ -298,20 +301,24 @@ export default function DeckIdeaPage() {
                 </button>
               ))}
             </div>
-            <div className="flex bg-stone-900 border border-stone-800 rounded-lg p-0.5" role="group" aria-label="Price by">
-              {(['cheapest', 'exact'] as Mode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  aria-pressed={mode === m}
-                  className={`text-xs font-semibold rounded-md px-3 py-1.5 transition-colors ${mode === m ? 'bg-stone-700 text-stone-100' : 'text-stone-400 hover:text-stone-200'}`}
-                >
-                  {m === 'cheapest' ? 'Cheapest printing' : 'Exact printing'}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              <CardViewToggle mode={viewMode} onChange={setViewMode} />
+              <div className="flex bg-stone-900 border border-stone-800 rounded-lg p-0.5" role="group" aria-label="Price by">
+                {(['cheapest', 'exact'] as Mode[]).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    aria-pressed={mode === m}
+                    className={`text-xs font-semibold rounded-md px-3 py-1.5 transition-colors ${mode === m ? 'bg-stone-700 text-stone-100' : 'text-stone-400 hover:text-stone-200'}`}
+                  >
+                    {m === 'cheapest' ? 'Cheapest printing' : 'Exact printing'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
+          <div className={viewMode === 'list' ? 'flex flex-col gap-4 min-[1800px]:block min-[1800px]:columns-2 min-[1800px]:gap-6 min-[1800px]:[&>*]:break-inside-avoid min-[1800px]:[&>*]:mb-4' : 'flex flex-col gap-4'}>
           {groups.map(group => (
             <section key={group.title} className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
               <h2>
@@ -332,7 +339,20 @@ export default function DeckIdeaPage() {
                   <span className="text-xs font-mono text-stone-500">{money(group.cards.reduce((s, c) => s + c.qty * (unitPrice(c, mode) ?? 0), 0))}</span>
                 </button>
               </h2>
-              {!collapsed.has(group.title) && <div className="flex flex-col divide-y divide-stone-800/60">
+              {!collapsed.has(group.title) && viewMode === 'images' && (
+                <CardImageGrid items={group.cards.map((card, index) => {
+                  const price = unitPrice(card, mode)
+                  return {
+                    key: card.id,
+                    name: card.name,
+                    imageUrl: card.imageUrl,
+                    qty: card.qty,
+                    caption: <span className="font-mono">{price != null ? money(card.qty * price) : 'no price'}</span>,
+                    onClick: () => setOpenCard({ groupTitle: group.title, cards: group.cards, index }),
+                  }
+                })} />
+              )}
+              {!collapsed.has(group.title) && viewMode === 'list' && <div className="flex flex-col divide-y divide-stone-800/60">
                 {group.cards.map(card => {
                   const p = printing(card, mode)
                   const price = unitPrice(card, mode)
@@ -340,7 +360,8 @@ export default function DeckIdeaPage() {
                   return (
                     <button
                       key={card.id}
-                      onClick={() => setOpenCard({ groupTitle: group.title, cards: group.cards, index: group.cards.indexOf(card) })}
+                      {...preview.bind(card.imageUrl)}
+                      onClick={() => { preview.clear(); setOpenCard({ groupTitle: group.title, cards: group.cards, index: group.cards.indexOf(card) }) }}
                       className="flex items-center gap-3 px-4 py-2 w-full text-left hover:bg-stone-800/50 transition-colors"
                     >
                       <span className="w-5 text-right text-sm font-mono text-stone-500 shrink-0">{card.qty}</span>
@@ -369,6 +390,7 @@ export default function DeckIdeaPage() {
               </div>}
             </section>
           ))}
+          </div>
           {groups.length === 0 && <p className="text-sm text-stone-500">No cards match this filter.</p>}
         </main>
 
@@ -418,6 +440,8 @@ export default function DeckIdeaPage() {
           </button>
         </aside>
       </div>
+
+      {preview.element}
 
       {openCard && (
         <DeckCardModal

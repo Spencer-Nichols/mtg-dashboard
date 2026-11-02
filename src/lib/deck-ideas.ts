@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { type ScryfallCard, type FoilType, ScryfallRateLimitError, fetchCollection, getPriceByFoilType, sleep } from '@/lib/scryfall'
+import { type ScryfallCard, type FoilType, ScryfallRateLimitError, fetchCollection, frameSuffix, getPriceByFoilType, sleep } from '@/lib/scryfall'
 import { type Board, type ParsedLine, parseDecklist } from '@/lib/deck-idea-parse'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -18,6 +18,7 @@ export interface DeckScryfallCard extends ScryfallCard {
   oversized?: boolean
   games?: string[]
   finishes?: string[]
+  flavor_name?: string
 }
 
 export interface DeckCardRow {
@@ -38,9 +39,12 @@ export interface ResolvedDeckCard extends DeckCardRow {
   colorIdentity: string[]
   oracleId: string | null
   resolved: boolean
+  rarity: string | null
+  frameLabel: string
+  flavorName: string | null
 }
 
-type Identifier = { set: string; collector_number: string } | { name: string }
+export type Identifier = { set: string; collector_number: string } | { name: string; set?: string } | { id: string }
 
 const MAX_RATE_LIMIT_RETRIES = 3
 
@@ -65,7 +69,7 @@ async function postCollection(identifiers: Identifier[]): Promise<DeckScryfallCa
   return data?.data ?? []
 }
 
-async function collectInBatches(identifiers: Identifier[]): Promise<DeckScryfallCard[]> {
+export async function collectInBatches(identifiers: Identifier[]): Promise<DeckScryfallCard[]> {
   const out: DeckScryfallCard[] = []
   for (let i = 0; i < identifiers.length; i += BATCH_SIZE) {
     if (i > 0) await sleep(REQUEST_DELAY)
@@ -146,6 +150,9 @@ export function buildCardRows(lines: ParsedLine[], resolved: (DeckScryfallCard |
           colorIdentity: card.color_identity ?? [],
           oracleId: card.oracle_id ?? null,
           resolved: true,
+          rarity: card.rarity ?? null,
+          frameLabel: frameSuffix(card).replace(/[()]/g, '').trim(),
+          flavorName: card.flavor_name ?? null,
         }
       : {
           board: line.board,
@@ -162,6 +169,9 @@ export function buildCardRows(lines: ParsedLine[], resolved: (DeckScryfallCard |
           colorIdentity: [],
           oracleId: null,
           resolved: false,
+          rarity: null,
+          frameLabel: '',
+          flavorName: null,
         }
     const key = cardRowKey(row)
     const existing = merged.get(key)
@@ -436,7 +446,10 @@ export async function refreshDeckIdeaPrices(deadline: number): Promise<DeckIdeaR
 
   const startOfDay = new Date()
   startOfDay.setUTCHours(0, 0, 0, 0)
-  const stale = updated.filter(c => !c.cheapest_checked_at || new Date(c.cheapest_checked_at) < startOfDay)
+  const checkedTime = (c: { cheapest_checked_at: string | null }) => c.cheapest_checked_at ? new Date(c.cheapest_checked_at).getTime() : 0
+  const stale = updated
+    .filter(c => checkedTime(c) < startOfDay.getTime())
+    .sort((a, b) => checkedTime(a) - checkedTime(b))
   const discovered = await discoverCheapest(supabase, stale, oracleIds, deadline)
 
   const deckIds = [...new Set(cards.map(c => c.deck_id as string))]

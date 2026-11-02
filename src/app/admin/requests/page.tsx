@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import AdminLeagueMembers from '@/components/league/AdminLeagueMembers'
 
 interface AccessRequest {
   id: string
@@ -157,6 +158,8 @@ export default function AdminRequestsPage() {
           {sealedTriggerStatus === 'error' && <p className="text-xs text-red-400">Failed to trigger</p>}
         </div>
       </div>
+
+      <AdminLeagueMembers userEmails={users.map(u => u.email)} />
 
       {loading ? (
         <p className="text-sm text-stone-600">Loading…</p>
