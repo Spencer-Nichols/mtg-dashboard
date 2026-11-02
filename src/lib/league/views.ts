@@ -1,5 +1,5 @@
 import { computeSeason, firstOut, memberName, packsToOpen, tradesThisWeek, underdogId, type Season } from './rules'
-import { canUploadDeck, cardLabel } from './actions'
+import { canUploadDeck, cardLabel, commanderOptions } from './actions'
 import type { PriceMap } from './prices'
 import type { LeagueCard, LeagueState, PackKind } from './types'
 
@@ -216,6 +216,9 @@ export function playerView(state: LeagueState, viewerId: string, memberId: strin
     member: { id: member.id, name: member.name, precon: member.precon || 'No deck yet', rank, points: s.points },
     isOwner: viewerId === memberId,
     canUploadDeck: viewerId === memberId && canUploadDeck(state, memberId),
+    commanderOptions: viewerId === memberId && state.season?.status !== 'ended'
+      ? commanderOptions(state, memberId).map(c => ({ id: c.id, name: cardLabel(c), imageUrl: c.imageUrl ?? null }))
+      : [],
     seasonOpen: state.season?.status !== 'ended',
     seasonEnded: state.season?.status === 'ended',
     mainValue: total(cards.filter(c => c.zone === 'main'), prices),
