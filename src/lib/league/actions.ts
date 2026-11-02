@@ -178,6 +178,40 @@ export function swapIntoDeck(state: LeagueState, actorId: string, inId: string, 
   })
 }
 
+export function commanderOptions(state: LeagueState, memberId: string) {
+  const main = state.cards.filter(c => c.ownerId === memberId && c.zone === 'main')
+  const deckColors = new Set(main.flatMap(c => c.colorIdentity ?? []))
+  return main.filter(c => {
+    const isLegend = c.typeLine.includes('Legendary') && c.typeLine.split(' // ')[0].includes('Creature')
+    const coversDeck = !!c.colorIdentity && [...deckColors].every(x => c.colorIdentity!.includes(x))
+    return !c.commander && c.origin === 'precon' && isLegend && coversDeck
+  })
+}
+
+export function changeCommander(state: LeagueState, actorId: string, cardId: string) {
+  requireMember(state, actorId)
+  seasonOpen(state)
+  const next = card(state, cardId)
+  if (next.ownerId !== actorId) throw new LeagueError('You can only change your own deck', 403)
+  if (!commanderOptions(state, actorId).some(c => c.id === cardId)) {
+    throw new LeagueError(`${cardLabel(next)} can't lead this deck. It needs to be a legendary creature from your precon that covers all of the deck's colors.`)
+  }
+  const previous = state.cards.filter(c => c.ownerId === actorId && c.commander)
+  for (const c of previous) c.commander = false
+  next.commander = true
+
+  state.changes.push({
+    id: nextId(state, 'd'),
+    week: state.week,
+    gameNumber: state.games.length + 1,
+    memberId: actorId,
+    addedName: cardLabel(next),
+    removedName: previous.map(cardLabel).join(', '),
+    source: 'Commander change',
+    at: now(),
+  })
+}
+
 export function proposeTrade(state: LeagueState, actorId: string, toId: string, giveCardId: string, getCardId: string) {
   requireMember(state, actorId)
   requireMember(state, toId)

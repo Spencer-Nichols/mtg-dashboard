@@ -8,6 +8,7 @@ import { RARITY_COLOR } from '@/components/league/LeagueModal'
 import LeagueCardSheet from '@/components/league/LeagueCardSheet'
 import AddToBinderModal from '@/components/league/AddToBinderModal'
 import DeckUpload from '@/components/league/DeckUpload'
+import ChangeCommanderModal from '@/components/league/ChangeCommanderModal'
 import { CardImageGrid, CardViewToggle, useCardViewMode, useHoverPreview } from '@/components/CardImages'
 
 type Player = NonNullable<ReturnType<typeof playerView>> & { binderImportEnabled: boolean }
@@ -52,7 +53,7 @@ export default function LeaguePlayerPage() {
   const [error, setError] = useState<string | null>(null)
   const [openCard, setOpenCard] = useState<CardView | null>(null)
   const [binderOpen, setBinderOpen] = useState(searchParams.get('binder') === '1')
-  const [replacing, setReplacing] = useState(false)
+  const [changingCommander, setChangingCommander] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   function toggleGroup(title: string) {
@@ -105,11 +106,6 @@ export default function LeaguePlayerPage() {
           Main deck <span className="font-mono text-stone-200">{money(data.mainValue)}</span>
           {data.sideValue > 0 && <> · Sideboard <span className="font-mono text-stone-200">{money(data.sideValue)}</span></>}
         </p>
-        {data.canUploadDeck && data.main.length > 0 && !replacing && (
-          <button onClick={() => setReplacing(true)} className="self-start mt-2 text-sm text-amber-500 hover:text-amber-400">
-            Replace deck
-          </button>
-        )}
         {data.isOwner && data.seasonEnded && (
           <button
             onClick={() => setBinderOpen(true)}
@@ -120,12 +116,17 @@ export default function LeaguePlayerPage() {
         )}
       </div>
 
-      {data.canUploadDeck && (data.main.length === 0 || replacing) && (
-        <DeckUpload
-          replacing={data.main.length > 0}
-          onDone={() => { setReplacing(false); load() }}
-          onCancel={data.main.length > 0 ? () => setReplacing(false) : undefined}
+      {changingCommander && (
+        <ChangeCommanderModal
+          current={data.main.filter(c => c.commander).map(c => c.name).join(', ')}
+          options={data.commanderOptions}
+          onClose={() => setChangingCommander(false)}
+          onChanged={() => { setChangingCommander(false); load() }}
         />
+      )}
+
+      {data.canUploadDeck && data.main.length === 0 && (
+        <DeckUpload onDone={load} />
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -157,16 +158,23 @@ export default function LeaguePlayerPage() {
           <div className={viewMode === 'list' ? 'flex flex-col gap-4 min-[1800px]:block min-[1800px]:columns-2 min-[1800px]:gap-6 min-[1800px]:[&>*]:break-inside-avoid min-[1800px]:[&>*]:mb-4' : 'flex flex-col gap-4'}>
           {groups.map(g => (
             <div key={g.title} className="flex flex-col gap-1.5">
-              <h3>
-                <button
-                  onClick={() => toggleGroup(g.title)}
-                  aria-expanded={!collapsed.has(g.title)}
-                  className="flex items-center gap-2 text-xs text-stone-300 uppercase tracking-widest hover:text-stone-100 transition-colors"
-                >
-                  <span aria-hidden className={`text-stone-500 transition-transform ${collapsed.has(g.title) ? '-rotate-90' : ''}`}>▾</span>
-                  {g.title} <span className="text-stone-500">· {g.cards.reduce((n, c) => n + c.qty, 0)}</span>
-                </button>
-              </h3>
+              <div className="flex items-center justify-between gap-3">
+                <h3>
+                  <button
+                    onClick={() => toggleGroup(g.title)}
+                    aria-expanded={!collapsed.has(g.title)}
+                    className="flex items-center gap-2 text-xs text-stone-300 uppercase tracking-widest hover:text-stone-100 transition-colors"
+                  >
+                    <span aria-hidden className={`text-stone-500 transition-transform ${collapsed.has(g.title) ? '-rotate-90' : ''}`}>▾</span>
+                    {g.title} <span className="text-stone-500">· {g.cards.reduce((n, c) => n + c.qty, 0)}</span>
+                  </button>
+                </h3>
+                {g.title === 'Commander' && data.commanderOptions.length > 0 && (
+                  <button onClick={() => setChangingCommander(true)} className="text-xs text-amber-500 hover:text-amber-400">
+                    Change commander
+                  </button>
+                )}
+              </div>
               {!collapsed.has(g.title) && <div className="bg-stone-900 border border-stone-800 rounded-xl">
                 {viewMode === 'images' ? (
                   <CardImageGrid items={g.cards.map(({ card, qty }) => ({
