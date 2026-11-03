@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AdminLeagueMembers from '@/components/league/AdminLeagueMembers'
+import AdminLeagueSettings from '@/components/league/AdminLeagueSettings'
+import AdminLeagueWipe from '@/components/league/AdminLeagueWipe'
 
 interface AccessRequest {
   id: string
@@ -27,6 +29,33 @@ interface SealedItem {
   product_name: string
   set_name: string
   snapshot_price: number | null
+}
+
+function AdminSection({ id, title, meta, openOnDesktop, children }: {
+  id: string
+  title: string
+  meta?: React.ReactNode
+  openOnDesktop?: boolean
+  children: React.ReactNode
+}) {
+  const ref = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const isDesktop = window.matchMedia('(min-width: 640px)').matches
+    if (openOnDesktop && isDesktop && ref.current) ref.current.open = true
+  }, [openOnDesktop])
+
+  return (
+    <details ref={ref} id={id} className="group bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+      <summary className="list-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-3 px-5 py-3.5 cursor-pointer hover:bg-stone-800/40 transition-colors">
+        <h2 className="text-base font-bold text-stone-100">{title}</h2>
+        <span className="flex items-center gap-3">
+          {meta}
+          <span aria-hidden className="text-stone-500 transition-transform group-open:rotate-180">▾</span>
+        </span>
+      </summary>
+      <div className="border-t border-stone-800">{children}</div>
+    </details>
+  )
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -138,100 +167,88 @@ export default function AdminRequestsPage() {
   const handled = requests.filter(r => r.status !== 'pending' && !(r.status === 'approved' && activeUserEmails.has(r.email.toLowerCase())))
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-stone-100">Access Requests</h1>
-          <p className="text-sm text-stone-500 mt-1">Review and approve requests to join TapNTrack.</p>
-          {inviteError && <p className="text-xs text-red-400 mt-1">{inviteError}</p>}
-          {inviteSuccess && <p className="text-xs text-green-400 mt-1">{inviteSuccess}</p>}
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <button
-            onClick={triggerSealedAction}
-            disabled={triggeringSealed}
-            className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
-          >
-            {triggeringSealed ? 'Triggering…' : 'Run sealed prices'}
-          </button>
-          {sealedTriggerStatus === 'ok' && <p className="text-xs text-green-400">Action triggered</p>}
-          {sealedTriggerStatus === 'error' && <p className="text-xs text-red-400">Failed to trigger</p>}
-        </div>
+    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-bold text-stone-100">Admin</h1>
+        <p className="text-sm text-stone-500 mt-1">Access requests, users, league and tools.</p>
       </div>
 
-      <AdminLeagueMembers userEmails={users.map(u => u.email)} />
-
-      {loading ? (
-        <p className="text-sm text-stone-600">Loading…</p>
-      ) : pending.length === 0 ? (
-        <div className="bg-stone-900 border border-stone-800 rounded-xl px-5 py-8 text-center">
-          <p className="text-stone-500 text-sm">No pending requests</p>
-        </div>
-      ) : (
-        <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
-          {pending.map(r => (
-            <div key={r.id} className="flex items-center justify-between gap-4 px-5 py-4 border-b border-stone-800 last:border-0">
-              <div>
-                <p className="text-stone-200 font-medium">{r.email}</p>
-                <p className="text-xs text-stone-600">{new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={() => denyRequest(r.id)}
-                  disabled={pendingAction === r.id}
-                  className="text-xs px-3 py-1.5 rounded border border-stone-700 text-stone-500 hover:border-red-800 hover:text-red-400 transition-colors disabled:opacity-50"
-                >
-                  Deny
-                </button>
-                <button
-                  onClick={() => sendInvite(r.id, r.email)}
-                  disabled={pendingAction === r.id}
-                  className="text-[11px] px-2.5 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
-                >
-                  {pendingAction === r.id ? 'Sending…' : 'Send invite'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {handled.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-stone-600 uppercase tracking-wider">Previously handled</p>
-          <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
-            {handled.map(r => (
-              <div key={r.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
-                <p className="text-stone-500 text-sm truncate min-w-0">{r.email}</p>
-                <div className="flex items-center gap-2 shrink-0">
-                  {r.status === 'approved' && (
-                    <button
-                      onClick={() => sendInvite(r.id, r.email)}
-                      disabled={pendingAction === r.id}
-                      className="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 hover:border-amber-700 hover:text-amber-400 transition-colors disabled:opacity-50"
-                    >
-                      {pendingAction === r.id ? 'Sending…' : 'Resend'}
-                    </button>
-                  )}
-                  <span className={`text-xs px-2 py-0.5 rounded font-mono ${r.status === 'approved' ? 'text-green-400 bg-green-950/40' : 'text-red-400 bg-red-950/40'}`}>
-                    {r.status}
-                  </span>
+      <AdminSection
+        id="admin-access"
+        title="Access requests"
+        meta={<span className="text-xs text-stone-500 font-mono">{pending.length} pending</span>}
+      >
+        {inviteError && <p className="px-5 pt-3 text-xs text-red-400">{inviteError}</p>}
+        {inviteSuccess && <p className="px-5 pt-3 text-xs text-green-400">{inviteSuccess}</p>}
+        {loading ? (
+          <p className="px-5 py-4 text-sm text-stone-600">Loading…</p>
+        ) : pending.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-stone-500">No pending requests</p>
+        ) : (
+          <div>
+            {pending.map(r => (
+              <div key={r.id} className="flex items-center justify-between gap-4 px-5 py-4 border-b border-stone-800 last:border-0">
+                <div>
+                  <p className="text-stone-200 font-medium">{r.email}</p>
+                  <p className="text-xs text-stone-600">{new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => denyRequest(r.id)}
+                    disabled={pendingAction === r.id}
+                    className="text-xs px-3 py-1.5 rounded border border-stone-700 text-stone-500 hover:border-red-800 hover:text-red-400 transition-colors disabled:opacity-50"
+                  >
+                    Deny
+                  </button>
+                  <button
+                    onClick={() => sendInvite(r.id, r.email)}
+                    disabled={pendingAction === r.id}
+                    className="text-[11px] px-2.5 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
+                  >
+                    {pendingAction === r.id ? 'Sending…' : 'Send invite'}
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+
+        {handled.length > 0 && (
+          <div className="border-t border-stone-800">
+            <h3 className="px-5 pt-3 pb-1 text-xs font-semibold text-stone-500">Previously handled</h3>
+            <div>
+              {handled.map(r => (
+                <div key={r.id} className="flex items-center justify-between gap-4 px-5 py-3 border-b border-stone-800 last:border-0">
+                  <p className="text-stone-500 text-sm truncate min-w-0">{r.email}</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {r.status === 'approved' && (
+                      <button
+                        onClick={() => sendInvite(r.id, r.email)}
+                        disabled={pendingAction === r.id}
+                        className="text-xs px-2 py-0.5 rounded border border-stone-700 text-stone-500 hover:border-amber-700 hover:text-amber-400 transition-colors disabled:opacity-50"
+                      >
+                        {pendingAction === r.id ? 'Sending…' : 'Resend'}
+                      </button>
+                    )}
+                    <span className={`text-xs px-2 py-0.5 rounded font-mono ${r.status === 'approved' ? 'text-green-400 bg-green-950/40' : 'text-red-400 bg-red-950/40'}`}>
+                      {r.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </AdminSection>
 
       {users.length > 0 && (
-        <div id="admin-users" className="flex flex-col gap-2">
-          <div className="flex items-baseline justify-between">
-            <p className="text-xs text-stone-600 uppercase tracking-wider">Users</p>
-            <p className="text-xs text-stone-500 font-mono">
-              {users.reduce((sum, u) => sum + u.cardCount, 0).toLocaleString()} cards total
-            </p>
-          </div>
-          <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+        <AdminSection
+          id="admin-users"
+          title="Users"
+          openOnDesktop
+          meta={<span className="text-xs text-stone-500 font-mono">{users.length} · {users.reduce((sum, u) => sum + u.cardCount, 0).toLocaleString()} cards</span>}
+        >
+          <div>
             {users.sort((a, b) => (b.lastSeen ?? b.createdAt) > (a.lastSeen ?? a.createdAt) ? 1 : -1).map(u => (
               <div key={u.id} className="border-b border-stone-800 last:border-0">
                 <button
@@ -294,8 +311,31 @@ export default function AdminRequestsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </AdminSection>
       )}
+
+      <AdminSection id="admin-league" title="League">
+        <div className="p-5 flex flex-col gap-6">
+          <AdminLeagueMembers userEmails={users.map(u => u.email)} />
+          <AdminLeagueSettings />
+          <AdminLeagueWipe />
+        </div>
+      </AdminSection>
+
+      <AdminSection id="admin-tools" title="Tools">
+        <div className="flex flex-wrap items-center gap-3 px-5 py-4">
+          <p className="flex-1 min-w-48 text-sm text-stone-400">Refresh sealed product prices now instead of waiting for the cron.</p>
+          <button
+            onClick={triggerSealedAction}
+            disabled={triggeringSealed}
+            className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-400 hover:bg-amber-950/40 transition-colors disabled:opacity-50"
+          >
+            {triggeringSealed ? 'Triggering…' : 'Run sealed prices'}
+          </button>
+          {sealedTriggerStatus === 'ok' && <p className="text-xs text-green-400">Action triggered</p>}
+          {sealedTriggerStatus === 'error' && <p className="text-xs text-red-400">Failed to trigger</p>}
+        </div>
+      </AdminSection>
     </div>
   )
 }

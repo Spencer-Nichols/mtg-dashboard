@@ -10,7 +10,6 @@ import UnderdogSwapModal from '@/components/league/UnderdogSwapModal'
 import { leagueAction } from '@/components/league/LeagueModal'
 import LeagueEmailSettings from '@/components/league/LeagueEmailSettings'
 import NextGame from '@/components/league/NextGame'
-import LeagueSettingsEditor from '@/components/league/LeagueSettingsEditor'
 
 type Dashboard = ReturnType<typeof dashboardView> & { canSwitchViewer: boolean; mockData: boolean }
 type ModalName = 'game' | 'pack' | 'trade' | 'swap' | null
@@ -390,14 +389,6 @@ export default function LeaguePage() {
         </summary>
         <div className="flex flex-col gap-4 pt-2">
           <LeagueEmailSettings />
-          {viewer.canEditSettings && (
-            <LeagueSettingsEditor
-              key={JSON.stringify(league.settings)}
-              settings={league.settings}
-              scoringLocked={league.scoringLocked}
-              onSave={settings => act({ action: 'updateSettings', settings })}
-            />
-          )}
           {viewer.canEndSeason && (
             <div className="flex flex-wrap items-center gap-3 text-sm bg-stone-900 border border-stone-800 rounded-xl px-4 py-3">
               <p className="flex-1 min-w-48 text-stone-300">
