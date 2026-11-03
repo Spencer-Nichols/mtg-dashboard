@@ -6,6 +6,7 @@ import LeagueModal, { ModalError, PrimaryButton, useAction } from './LeagueModal
 
 interface TradeOptions {
   limit: number
+  offColorIds: string[]
   mine: CardView[]
   partners: { id: string; name: string; used: number; cards: CardView[] }[]
 }
@@ -24,6 +25,37 @@ function money(n: number | null) {
   return n == null ? '—' : `$${n.toFixed(2)}`
 }
 
+const PIP_COLOR: Record<string, string> = {
+  W: 'bg-amber-100 text-stone-900',
+  U: 'bg-sky-500 text-white',
+  B: 'bg-black text-stone-100 ring-1 ring-stone-500',
+  R: 'bg-red-500 text-white',
+  G: 'bg-green-600 text-white',
+}
+
+function ManaCost({ cost }: { cost: string | null }) {
+  if (!cost) return null
+  const symbols = [...cost.matchAll(/\{([^}]+)\}|(\/\/)/g)].map(m => m[1] ?? '//')
+  return (
+    <span className="inline-flex items-center gap-0.5" aria-label={`Mana cost ${cost}`}>
+      {symbols.map((sym, i) => sym === '//'
+        ? <span key={i} className="text-[10px] text-stone-500 px-0.5">{'//'}</span>
+        : <span key={i} className={`min-w-4 h-4 px-0.5 rounded-full text-[10px] font-bold leading-4 text-center ${PIP_COLOR[sym] ?? 'bg-stone-400 text-stone-900'}`}>{sym}</span>)}
+    </span>
+  )
+}
+
+function CardMeta({ card, offColor }: { card: CardView; offColor: boolean }) {
+  const hasCost = !!card.manaCost
+  if (!hasCost && !offColor) return null
+  return (
+    <span className="flex items-center gap-1.5 text-[11px]">
+      <ManaCost cost={card.manaCost} />
+      {offColor && <span className="font-semibold text-red-300">Off-color</span>}
+    </span>
+  )
+}
+
 function uniqueCards(cards: CardView[]) {
   const seen = new Set<string>()
   return cards.filter(c => {
@@ -34,10 +66,11 @@ function uniqueCards(cards: CardView[]) {
   })
 }
 
-function CardPicker({ id, label, cards, selected, onSelect }: {
+function CardPicker({ id, label, cards, offColor, selected, onSelect }: {
   id: string
   label: string
   cards: CardView[]
+  offColor: Set<string>
   selected: string | null
   onSelect: (id: string | null) => void
 }) {
@@ -56,7 +89,10 @@ function CardPicker({ id, label, cards, selected, onSelect }: {
       <label htmlFor={id} className="text-xs text-stone-500 uppercase tracking-wider">{label}</label>
       {picked ? (
         <div className="flex items-center gap-2 bg-amber-950/40 border border-amber-800/60 rounded-lg pl-3 pr-1 py-1">
-          <span className="flex-1 min-w-0 truncate text-sm text-amber-100">{picked.name}</span>
+          <span className="flex-1 min-w-0 flex flex-col">
+            <span className="truncate text-sm text-amber-100">{picked.name}</span>
+            <CardMeta card={picked} offColor={offColor.has(picked.id)} />
+          </span>
           <span className="text-xs font-mono text-stone-300 shrink-0">{money(picked.price)}</span>
           <button
             type="button"
@@ -85,7 +121,10 @@ function CardPicker({ id, label, cards, selected, onSelect }: {
                   onClick={() => onSelect(c.id)}
                   className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-left text-stone-200 hover:bg-stone-900 border-b border-stone-900 last:border-b-0"
                 >
-                  <span className="truncate">{c.name}</span>
+                  <span className="min-w-0 flex flex-col">
+                    <span className="truncate">{c.name}</span>
+                    <CardMeta card={c} offColor={offColor.has(c.id)} />
+                  </span>
                   <span className="flex items-center gap-2 shrink-0">
                     <span className="text-xs font-mono text-stone-400">{money(c.price)}</span>
                     <span className={`text-xs ${c.zone === 'main' ? 'text-amber-200' : 'text-green-300'}`}>{c.zone === 'main' ? 'Main' : 'Side'}</span>
@@ -125,6 +164,9 @@ export default function TradeModal({ initialPartnerId, initialGiveId, initialGet
   const initialGiveMissing = !!initialGiveId && give === initialGiveId && !giveCard
   const initialGetMissing = !!initialGetId && get === initialGetId && !getCard
   const unavailable = !!options && (initialGiveMissing || initialGetMissing)
+  const offColor = new Set(options?.offColorIds ?? [])
+  const getIsOffColor = !!getCard && offColor.has(getCard.id)
+  const wouldEnterMainDeck = giveCard?.zone === 'main'
 
   return (
     <LeagueModal title="New trade" size="lg" busy={busy} onClose={onClose}>
@@ -160,14 +202,23 @@ export default function TradeModal({ initialPartnerId, initialGiveId, initialGet
 
           {partner && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <CardPicker id="trade-give" label="You give" cards={options.mine} selected={giveCard ? give : null} onSelect={setGive} />
-              <CardPicker key={partner.id} id="trade-get" label={`${partner.name} gives`} cards={partner.cards} selected={getCard ? get : null} onSelect={setGet} />
+              <CardPicker id="trade-give" label="You give" cards={options.mine} offColor={new Set()} selected={giveCard ? give : null} onSelect={setGive} />
+              <CardPicker key={partner.id} id="trade-get" label={`${partner.name} gives`} cards={partner.cards} offColor={offColor} selected={getCard ? get : null} onSelect={setGet} />
             </div>
           )}
 
           {giveCard && getCard && (
             <p id="trade-summary" className="text-sm text-stone-300">
               You: <span className="text-red-300">− {giveCard.name}</span> {money(giveCard.price)} · <span className="text-green-300">+ {getCard.name}</span> {money(getCard.price)}
+            </p>
+          )}
+
+          {getIsOffColor && (
+            <p id="trade-off-color" className="text-xs text-yellow-300 bg-yellow-950/30 border border-yellow-900/50 rounded-lg px-3 py-2">
+              {getCard.name} is outside your commander&apos;s colors.
+              {giveCard && (wouldEnterMainDeck
+                ? ` It would take ${giveCard.name}'s main deck slot, which the rules don't allow, so accepting will fail. Give a sideboard card instead to keep it as bulk.`
+                : ' It will go to your sideboard.')}
             </p>
           )}
 
