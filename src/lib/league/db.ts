@@ -35,6 +35,7 @@ const COLLECTIONS: Collections = {
       id: c.id, owner_id: c.ownerId, name: c.name, display_name: c.displayName ?? null, type_line: c.typeLine, rarity: c.rarity, origin: c.origin, zone: c.zone,
       commander: c.commander, pack_id: c.packId, image_url: c.imageUrl ?? null, image_checked: c.imageUrl !== undefined,
       printing: c.printing ?? null, color_identity: c.colorIdentity ?? null, added_to_binder: !!c.addedToBinder,
+      mana_cost: c.manaCost ?? null,
     }),
     fromRow: r => ({
       id: r.id as string, ownerId: r.owner_id as string, name: r.name as string, displayName: (r.display_name as string | null) ?? undefined, typeLine: r.type_line as string,
@@ -44,6 +45,7 @@ const COLLECTIONS: Collections = {
       printing: (r.printing as LeagueState['cards'][number]['printing']) ?? undefined,
       addedToBinder: r.added_to_binder as boolean,
       colorIdentity: (r.color_identity as string[] | null) ?? undefined,
+      manaCost: (r.mana_cost as string | null) ?? undefined,
     }),
   },
   games: {

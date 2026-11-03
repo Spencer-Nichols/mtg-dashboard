@@ -212,7 +212,6 @@ export default function LeaguePlayerPage() {
                     name: card.name,
                     imageUrl: card.imageUrl,
                     qty,
-                    caption: <span className="font-mono">{money(card.price)}</span>,
                     onClick: () => open(card),
                   }))} />
                 ) : (

@@ -3,7 +3,7 @@ import path from 'path'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
-import { resolveLines, cardImageUrl } from '@/lib/deck-ideas'
+import { resolveLines, cardImageUrl, type DeckScryfallCard } from '@/lib/deck-ideas'
 import { createSeasonInDb, loadLeagueFromDb, memberSeatForUser, saveLeagueToDb, wipeLeagueInDb } from './db'
 import { DEFAULT_SETTINGS, seedLeague } from './mock'
 import { LeagueError, type LeagueState, type Member, type Role } from './types'
@@ -72,23 +72,35 @@ export async function mutateLeague(fn: (draft: LeagueState) => void) {
   return draft
 }
 
-async function ensureImages(state: LeagueState) {
-  const names = [...new Set(state.cards.filter(c => c.imageUrl === undefined).map(c => c.name))]
+function manaCostOf(card: DeckScryfallCard) {
+  if (card.mana_cost !== undefined) return card.mana_cost
+  return (card.card_faces ?? []).map(f => f.mana_cost ?? '').filter(Boolean).join(' // ')
+}
+
+// Looks up images and mana costs from Scryfall once per card name, then saves them on the cards.
+async function ensureCardData(state: LeagueState) {
+  const needsLookup = (c: LeagueState['cards'][number]) => c.imageUrl === undefined || c.manaCost === undefined
+  const names = [...new Set(state.cards.filter(needsLookup).map(c => c.name))]
   if (names.length === 0) return state
   let resolved
   try {
     resolved = await resolveLines(names.map(name => ({ qty: 1, name, setCode: null, collectorNumber: null, foilType: 'none' as const, board: 'main' as const })))
   } catch (err) {
-    console.error('League image lookup failed:', err)
+    console.error('League card data lookup failed:', err)
     return state
   }
-  const urls = new Map(names.map((name, i) => [name, resolved[i] ? cardImageUrl(resolved[i]!) : null]))
+  const found = new Map(names.map((name, i) => [name, resolved[i] ?? null]))
   try {
     return await mutateLeague(draft => {
-      for (const c of draft.cards) if (c.imageUrl === undefined && urls.has(c.name)) c.imageUrl = urls.get(c.name)
+      for (const c of draft.cards) {
+        if (!found.has(c.name)) continue
+        const card = found.get(c.name)
+        if (c.imageUrl === undefined) c.imageUrl = card ? cardImageUrl(card) : null
+        if (c.manaCost === undefined) c.manaCost = card ? manaCostOf(card) : ''
+      }
     })
   } catch (err) {
-    console.error('Saving league images failed:', err)
+    console.error('Saving league card data failed:', err)
     return state
   }
 }
@@ -127,7 +139,7 @@ export async function leagueContext() {
 
   const loaded = await loadState(user.email ?? null)
   if (!loaded) throw new LeagueError('No league has been set up yet', 404)
-  const state = await ensureImages(loaded)
+  const state = await ensureCardData(loaded)
   const member = memberFor(state, user)
   if (!member) throw new LeagueError("You're not in this league", 403)
 

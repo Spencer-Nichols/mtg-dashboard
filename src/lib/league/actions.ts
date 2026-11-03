@@ -128,7 +128,7 @@ function cleanPrinting(p: PulledCardInput['printing']): PrintingInfo | undefined
   }
 }
 
-function commanderColors(state: LeagueState, memberId: string) {
+export function commanderColors(state: LeagueState, memberId: string) {
   const commanders = state.cards.filter(c => c.ownerId === memberId && c.commander)
   if (commanders.length === 0 || commanders.some(c => !c.colorIdentity)) return null
   return new Set(commanders.flatMap(c => c.colorIdentity!))

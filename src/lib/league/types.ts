@@ -45,6 +45,7 @@ export interface LeagueCard {
   printing?: PrintingInfo
   addedToBinder?: boolean
   colorIdentity?: string[]
+  manaCost?: string
 }
 
 export interface GameResult {

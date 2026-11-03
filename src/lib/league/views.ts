@@ -1,5 +1,5 @@
 import { computeSeason, firstOut, memberName, packsToOpen, tradesThisWeek, underdogId, type Season } from './rules'
-import { canUploadDeck, cardLabel, commanderOptions } from './actions'
+import { canUploadDeck, cardLabel, commanderColors, commanderOptions } from './actions'
 import type { PriceMap } from './prices'
 import type { LeagueCard, LeagueState, PackKind } from './types'
 
@@ -7,6 +7,7 @@ export interface CardView {
   id: string
   name: string
   realName: string
+  manaCost: string | null
   typeLine: string
   rarity: string
   origin: LeagueCard['origin']
@@ -37,6 +38,7 @@ function cardView(c: LeagueCard, state: LeagueState, prices: PriceMap): CardView
     id: c.id,
     name: cardLabel(c),
     realName: c.name,
+    manaCost: c.manaCost ?? null,
     typeLine: c.typeLine,
     rarity: c.rarity,
     origin: c.origin,
@@ -238,8 +240,15 @@ export function tradeView(state: LeagueState, viewerId: string, prices: PriceMap
   const tradable = (ownerId: string) => state.cards
     .filter(c => c.ownerId === ownerId && !c.commander && !pending.has(c.id))
     .map(c => cardView(c, state, prices))
+  const myColors = commanderColors(state, viewerId)
+  const offColorIds = myColors
+    ? state.cards
+      .filter(c => c.ownerId !== viewerId && c.colorIdentity?.some(color => !myColors.has(color)))
+      .map(c => c.id)
+    : []
   return {
     limit,
+    offColorIds,
     mine: tradable(viewerId),
     partners: state.members.filter(m => m.id !== viewerId).map(m => ({
       id: m.id,
