@@ -1,7 +1,7 @@
 import { createMcpHandler } from 'mcp-handler'
 import { z } from 'zod'
 import { ScryfallRateLimitError, searchCardsChecked } from '@/lib/scryfall'
-import { curate, lookupPublicCard } from '@/lib/public-card'
+import { BULK_LOOKUP_MAX, compactCard, curate, lookupManyCards, lookupPublicCard } from '@/lib/public-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +36,31 @@ const handler = createMcpHandler(server => {
         if (err instanceof ScryfallRateLimitError) return failure('Scryfall rate limited the request. Try again in a few seconds.')
         console.error('[mcp] get_card failed', err)
         return failure('Card lookup failed')
+      }
+    },
+  )
+
+  server.registerTool(
+    'get_cards',
+    {
+      title: 'Get many cards',
+      description: `Look up to ${BULK_LOOKUP_MAX} Magic: The Gathering cards by exact name in one call (use this for decklists instead of calling get_card per card). Returns compact text per card: name | mana cost | type | P/T, then oracle text; double-faced cards list each face. Names that don't match exactly are listed under "Not found" so you can retry them with get_card.`,
+      inputSchema: z.object({
+        names: z.array(z.string().min(1)).min(1).max(BULK_LOOKUP_MAX).describe('Exact card names, one per entry'),
+      }),
+    },
+    async ({ names }) => {
+      console.log('[mcp] get_cards', { count: names.length })
+      try {
+        const { found, notFound } = await lookupManyCards(names)
+        const blocks = found.map(compactCard)
+        if (notFound.length > 0) blocks.push(`Not found (${notFound.length}): ${notFound.join('; ')}`)
+        console.log('[mcp] get_cards done', { found: found.length, notFound: notFound.length })
+        return text(blocks.join('\n\n'))
+      } catch (err) {
+        if (err instanceof ScryfallRateLimitError) return failure('Scryfall rate limited the request. Try again in a few seconds.')
+        console.error('[mcp] get_cards failed', err)
+        return failure('Bulk card lookup failed')
       }
     },
   )
