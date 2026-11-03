@@ -420,9 +420,8 @@ function ints(v: unknown, length: number, min: number, max: number, label: strin
   return v.map(x => int(x, min, max, label))
 }
 
-export function updateSettings(state: LeagueState, actorId: string, isAdmin: boolean, changes: Partial<LeagueSettings>) {
-  const actor = requireMember(state, actorId)
-  if (actor.role !== 'commissioner' && !isAdmin) throw new LeagueError('Only commissioners can change league settings', 403)
+// Admin only: the caller (/api/admin/league/settings) checks the admins table.
+export function updateSettings(state: LeagueState, changes: Partial<LeagueSettings>) {
   seasonOpen(state)
   const started = state.games.length > 0
   const next = { ...state.settings }

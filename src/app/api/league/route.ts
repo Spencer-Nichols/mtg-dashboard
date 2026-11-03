@@ -1,5 +1,5 @@
 import { after, NextRequest, NextResponse } from 'next/server'
-import { callBye, changeCommander, endSeason, scheduleGame, updateSettings, logGame, markAddedToBinder, openPack, proposeTrade, respondTrade, swapIntoDeck, underdogSwap } from '@/lib/league/actions'
+import { callBye, changeCommander, endSeason, scheduleGame, logGame, markAddedToBinder, openPack, proposeTrade, respondTrade, swapIntoDeck, underdogSwap } from '@/lib/league/actions'
 import { priceLeagueCards } from '@/lib/league/prices'
 import { leagueContext, mutateLeague } from '@/lib/league/store'
 import { LeagueError } from '@/lib/league/types'
@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
         case 'proposeTrade': return proposeTrade(state, viewerId, body.toId, body.giveCardId, body.getCardId)
         case 'respondTrade': return respondTrade(state, viewerId, body.tradeId, body.response)
         case 'endSeason': return endSeason(state, viewerId, isAdmin)
-        case 'updateSettings': return updateSettings(state, viewerId, isAdmin, body.settings ?? {})
         case 'scheduleGame': return scheduleGame(state, viewerId, isAdmin, typeof body.at === 'string' ? body.at : null, typeof body.note === 'string' ? body.note : null)
         case 'markAddedToBinder': return markAddedToBinder(state, viewerId, Array.isArray(body.cardIds) ? body.cardIds : [])
         case 'underdogSwap': return underdogSwap(state, viewerId, Array.isArray(body.takes) ? body.takes : [])

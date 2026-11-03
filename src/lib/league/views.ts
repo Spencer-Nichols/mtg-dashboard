@@ -156,7 +156,6 @@ export function dashboardView(state: LeagueState, viewerId: string, prices: Pric
       id: viewer.id,
       name: viewer.name,
       canLogGame: isCommissioner && !ended && !allGamesPlayed,
-      canEditSettings: (isCommissioner || access.isAdmin) && !ended,
       canSchedule: (isCommissioner || access.isAdmin) && !ended && !allGamesPlayed,
       canEndSeason: !ended && (access.isAdmin || (isCommissioner && allGamesPlayed)),
       endsEarly: !allGamesPlayed,
