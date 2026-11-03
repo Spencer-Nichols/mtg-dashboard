@@ -1,5 +1,6 @@
 import { fetchByNameChecked, searchCardsChecked, type ScryfallCard } from '@/lib/scryfall'
 import { getCachedPublicCard, setCachedPublicCard, publicCardCacheKey } from '@/lib/cache'
+import { collectInBatches } from '@/lib/deck-ideas'
 
 export function curate(card: ScryfallCard) {
   return {
@@ -67,4 +68,42 @@ export async function lookupPublicCard(query: string, setCode?: string): Promise
 
   await setCachedPublicCard(cacheKey, body)
   return body
+}
+
+export const BULK_LOOKUP_MAX = 75
+
+function compactFace(name: string, manaCost: string | undefined, typeLine: string | undefined, oracle: string | undefined, stats: string) {
+  const header = [name, manaCost || null, typeLine ?? null, stats || null].filter(Boolean).join(' | ')
+  return oracle ? `${header}\n${oracle}` : header
+}
+
+function statsOf(c: { power?: string; toughness?: string; loyalty?: string }) {
+  if (c.power !== undefined) return `${c.power}/${c.toughness}`
+  if (c.loyalty !== undefined) return `Loyalty ${c.loyalty}`
+  return ''
+}
+
+// One short text block per card, so a whole decklist fits in an LLM's context.
+export function compactCard(card: ScryfallCard) {
+  if (card.oracle_text !== undefined || !card.card_faces?.length) {
+    return compactFace(card.name, card.mana_cost, card.type_line, card.oracle_text, statsOf(card))
+  }
+  return card.card_faces
+    .map(face => compactFace(face.name, face.mana_cost, (face as { type_line?: string }).type_line, face.oracle_text, statsOf(face as { power?: string; toughness?: string; loyalty?: string })))
+    .join('\n// ')
+}
+
+// Exact-name lookup in batches of 75 via Scryfall's /cards/collection.
+export async function lookupManyCards(names: string[]) {
+  const unique = [...new Map(names.map(n => [n.trim().toLowerCase(), n.trim()])).values()].filter(Boolean).slice(0, BULK_LOOKUP_MAX)
+  const cards = await collectInBatches(unique.map(name => ({ name })))
+  const byName = new Map<string, ScryfallCard>()
+  for (const card of cards) {
+    const full = card.name.toLowerCase()
+    byName.set(full, card)
+    byName.set(full.split(' // ')[0], card)
+  }
+  const found = unique.map(n => byName.get(n.toLowerCase())).filter((c): c is ScryfallCard => !!c)
+  const notFound = unique.filter(n => !byName.has(n.toLowerCase()))
+  return { found: [...new Set(found)], notFound }
 }
