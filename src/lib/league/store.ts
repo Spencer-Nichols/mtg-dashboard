@@ -1,14 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { resolveLines, cardImageUrl, type DeckScryfallCard } from '@/lib/deck-ideas'
 import { createSeasonInDb, loadLeagueFromDb, memberSeatForUser, saveLeagueToDb, wipeLeagueInDb } from './db'
 import { DEFAULT_SETTINGS, seedLeague } from './mock'
 import { LeagueError, type LeagueState, type Member, type Role } from './types'
-
-export const VIEW_AS_COOKIE = 'league-mock-as'
 
 const MOCK_FILE = path.join(process.cwd(), '.league-mock.json')
 const DEFAULT_SEAT_NAMES = ['Player 1', 'Player 2', 'Player 3', 'Player 4']
@@ -147,13 +144,7 @@ export async function leagueContext() {
   const isAdmin = !!admin
   const isCommissioner = member.role === 'commissioner'
 
-  const canSwitchViewer = usingDb() ? isAdmin && process.env.LEAGUE_ACT_AS === '1' : isCommissioner
-  let viewerId = member.id
-  if (canSwitchViewer) {
-    const viewAs = (await cookies()).get(VIEW_AS_COOKIE)?.value
-    if (state.members.some(m => m.id === viewAs)) viewerId = viewAs!
-  }
-  return { state, viewerId, isCommissioner, isAdmin, canSwitchViewer, mockData: !usingDb() }
+  return { state, viewerId: member.id, isCommissioner, isAdmin }
 }
 
 export function resetLeague(empty = false) {

@@ -16,9 +16,9 @@ function fail(err: unknown) {
 
 export async function GET() {
   try {
-    const { state, viewerId, isAdmin, canSwitchViewer, mockData } = await leagueContext()
+    const { state, viewerId, isAdmin } = await leagueContext()
     const prices = await priceLeagueCards(state)
-    return NextResponse.json({ ...dashboardView(state, viewerId, prices, { isAdmin }), canSwitchViewer, mockData })
+    return NextResponse.json({ ...dashboardView(state, viewerId, prices, { isAdmin }) })
   } catch (err) {
     return fail(err)
   }

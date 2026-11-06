@@ -11,7 +11,7 @@ import { leagueAction } from '@/components/league/LeagueModal'
 import LeagueEmailSettings from '@/components/league/LeagueEmailSettings'
 import NextGame from '@/components/league/NextGame'
 
-type Dashboard = ReturnType<typeof dashboardView> & { canSwitchViewer: boolean; mockData: boolean }
+type Dashboard = ReturnType<typeof dashboardView>
 type ModalName = 'game' | 'pack' | 'trade' | 'swap' | null
 
 const BADGES: Record<string, { label: string; className: string }> = {
@@ -79,11 +79,6 @@ export default function LeaguePage() {
     setBusyOffer(null)
   }
 
-  async function mock(body: Record<string, unknown>) {
-    await fetch('/api/league/mock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    load()
-  }
-
   if (error) return <p className="text-red-400 text-sm">{error}</p>
   if (!data) return <p className="text-stone-500 text-sm">Loading league…</p>
 
@@ -96,30 +91,6 @@ export default function LeaguePage() {
 
   return (
     <div className="flex flex-col gap-6 [&_button:not(:disabled)]:cursor-pointer [&_summary]:cursor-pointer">
-      {data.canSwitchViewer && (
-        <div className="flex flex-wrap items-center gap-3 text-xs text-yellow-200 bg-yellow-950/30 border border-yellow-900/50 rounded-lg px-3 py-2">
-          <span className="font-semibold">{data.mockData ? 'Mock data' : 'Test mode'}</span>
-          <label className="flex items-center gap-2">
-            Viewing as
-            <select
-              value={viewer.id}
-              onChange={e => mock({ viewAs: e.target.value })}
-              className="bg-stone-900 border border-stone-700 rounded px-2 py-1 text-stone-100"
-            >
-              {data.members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-          </label>
-          {data.mockData ? (
-            <>
-              <button onClick={() => mock({ reset: true })} className="underline hover:text-yellow-100">Reset mock data</button>
-              <button onClick={() => mock({ reset: true, empty: true })} className="underline hover:text-yellow-100">Start empty season</button>
-            </>
-          ) : (
-            <span className="text-yellow-200/80">Actions save as the player you pick. Turn off with LEAGUE_ACT_AS.</span>
-          )}
-        </div>
-      )}
-
       <section id="league-header" className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <p className="text-xs text-stone-400 uppercase tracking-widest">
