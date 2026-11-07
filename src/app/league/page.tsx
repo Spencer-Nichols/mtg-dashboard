@@ -57,6 +57,9 @@ export default function LeaguePage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'league' }) })
+  }, [])
 
   function saved() {
     setModal(null)
