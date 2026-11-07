@@ -7,6 +7,7 @@ interface Seat {
   name: string
   email: string | null
   role: 'player' | 'commissioner'
+  lastLeagueVisit: string | null
 }
 
 interface LeagueAdmin {
@@ -87,7 +88,7 @@ export default function AdminLeagueMembers({ userEmails }: { userEmails: string[
         ) : (
           <div className="bg-stone-950 border border-stone-800 rounded-xl overflow-hidden">
             {seats.map(seat => (
-              <div key={seat.id} className="grid grid-cols-[1fr_auto] gap-2 px-4 py-3 border-b border-stone-800 last:border-0 sm:flex sm:items-center">
+              <div key={seat.id} className="grid grid-cols-[1fr_auto] gap-2 px-4 py-3 border-b border-stone-800 last:border-0 sm:flex sm:flex-wrap sm:items-center">
                 <input
                   aria-label="Player name"
                   defaultValue={seat.name}
@@ -123,6 +124,11 @@ export default function AdminLeagueMembers({ userEmails }: { userEmails: string[
                   </select>
                   <svg aria-hidden width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400"><path d="M6 9l6 6 6-6" /></svg>
                 </span>
+                {seat.email && (
+                  <p className="col-span-2 order-last sm:basis-full text-xs text-stone-500">
+                    Last league visit: {seat.lastLeagueVisit ? new Date(seat.lastLeagueVisit).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never'}
+                  </p>
+                )}
               </div>
             ))}
           </div>

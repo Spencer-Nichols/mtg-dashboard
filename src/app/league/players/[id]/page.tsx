@@ -83,6 +83,9 @@ export default function LeaguePlayerPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'league deck' }) })
+  }, [])
 
   if (error) return <p className="text-red-400 text-sm">{error}</p>
   if (!data) return <p className="text-stone-500 text-sm">Loading deck…</p>

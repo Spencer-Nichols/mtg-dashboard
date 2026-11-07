@@ -163,10 +163,19 @@ export async function leagueMembersForAdmin() {
   const state = await loadState(null)
   if (!state) return { seasonNumber: null, status: null, seats: [] }
   const emails = await memberEmails(state)
+  const userIds = state.members.flatMap(m => m.userId ? [m.userId] : [])
+  const { data: profiles } = await createServiceClient().from('user_profiles').select('user_id, last_league_seen').in('user_id', userIds)
+  const lastVisitByUser = new Map((profiles ?? []).map(p => [p.user_id, p.last_league_seen as string | null]))
   return {
     seasonNumber: state.season.number,
     status: state.season.status,
-    seats: state.members.map(m => ({ id: m.id, name: m.name, email: emails.get(m.id) ?? null, role: m.role })),
+    seats: state.members.map(m => ({
+      id: m.id,
+      name: m.name,
+      email: emails.get(m.id) ?? null,
+      role: m.role,
+      lastLeagueVisit: m.userId ? lastVisitByUser.get(m.userId) ?? null : null,
+    })),
   }
 }
 
