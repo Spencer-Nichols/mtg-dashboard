@@ -8,6 +8,7 @@ import { logout } from '@/app/actions/auth'
 interface SiteNavProps {
   logoClassName: string
   isAdmin: boolean
+  canUseProxies: boolean
   leagueOffers: number | null
 }
 
@@ -22,7 +23,7 @@ function OfferBadge({ count }: { count: number }) {
   )
 }
 
-export default function SiteNav({ logoClassName, isAdmin, leagueOffers }: SiteNavProps) {
+export default function SiteNav({ logoClassName, isAdmin, canUseProxies, leagueOffers }: SiteNavProps) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [openedAt, setOpenedAt] = useState(pathname)
@@ -33,6 +34,7 @@ export default function SiteNav({ logoClassName, isAdmin, leagueOffers }: SiteNa
     { href: '/binder', label: 'Binder' },
     { href: '/wishlist', label: 'Wishlist' },
     ...(leagueOffers != null ? [{ href: '/league', label: 'League', badge: leagueOffers }] : []),
+    ...(canUseProxies ? [{ href: '/proxies', label: 'Proxies' }] : []),
     ...(isAdmin ? [{ href: '/admin/requests', label: 'Admin' }] : []),
   ]
   const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`)

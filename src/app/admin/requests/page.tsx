@@ -4,31 +4,13 @@ import { useState, useEffect, useRef } from 'react'
 import AdminLeagueMembers from '@/components/league/AdminLeagueMembers'
 import AdminLeagueSettings from '@/components/league/AdminLeagueSettings'
 import AdminLeagueWipe from '@/components/league/AdminLeagueWipe'
+import AdminUsers, { type AdminUser } from '@/components/admin/AdminUsers'
 
 interface AccessRequest {
   id: string
   email: string
   created_at: string
   status: string
-}
-
-interface AdminUser {
-  id: string
-  email: string
-  lastSeen: string | null
-  lastSeenPage: string | null
-  createdAt: string
-  cardCount: number
-  sealedCount: number
-  wishlistCount: number
-  unlimitedBinder: boolean
-}
-
-interface SealedItem {
-  id: string
-  product_name: string
-  set_name: string
-  snapshot_price: number | null
 }
 
 function AdminSection({ id, title, meta, openOnDesktop, children }: {
@@ -58,17 +40,6 @@ function AdminSection({ id, title, meta, openOnDesktop, children }: {
   )
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<AccessRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,9 +49,6 @@ export default function AdminRequestsPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [triggeringSealed, setTriggeringSealed] = useState(false)
   const [sealedTriggerStatus, setSealedTriggerStatus] = useState<'idle' | 'ok' | 'error'>('idle')
-  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
-  const [userSealed, setUserSealed] = useState<Record<string, SealedItem[]>>({})
-  const [sealedLoading, setSealedLoading] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/admin/requests')
@@ -133,41 +101,12 @@ export default function AdminRequestsPage() {
     setTimeout(() => setSealedTriggerStatus('idle'), 4000)
   }
 
-  async function toggleUnlimitedBinder(userId: string, current: boolean) {
-    const next = !current
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, unlimitedBinder: next } : u))
-    await fetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, unlimitedBinder: next }),
-    })
-  }
-
-  async function toggleUserExpand(userId: string) {
-    const next = new Set(expandedUsers)
-    if (next.has(userId)) {
-      next.delete(userId)
-      setExpandedUsers(next)
-      return
-    }
-    next.add(userId)
-    setExpandedUsers(next)
-
-    if (userSealed[userId] !== undefined) return
-
-    setSealedLoading(prev => new Set(prev).add(userId))
-    const res = await fetch(`/api/admin/user-sealed?userId=${userId}`)
-    const data = res.ok ? await res.json() : []
-    setUserSealed(prev => ({ ...prev, [userId]: data }))
-    setSealedLoading(prev => { const s = new Set(prev); s.delete(userId); return s })
-  }
-
   const pending = requests.filter(r => r.status === 'pending')
   const activeUserEmails = new Set(users.filter(u => u.lastSeen).map(u => u.email.toLowerCase()))
   const handled = requests.filter(r => r.status !== 'pending' && !(r.status === 'approved' && activeUserEmails.has(r.email.toLowerCase())))
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-4">
+    <div className="max-w-5xl mx-auto flex flex-col gap-4">
       <div>
         <h1 className="text-xl font-bold text-stone-100">Admin</h1>
         <p className="text-sm text-stone-500 mt-1">Access requests, users, league and tools.</p>
@@ -248,69 +187,7 @@ export default function AdminRequestsPage() {
           openOnDesktop
           meta={<span className="text-xs text-stone-500 font-mono">{users.length} · {users.reduce((sum, u) => sum + u.cardCount, 0).toLocaleString()} cards</span>}
         >
-          <div>
-            {users.sort((a, b) => (b.lastSeen ?? b.createdAt) > (a.lastSeen ?? a.createdAt) ? 1 : -1).map(u => (
-              <div key={u.id} className="border-b border-stone-800 last:border-0">
-                <button
-                  onClick={() => toggleUserExpand(u.id)}
-                  className="w-full flex items-center justify-between gap-4 px-5 py-3 text-left hover:bg-stone-800/40 transition-colors"
-                >
-                  <p className="text-stone-300 text-sm truncate min-w-0">{u.email}</p>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-stone-600 font-mono">
-                      {u.lastSeen ? formatRelativeTime(u.lastSeen) : 'never'}
-                      {u.lastSeen && u.lastSeenPage && <span> · {u.lastSeenPage}</span>}
-                    </span>
-                    <span className="text-stone-700 text-xs">{expandedUsers.has(u.id) ? '▾' : '▸'}</span>
-                  </div>
-                </button>
-
-                {expandedUsers.has(u.id) && (
-                  <div className="px-5 pb-3 border-t border-stone-800/60 bg-stone-900/40">
-                    <div className="flex items-center justify-between gap-4 pt-2.5 pb-2">
-                      <div className="flex gap-4">
-                        {u.cardCount > 0 && (
-                          <span className="text-xs text-stone-500 font-mono">{u.cardCount.toLocaleString()} cards</span>
-                        )}
-                        {u.wishlistCount > 0 && (
-                          <span className="text-xs text-stone-500 font-mono">{u.wishlistCount} wishlisted</span>
-                        )}
-                        {u.sealedCount > 0 && (
-                          <span className="text-xs text-stone-500 font-mono">{u.sealedCount} sealed</span>
-                        )}
-                        {u.cardCount === 0 && u.wishlistCount === 0 && u.sealedCount === 0 && (
-                          <span className="text-xs text-stone-600">No collection data</span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => toggleUnlimitedBinder(u.id, u.unlimitedBinder)}
-                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${u.unlimitedBinder ? 'border-amber-600 text-amber-400 bg-amber-950/40' : 'border-stone-700 text-stone-500 hover:border-stone-500'}`}
-                      >
-                        {u.unlimitedBinder ? '∞ unlimited binder' : 'set unlimited binder'}
-                      </button>
-                    </div>
-
-                    {u.sealedCount > 0 && (
-                      sealedLoading.has(u.id) ? (
-                        <p className="text-xs text-stone-600 pb-1">Loading sealed wishlist…</p>
-                      ) : userSealed[u.id]?.length > 0 ? (
-                        <div className="flex flex-col gap-1">
-                          {userSealed[u.id].map(item => (
-                            <div key={item.id} className="flex items-center justify-between gap-2">
-                              <p className="text-xs text-stone-400 truncate min-w-0">{item.product_name}</p>
-                              {item.snapshot_price != null && (
-                                <span className="text-xs font-mono text-stone-500 shrink-0">${item.snapshot_price.toFixed(2)}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : null
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <AdminUsers users={users} setUsers={setUsers} />
         </AdminSection>
       )}
 

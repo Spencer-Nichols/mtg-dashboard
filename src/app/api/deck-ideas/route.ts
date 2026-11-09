@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import {
-  MAX_DECK_IDEAS, artCropUrl, colorIdentityOf, discoverCheapestForDeck, oracleIdMap, prepareDeck, recomputeTotals, toDbRow,
+  artCropUrl, colorIdentityOf, discoverCheapestForDeck, oracleIdMap, prepareDeck, recomputeTotals, toDbRow,
 } from '@/lib/deck-ideas'
+import { deckIdeaLimit } from '@/lib/proxy-access'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -14,25 +15,27 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const max = await deckIdeaLimit(user.id)
   const { data: decks, error } = await supabase
     .from('deck_ideas')
     .select('id, name, color_identity, cheapest_total, exact_total, unpriced_count, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
-    .limit(MAX_DECK_IDEAS)
+    .limit(max)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!decks || decks.length === 0) return NextResponse.json({ decks: [], max: MAX_DECK_IDEAS })
+  if (!decks || decks.length === 0) return NextResponse.json({ decks: [], max })
 
   const deckIds = decks.map(d => d.id)
   const weekAgo = new Date(Date.now() - WEEK_MS).toISOString().split('T')[0]
-  const [{ data: commanders }, { data: pending }, { data: history }] = await Promise.all([
+  const [{ data: commanders }, { data: pending }, { data: history }, { data: unresolved }] = await Promise.all([
     supabase.from('deck_idea_cards').select('deck_id, name, image_url').in('deck_id', deckIds).eq('board', 'commander'),
     supabase.from('deck_idea_cards').select('deck_id').in('deck_id', deckIds).is('cheapest_checked_at', null),
     supabase.from('deck_idea_history').select('deck_id, date, cheapest_total').in('deck_id', deckIds).gte('date', weekAgo).order('date', { ascending: true }),
+    supabase.from('deck_idea_cards').select('deck_id').in('deck_id', deckIds).is('scryfall_id', null).neq('board', 'sideboard'),
   ])
 
   return NextResponse.json({
-    max: MAX_DECK_IDEAS,
+    max,
     decks: decks.map(d => {
       const deckCommanders = (commanders ?? []).filter(c => c.deck_id === d.id)
       const baseline = (history ?? []).find(h => h.deck_id === d.id)
@@ -49,6 +52,7 @@ export async function GET() {
           ? parseFloat((d.cheapest_total - baseline.cheapest_total).toFixed(2))
           : null,
         pendingCheapest: (pending ?? []).filter(p => p.deck_id === d.id).length,
+        unresolvedCount: (unresolved ?? []).filter(u => u.deck_id === d.id).length,
       }
     }),
   })
@@ -67,8 +71,9 @@ export async function POST(req: NextRequest) {
     .from('deck_ideas')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
-  if ((count ?? 0) >= MAX_DECK_IDEAS) {
-    return NextResponse.json({ error: `Deck idea limit reached (${MAX_DECK_IDEAS} decks)` }, { status: 403 })
+  const max = await deckIdeaLimit(user.id)
+  if ((count ?? 0) >= max) {
+    return NextResponse.json({ error: `Deck idea limit reached (${max} decks)` }, { status: 403 })
   }
 
   const prepared = await prepareDeck(text, Array.isArray(commanders) ? commanders : null)
