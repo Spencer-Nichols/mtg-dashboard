@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 import { VersionBadge } from '@/components/VersionBadge'
 import SiteNav from '@/components/SiteNav'
 import { leagueNavInfo } from '@/lib/league/store'
+import { hasProxyAccess } from '@/lib/proxy-access'
 import './globals.css'
 
 const geist = Geist({ subsets: ['latin'] })
@@ -34,6 +35,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   let isAdmin = false
+  let canUseProxies = false
   let league: Awaited<ReturnType<typeof leagueNavInfo>> = null
   try {
     const supabase = await createClient()
@@ -43,13 +45,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       const { data } = await service.from('admins').select('user_id').eq('user_id', user.id).maybeSingle()
       isAdmin = !!data
       league = await leagueNavInfo(user).catch(() => null)
+      canUseProxies = await hasProxyAccess(user.id).catch(() => false)
     }
   } catch {}
 
   return (
     <html lang="en" className={`${geist.className} ${cinzel.variable} ${serifBody.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-stone-950 text-stone-100">
-        <SiteNav logoClassName={cinzel.className} isAdmin={isAdmin} leagueOffers={league ? league.pendingOffers : null} />
+        <SiteNav logoClassName={cinzel.className} isAdmin={isAdmin} canUseProxies={canUseProxies} leagueOffers={league ? league.pendingOffers : null} />
         <main className="flex-1 max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8">
           {children}
         </main>

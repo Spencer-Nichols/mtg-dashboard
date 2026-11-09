@@ -161,7 +161,14 @@ export interface LeagueEmail {
   ctaPath: string
 }
 
-function leagueEmailHtml(email: LeagueEmail) {
+interface EmailFrame {
+  eyebrow: string
+  footer: string | null
+}
+
+const LEAGUE_FRAME: EmailFrame = { eyebrow: 'TapNTrack League', footer: 'You can turn off league emails on the league page.' }
+
+function leagueEmailHtml(email: LeagueEmail, frame: EmailFrame = LEAGUE_FRAME) {
   const lines = email.lines.map(l => `<p style="margin:0 0 10px;color:#d6d3d1;font-size:15px;line-height:1.5;">${l}</p>`).join('')
   return `<!DOCTYPE html>
 <html>
@@ -170,14 +177,14 @@ function leagueEmailHtml(email: LeagueEmail) {
     <tr><td align="center">
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#1c1917;border:1px solid #292524;border-radius:12px;">
         <tr><td style="padding:24px 24px 8px;">
-          <p style="margin:0 0 6px;color:#f59e0b;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">TapNTrack League</p>
+          <p style="margin:0 0 6px;color:#f59e0b;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;">${frame.eyebrow}</p>
           <h1 style="margin:0 0 16px;color:#f5f5f4;font-size:20px;">${email.heading}</h1>
           ${lines}
         </td></tr>
         <tr><td style="padding:8px 24px 24px;">
           <a href="https://tapntrack.app${email.ctaPath}" style="display:inline-block;background:#451a03;border:1px solid #b45309;color:#fde68a;font-size:14px;font-weight:600;text-decoration:none;padding:10px 18px;border-radius:8px;">${email.ctaLabel}</a>
         </td></tr>
-        <tr><td style="padding:0 24px 20px;color:#78716c;font-size:12px;">You can turn off league emails on the league page.</td></tr>
+        ${frame.footer ? `<tr><td style="padding:0 24px 20px;color:#78716c;font-size:12px;">${frame.footer}</td></tr>` : ''}
       </table>
     </td></tr>
   </table>
@@ -191,5 +198,23 @@ export async function sendLeagueEmail(to: string, subject: string, email: League
     to,
     subject,
     html: leagueEmailHtml(email),
+  })
+}
+
+export async function sendProxyAccessEmail(to: string) {
+  await resend.emails.send({
+    from: 'TapNTrack <noreply@tapntrack.app>',
+    to,
+    subject: 'You have access to the TapNTrack Proxy builder',
+    html: leagueEmailHtml({
+      heading: 'The Proxy builder is unlocked',
+      lines: [
+        'You can now turn a decklist, or just a few cards, into a print-ready zip for tcgplaytest using the exact printing of every card.',
+        'Real card art only: each card is the official Scryfall printing you pick, with a proxy back that is clearly not a real Magic card.',
+        'Find it under <strong>Proxies</strong> in the menu.',
+      ],
+      ctaLabel: 'Open Proxies',
+      ctaPath: '/proxies',
+    }, { eyebrow: 'TapNTrack Proxies', footer: null }),
   })
 }
