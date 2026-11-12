@@ -117,8 +117,13 @@ export function artCropUrl(imageUrl: string | null): string | null {
   return imageUrl ? imageUrl.replace('/normal/', '/art_crop/') : null
 }
 
+// Reversible cards have no top-level type_line, only one per face.
+function typeLine(card: DeckScryfallCard): string {
+  return card.type_line ?? card.card_faces?.[0]?.type_line ?? ''
+}
+
 function isCommanderEligible(card: DeckScryfallCard): boolean {
-  const frontType = card.type_line.split(' // ')[0]
+  const frontType = typeLine(card).split(' // ')[0]
   if (frontType.includes('Legendary') && frontType.includes('Creature')) return true
   const text = [card.oracle_text, ...(card.card_faces ?? []).map(f => f.oracle_text)].join('\n')
   return text.includes('can be your commander')
@@ -143,7 +148,7 @@ export function buildCardRows(lines: ParsedLine[], resolved: (DeckScryfallCard |
           collector_number: card.collector_number,
           foil_type: line.foilType,
           scryfall_id: card.id,
-          type_line: card.type_line,
+          type_line: typeLine(card) || null,
           image_url: cardImageUrl(card),
           exact_price: exactPrice(card, line.foilType),
           commanderEligible: isCommanderEligible(card),
