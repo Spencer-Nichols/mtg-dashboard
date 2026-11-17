@@ -48,6 +48,7 @@ export default function ProxyDeckPage() {
     <ProxyReview
       cards={cards}
       exportName={deckName}
+      customScope={`deck-${id}`}
       pickNote="Saves to this deck right away"
       phoneNote="Your picks are saved. Open TapNTrack on desktop, go to Proxies and pick this deck."
       onPick={savePick}
