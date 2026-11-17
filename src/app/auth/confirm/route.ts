@@ -6,15 +6,24 @@ export async function GET(request: NextRequest) {
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type') as 'invite' | 'recovery' | 'email' | 'signup' | null
 
-  if (token_hash && type) {
-    const supabase = await createClient()
-    const { error } = await supabase.auth.verifyOtp({ token_hash, type })
-
-    if (!error) {
-      const destination = type === 'invite' || type === 'recovery' ? '/set-password' : '/'
-      return NextResponse.redirect(new URL(destination, origin))
-    }
+  if (!token_hash || !type) {
+    console.error('Auth confirm failed: link is missing token_hash or type', { params: [...searchParams.keys()] })
+    return failed(origin)
   }
 
-  return NextResponse.redirect(new URL('/login?error=Invalid+or+expired+link', origin))
+  const supabase = await createClient()
+  const { error } = await supabase.auth.verifyOtp({ token_hash, type })
+  if (error) {
+    console.error('Auth confirm failed:', { type, error: error.message, code: error.code })
+    return failed(origin)
+  }
+
+  const destination = type === 'invite' || type === 'recovery' ? '/set-password' : '/'
+  return NextResponse.redirect(new URL(destination, origin))
+}
+
+// /login bounces signed-in users to the homepage and hides the error, so failures land on
+// /forgot-password, which shows it to everyone and lets them request a new link.
+function failed(origin: string) {
+  return NextResponse.redirect(new URL('/forgot-password?error=That+link+is+invalid+or+expired.+Request+a+new+one+below.', origin))
 }
