@@ -18,10 +18,17 @@ async function fetchBytes(url: string) {
   return res.blob()
 }
 
+// A 2.5x3.5" card is 0.714 wide per tall; with 1/8" bleed it is 2.75x3.75, or 0.733.
+function alreadyHasBleed(width: number, height: number) {
+  const ratio = width / height
+  return Math.abs(ratio - 2.75 / 3.75) < Math.abs(ratio - 2.5 / 3.5)
+}
+
 // Puts the card on black with a 1/8" bleed on every side, filling Scryfall's transparent corners.
+// Custom images that already include bleed are kept at their size.
 async function withBleed(url: string): Promise<Uint8Array> {
   const bitmap = await createImageBitmap(await fetchBytes(url))
-  const pad = Math.round(bitmap.width * BLEED_RATIO)
+  const pad = alreadyHasBleed(bitmap.width, bitmap.height) ? 0 : Math.round(bitmap.width * BLEED_RATIO)
   const canvas = document.createElement('canvas')
   canvas.width = bitmap.width + pad * 2
   canvas.height = bitmap.height + pad * 2

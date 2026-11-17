@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ProxyReview from '@/components/proxies/ProxyReview'
 import type { Printing, ProxyCard } from '@/components/proxies/PrintingPicker'
+import { clearCustomImages } from '@/lib/custom-images'
 
 interface QuickList {
   title: string
@@ -13,6 +14,7 @@ interface QuickList {
 }
 
 const STORAGE_KEY = 'tnk:quick-proxies'
+const CUSTOM_SCOPE = 'quick'
 const EMPTY: QuickList = { title: '', text: '', cards: null }
 
 function readSaved(): QuickList {
@@ -48,6 +50,12 @@ export default function QuickProxiesPage() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
   }
 
+  // Quick card ids are renumbered on every lookup, so old Custom Images would land on the wrong cards.
+  function clearList() {
+    clearCustomImages(CUSTOM_SCOPE).catch(e => console.error('Could not clear Custom Images:', e))
+    update(EMPTY)
+  }
+
   async function findPrintings() {
     if (!list) return
     setBusy(true)
@@ -60,6 +68,7 @@ export default function QuickProxiesPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Could not read that list')
+      await clearCustomImages(CUSTOM_SCOPE).catch(e => console.error('Could not clear Custom Images:', e))
       update({ ...list, cards: data.cards })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -93,7 +102,7 @@ export default function QuickProxiesPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Could not save as a deck')
-      update(EMPTY)
+      clearList()
       router.push(`/proxies/${data.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -111,6 +120,7 @@ export default function QuickProxiesPage() {
       <ProxyReview
         cards={list.cards}
         exportName={title}
+        customScope={CUSTOM_SCOPE}
         pickNote="Kept in this browser until you clear the list"
         phoneNote="Quick lists stay in this browser. Save as deck to finish on your computer."
         onPick={pickLocally}
@@ -123,7 +133,7 @@ export default function QuickProxiesPage() {
                 <p className="text-xs text-stone-500">Quick list, kept in this browser only</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => update(EMPTY)} disabled={busy} className={`${actionButton} border border-stone-700 text-stone-300 hover:border-stone-500`}>Clear</button>
+                <button onClick={clearList} disabled={busy} className={`${actionButton} border border-stone-700 text-stone-300 hover:border-stone-500`}>Clear</button>
                 <button onClick={saveAsDeck} disabled={busy} className={`${actionButton} font-semibold border border-amber-700/60 bg-amber-950/50 text-amber-200 hover:bg-amber-900/60`}>{busy ? 'Saving…' : 'Save as deck'}</button>
               </div>
             </div>
@@ -140,7 +150,7 @@ export default function QuickProxiesPage() {
         <Link href="/proxies" className="self-start py-2 -my-2 text-sm font-semibold text-amber-500 sm:py-0 sm:my-0 sm:font-normal sm:text-stone-500 sm:hover:text-stone-300">← Proxies</Link>
         <h1 className="text-2xl font-bold text-stone-100">Quick proxies</h1>
         <p className="text-sm text-stone-400">A handful of cards, no deck needed. Nothing is saved to your account.</p>
-        <p className="mt-1 self-start text-xs text-sky-200 bg-sky-950/40 border border-sky-900/60 rounded-lg px-2.5 py-1.5">Real card art only: the official Scryfall printing you choose.</p>
+        <p className="mt-1 self-start text-xs text-sky-200 bg-sky-950/40 border border-sky-900/60 rounded-lg px-2.5 py-1.5">Scryfall art by default, or a Custom Image of your own.</p>
       </div>
 
       <label htmlFor="quick-title" className="text-xs text-stone-500 uppercase tracking-wider">Name (optional, used for the zip)</label>
