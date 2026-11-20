@@ -16,7 +16,9 @@ export async function GET(req: NextRequest) {
     throw err
   }
   const q = req.nextUrl.searchParams.get('q')?.trim().replace(/"/g, '') ?? ''
-  if (q.length < 2) return NextResponse.json([])
-  const cards = await searchCards(`set:${packSet} ${q}`)
-  return NextResponse.json((cards as DeckScryfallCard[]).map(c => ({ name: c.name, displayName: c.flavor_name, typeLine: c.type_line, rarity: c.rarity, imageUrl: cardImageUrl(c), colorIdentity: c.color_identity ?? [] })))
+  const number = q.replace(/^#/, '')
+  const isNumber = /^\d+[a-z]*$/i.test(number)
+  if (!isNumber && q.length < 2) return NextResponse.json([])
+  const cards = await searchCards(isNumber ? `set:${packSet} cn:${number}` : `set:${packSet} ${q}`)
+  return NextResponse.json((cards as DeckScryfallCard[]).map(c => ({ name: c.name, displayName: c.flavor_name, typeLine: c.type_line, rarity: c.rarity, imageUrl: cardImageUrl(c), colorIdentity: c.color_identity ?? [], collectorNumber: c.collector_number })))
 }

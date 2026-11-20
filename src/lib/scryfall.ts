@@ -188,6 +188,17 @@ export async function fetchCollection(scryfallIds: string[]): Promise<Map<string
   return result
 }
 
+export async function fetchBySetNumbers(set: string, numbers: string[]): Promise<ScryfallCard[]> {
+  const res = await fetch(`${BASE}/cards/collection`, {
+    method: 'POST',
+    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifiers: numbers.map(collector_number => ({ set, collector_number })) }),
+  })
+  if (!res.ok) throw new Error(`Scryfall collection lookup failed (${res.status})`)
+  const data = await res.json()
+  return data?.data ?? []
+}
+
 export function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
