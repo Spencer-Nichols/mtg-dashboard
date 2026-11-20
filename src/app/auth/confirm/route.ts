@@ -5,6 +5,18 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type') as 'invite' | 'recovery' | 'email' | 'signup' | null
+  const code = searchParams.get('code')
+
+  // Supabase's default recovery link verifies on its side, then sends ?code= here.
+  if (code) {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (error) {
+      console.error('Auth confirm failed: code exchange', { error: error.message, code: error.code })
+      return failed(origin)
+    }
+    return NextResponse.redirect(new URL('/set-password', origin))
+  }
 
   if (!token_hash || !type) {
     console.error('Auth confirm failed: link is missing token_hash or type', { params: [...searchParams.keys()] })
