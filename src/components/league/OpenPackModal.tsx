@@ -29,28 +29,33 @@ interface PrintingOption {
   flavorName: string | null
 }
 
-function PrintingPicker({ card, onAdd, onCancel }: {
+type SearchResult = PulledCardInput & { collectorNumber: string }
+
+type PackPull = PulledCardInput & { finishes?: string[] }
+
+const isCollectorNumber = (q: string) => /^#?\d+[a-z]*$/i.test(q)
+
+function PrintingPicker({ card, preferNumber, onAdd, onCancel }: {
   card: PulledCardInput
-  onAdd: (card: PulledCardInput) => void
+  preferNumber: string | null
+  onAdd: (card: PackPull) => void
   onCancel: () => void
 }) {
   const [printings, setPrintings] = useState<PrintingOption[] | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
-  const [foil, setFoil] = useState(false)
 
   useEffect(() => {
     fetch(`/api/league/printings?name=${encodeURIComponent(card.name)}`)
       .then(r => r.ok ? r.json() : [])
       .then((list: PrintingOption[]) => {
         setPrintings(list)
-        setSelected(list[0]?.scryfallId ?? null)
+        const preferred = list.find(p => p.collectorNumber === preferNumber)
+        setSelected(preferred?.scryfallId ?? list[0]?.scryfallId ?? null)
       })
-  }, [card.name])
+  }, [card.name, preferNumber])
 
   const pick = printings?.find(p => p.scryfallId === selected)
-  const canFoil = pick?.finishes.includes('foil') ?? false
-  const foilOnly = !!pick && canFoil && !pick.finishes.includes('nonfoil')
-  const isFoil = foilOnly || (canFoil && foil)
+  const foilOnly = !!pick && pick.finishes.includes('foil') && !pick.finishes.includes('nonfoil')
 
   return (
     <div className="flex flex-col gap-3 bg-stone-950 border border-stone-800 rounded-xl p-3">
@@ -81,12 +86,6 @@ function PrintingPicker({ card, onAdd, onCancel }: {
           ))}
         </div>
       )}
-      {canFoil && (
-        <label className="flex items-center gap-2 text-sm text-stone-300">
-          <input type="checkbox" checked={isFoil} disabled={foilOnly} onChange={e => setFoil(e.target.checked)} className="accent-amber-600" />
-          Foil{foilOnly ? ' (only comes in foil)' : ''}
-        </label>
-      )}
       <button
         type="button"
         disabled={!printings}
@@ -94,7 +93,8 @@ function PrintingPicker({ card, onAdd, onCancel }: {
           ...card,
           displayName: pick.flavorName ?? card.displayName,
           imageUrl: pick.imageUrl,
-          printing: { scryfallId: pick.scryfallId, setCode: pick.setCode, collectorNumber: pick.collectorNumber, label: pick.label, foil: isFoil },
+          finishes: pick.finishes,
+          printing: { scryfallId: pick.scryfallId, setCode: pick.setCode, collectorNumber: pick.collectorNumber, label: pick.label, foil: foilOnly },
         } : card)}
         className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-amber-950/60 border border-amber-700/50 text-amber-200 disabled:opacity-50"
       >
@@ -107,10 +107,15 @@ function PrintingPicker({ card, onAdd, onCancel }: {
 export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackModalProps) {
   const [kind, setKind] = useState<PackKind | null>(openPacks[0]?.kind ?? null)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<PulledCardInput[]>([])
+  const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
-  const [pulls, setPulls] = useState<PulledCardInput[]>([])
+  const [pulls, setPulls] = useState<PackPull[]>([])
   const [choosing, setChoosing] = useState<PulledCardInput | null>(null)
+  const [preferNumber, setPreferNumber] = useState<string | null>(null)
+  const [nameOpen, setNameOpen] = useState(false)
+  const [bulkText, setBulkText] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkNote, setBulkNote] = useState<string | null>(null)
   const { busy, error, run } = useAction(onSaved)
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -121,7 +126,7 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
     setQuery(value)
     if (timer.current) clearTimeout(timer.current)
     const q = value.trim()
-    if (q.length < 2) {
+    if (q.length < 2 && !isCollectorNumber(q)) {
       setResults([])
       setSearching(false)
       return
@@ -135,18 +140,48 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
     }, SEARCH_DELAY_MS)
   }
 
-  function add(card: PulledCardInput) {
+  function add(card: PackPull) {
     setPulls([...pulls, card])
     setChoosing(null)
   }
 
-  function choose(card: PulledCardInput) {
+  function toggleFoil(index: number) {
+    setPulls(pulls.map((p, i) => i === index && p.printing ? { ...p, printing: { ...p.printing, foil: !p.printing.foil } } : p))
+  }
+
+  async function addNumbers() {
+    const numbers = bulkText.split(/[\s,]+/).filter(Boolean)
+    if (numbers.length === 0) return
+    setBulkBusy(true)
+    setBulkNote(null)
+    try {
+      const res = await fetch('/api/league/card-numbers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numbers }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Card lookup failed')
+      const { cards, notFound } = data as { cards: PackPull[]; notFound: string[] }
+      setPulls(current => [...current, ...cards])
+      setBulkText(notFound.join(' '))
+      setBulkNote(notFound.length ? `Not found: ${notFound.map(n => `#${n.replace(/^#/, '')}`).join(', ')}. Fix and add again.` : null)
+    } catch (e) {
+      setBulkNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  function choose(result: SearchResult) {
+    const { collectorNumber, ...card } = result
+    setPreferNumber(isCollectorNumber(query.trim()) ? collectorNumber : null)
     setChoosing(card)
     search('')
   }
 
   return (
-    <LeagueModal title="Open a pack" busy={busy} onClose={onClose}>
+    <LeagueModal title="Open a pack" size="lg" busy={busy} onClose={onClose}>
       <ModalError error={error} />
 
       {openPacks.length === 0 ? (
@@ -164,59 +199,114 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="pull-search" className="text-xs text-stone-500 uppercase tracking-wider">Add pulled cards · Star Trek</label>
-            <input
-              id="pull-search"
-              value={query}
-              onChange={e => search(e.target.value)}
-              placeholder="Card name"
-              autoComplete="off"
+          <div id="pull-bulk" className="flex flex-col gap-1.5">
+            <label htmlFor="pull-numbers" className="text-xs text-stone-500 uppercase tracking-wider">Add pulled cards by collector number · Star Trek</label>
+            <textarea
+              id="pull-numbers"
+              value={bulkText}
+              onChange={e => setBulkText(e.target.value)}
+              rows={3}
+              placeholder="One or more: 42 105 7 230 (042 works too)"
               className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
             />
-            {searching && <p className="text-xs text-stone-500">Searching…</p>}
-            {results.length > 0 && (
-              <div className="bg-stone-950 border border-stone-800 rounded-lg">
-                {results.map((r, i) => (
-                  <button
-                    key={`${r.name}-${i}`}
-                    type="button"
-                    onClick={() => choose(r)}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-stone-200 text-left border-b border-stone-900 last:border-b-0 hover:bg-stone-900"
-                  >
-                    <span className="truncate">{r.displayName ?? r.name}</span>
-                    <span className={`text-xs capitalize shrink-0 ${RARITY_COLOR[r.rarity] ?? 'text-stone-400'}`}>{r.rarity} · Add</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            {bulkNote && <p className="text-xs text-amber-400">{bulkNote}</p>}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-stone-500">Check the cards below before saving.</p>
+              <button
+                type="button"
+                onClick={addNumbers}
+                disabled={bulkBusy || !bulkText.trim()}
+                className="min-h-9 px-4 rounded-lg text-sm font-semibold bg-amber-950/60 border border-amber-700/50 text-amber-200 disabled:opacity-50"
+              >
+                {bulkBusy ? 'Adding…' : 'Add cards'}
+              </button>
+            </div>
           </div>
 
-          {choosing && <PrintingPicker card={choosing} onAdd={add} onCancel={() => setChoosing(null)} />}
+          {!nameOpen ? (
+            <button type="button" onClick={() => setNameOpen(true)} className="self-start min-h-9 text-sm text-amber-400 hover:text-amber-300">
+              Add by name ▸
+            </button>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="pull-search" className="text-xs text-stone-500 uppercase tracking-wider">Add by name</label>
+              <input
+                id="pull-search"
+                value={query}
+                onChange={e => search(e.target.value)}
+                placeholder="Card name or collector # (42 or 042)"
+                autoComplete="off"
+                className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+              />
+              {searching && <p className="text-xs text-stone-500">Searching…</p>}
+              {results.length > 0 && (
+                <div className="bg-stone-950 border border-stone-800 rounded-lg">
+                  {results.map((r, i) => (
+                    <button
+                      key={`${r.name}-${i}`}
+                      type="button"
+                      onClick={() => choose(r)}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-stone-200 text-left border-b border-stone-900 last:border-b-0 hover:bg-stone-900"
+                    >
+                      <span className="truncate">{r.displayName ?? r.name}{isCollectorNumber(query.trim()) && <span className="text-stone-400"> · #{r.collectorNumber}</span>}</span>
+                      <span className={`text-xs capitalize shrink-0 ${RARITY_COLOR[r.rarity] ?? 'text-stone-400'}`}>{r.rarity} · Add</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {choosing && <PrintingPicker card={choosing} preferNumber={preferNumber} onAdd={add} onCancel={() => setChoosing(null)} />}
 
           <div className="flex flex-col gap-2">
             <p className="text-xs text-stone-500 uppercase tracking-wider">In this pack · {pulls.length} cards</p>
-            <div className="flex flex-wrap gap-1.5">
-              {pulls.map((p, i) => (
-                <span key={`${p.name}-${i}`} className="inline-flex items-center gap-1.5 text-xs pl-3 pr-1 py-1 rounded-full border border-stone-700 text-stone-200">
-                  {p.displayName ?? p.name}
-                  {p.printing && <span className="text-stone-400">{p.printing.label}{p.printing.foil ? ' · foil' : ''}</span>}
-                  <span className={`capitalize ${RARITY_COLOR[p.rarity] ?? 'text-stone-400'}`}>{p.rarity}</span>
-                  <button
-                    type="button"
-                    onClick={() => setPulls(pulls.filter((_, j) => j !== i))}
-                    aria-label={`Remove ${p.name}`}
-                    className="w-6 h-6 rounded-full bg-stone-800 text-stone-400 hover:text-stone-200"
-                  >
-                    ✕
-                  </button>
-                </span>
-              ))}
+            <div id="pack-pulls" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {pulls.map((p, i) => {
+                const finishes = p.finishes ?? []
+                const canFoil = finishes.includes('foil')
+                const foilOnly = canFoil && !finishes.includes('nonfoil')
+                const isFoil = p.printing?.foil ?? false
+                return (
+                  <div key={`${p.name}-${i}`} className="flex flex-col gap-1 min-w-0">
+                    <div className="relative">
+                      {p.imageUrl
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={p.imageUrl} alt={p.displayName ?? p.name} className="w-full aspect-[5/7] rounded-lg object-cover bg-stone-800" />
+                        : <div className="w-full aspect-[5/7] rounded-lg bg-stone-800" />}
+                      <button
+                        type="button"
+                        onClick={() => setPulls(pulls.filter((_, j) => j !== i))}
+                        aria-label={`Remove ${p.name}`}
+                        className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-stone-950/85 border border-stone-700 text-stone-300 hover:text-stone-100"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <span className="text-xs text-stone-200 truncate">{p.displayName ?? p.name}</span>
+                    <span className="text-[11px] text-stone-400 truncate">
+                      {p.printing ? `#${p.printing.collectorNumber}${p.printing.label !== 'Regular' ? ` · ${p.printing.label}` : ''} · ` : ''}
+                      <span className={`capitalize ${RARITY_COLOR[p.rarity] ?? 'text-stone-400'}`}>{p.rarity}</span>
+                    </span>
+                    {canFoil && p.printing && (
+                      <button
+                        type="button"
+                        aria-pressed={isFoil}
+                        onClick={() => toggleFoil(i)}
+                        disabled={foilOnly}
+                        className={`self-start min-h-8 px-2.5 rounded-full border text-xs ${isFoil ? 'border-amber-600 bg-amber-950/60 text-amber-200' : 'border-stone-700 text-stone-400 hover:text-stone-200'} disabled:cursor-default`}
+                      >
+                        {isFoil ? '★ Foil' : 'Foil'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
             <p className="text-xs text-stone-500">Logging every card is optional. Cards go to your sideboard; swap them into your deck from your deck page.</p>
           </div>
 
-          <PrimaryButton onClick={() => run({ action: 'openPack', kind, pulls })} disabled={busy || !kind || !!choosing}>
+          <PrimaryButton onClick={() => run({ action: 'openPack', kind, pulls })} disabled={busy || bulkBusy || !kind || !!choosing}>
             {busy ? 'Saving…' : 'Save pack'}
           </PrimaryButton>
         </>
