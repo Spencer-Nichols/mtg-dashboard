@@ -29,15 +29,15 @@ interface PrintingOption {
   flavorName: string | null
 }
 
-type SearchResult = PulledCardInput & { collectorNumber: string }
+type SearchResult = PulledCardInput & { collectorNumber: string; scryfallId: string }
 
 type PackPull = PulledCardInput & { finishes?: string[] }
 
 const isCollectorNumber = (q: string) => /^#?\d+[a-z]*$/i.test(q)
 
-function PrintingPicker({ card, preferNumber, onAdd, onCancel }: {
+function PrintingPicker({ card, preferId, onAdd, onCancel }: {
   card: PulledCardInput
-  preferNumber: string | null
+  preferId: string | null
   onAdd: (card: PackPull) => void
   onCancel: () => void
 }) {
@@ -49,10 +49,10 @@ function PrintingPicker({ card, preferNumber, onAdd, onCancel }: {
       .then(r => r.ok ? r.json() : [])
       .then((list: PrintingOption[]) => {
         setPrintings(list)
-        const preferred = list.find(p => p.collectorNumber === preferNumber)
+        const preferred = list.find(p => p.scryfallId === preferId)
         setSelected(preferred?.scryfallId ?? list[0]?.scryfallId ?? null)
       })
-  }, [card.name, preferNumber])
+  }, [card.name, preferId])
 
   const pick = printings?.find(p => p.scryfallId === selected)
   const foilOnly = !!pick && pick.finishes.includes('foil') && !pick.finishes.includes('nonfoil')
@@ -111,7 +111,7 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
   const [searching, setSearching] = useState(false)
   const [pulls, setPulls] = useState<PackPull[]>([])
   const [choosing, setChoosing] = useState<PulledCardInput | null>(null)
-  const [preferNumber, setPreferNumber] = useState<string | null>(null)
+  const [preferId, setPreferId] = useState<string | null>(null)
   const [nameOpen, setNameOpen] = useState(false)
   const [bulkText, setBulkText] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -174,9 +174,8 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
   }
 
   function choose(result: SearchResult) {
-    const { collectorNumber, ...card } = result
-    setPreferNumber(isCollectorNumber(query.trim()) ? collectorNumber : null)
-    setChoosing(card)
+    setPreferId(isCollectorNumber(query.trim()) ? result.scryfallId : null)
+    setChoosing(result)
     search('')
   }
 
@@ -206,21 +205,19 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
               value={bulkText}
               onChange={e => setBulkText(e.target.value)}
               rows={3}
-              placeholder="One or more: 42 105 7 230 (042 works too)"
+              placeholder="e.g. 42 105 7 230"
               className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
             />
+            <p className="text-xs text-stone-500">Type the numbers as printed. Stardates or Commander card? Add sds or trc after the number, like 12sds.</p>
             {bulkNote && <p className="text-xs text-amber-400">{bulkNote}</p>}
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-stone-500">Check the cards below before saving.</p>
-              <button
-                type="button"
-                onClick={addNumbers}
-                disabled={bulkBusy || !bulkText.trim()}
-                className="min-h-9 px-4 rounded-lg text-sm font-semibold bg-amber-950/60 border border-amber-700/50 text-amber-200 disabled:opacity-50"
-              >
-                {bulkBusy ? 'Adding…' : 'Add cards'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={addNumbers}
+              disabled={bulkBusy || !bulkText.trim()}
+              className="w-full sm:w-auto sm:self-end min-h-10 px-4 rounded-lg text-sm font-semibold bg-amber-950/60 border border-amber-700/50 text-amber-200 disabled:opacity-50"
+            >
+              {bulkBusy ? 'Adding…' : 'Add cards'}
+            </button>
           </div>
 
           {!nameOpen ? (
@@ -257,7 +254,7 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
             </div>
           )}
 
-          {choosing && <PrintingPicker card={choosing} preferNumber={preferNumber} onAdd={add} onCancel={() => setChoosing(null)} />}
+          {choosing && <PrintingPicker card={choosing} preferId={preferId} onAdd={add} onCancel={() => setChoosing(null)} />}
 
           <div className="flex flex-col gap-2">
             <p className="text-xs text-stone-500 uppercase tracking-wider">In this pack · {pulls.length} cards</p>
