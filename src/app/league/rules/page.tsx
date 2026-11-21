@@ -39,6 +39,7 @@ export default async function LeagueRulesPage() {
       </Section>
 
       <Section title="Packs">
+        <li><strong className="text-stone-100">No limits:</strong> log every pack you open, whenever you open it, including any extras.</li>
         <li><strong className="text-stone-100">Opening night:</strong> each player opens {settings.openingPacks} packs. Pulled cards can be used to upgrade decks.</li>
         <li><strong className="text-stone-100">Weekly:</strong> each player opens 1 pack per game played.</li>
         <li><strong className="text-stone-100">Catch-up reserve:</strong> {settings.reservePacks} packs. Finish last two games in a row and you earn 1 reserve pack, opened that night (one per player). Unused reserve packs are opened together or split on finale night.</li>
@@ -64,7 +65,7 @@ export default async function LeagueRulesPage() {
       <Section title="Streaks and catch-up">
         <li><strong className="text-stone-100">Underdog Boost:</strong> after 3 straight 4th-place finishes, start your next game with {settings.boostLife} life instead of {settings.startingLife}. It ends once you finish 3rd or better.</li>
         <li><strong className="text-stone-100">Bounty:</strong> after 2 straight wins, anyone who eliminates you earns +{settings.bountyBonus} bonus point. The bounty ends when you fail to win a game.</li>
-        <li><strong className="text-stone-100">Underdog Swap:</strong> the player in last place may, once per week, take 1 card from each opponent&apos;s unused pulls (pulled cards not in a deck). In exchange, they give back a card of the same rarity from their own pulls. Opponents can&apos;t refuse. Original precon cards are protected.</li>
+        <li><strong className="text-stone-100">Underdog Swap:</strong> starting after game 2, the player in last place may, once per week, take 1 card from each opponent&apos;s unused pulls (pulled cards not in a deck). In exchange, they give back a card of the same rarity from their own pulls. Opponents can&apos;t refuse. Original precon cards are protected.</li>
       </Section>
 
       <Section title="Trading">

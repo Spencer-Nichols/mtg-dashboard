@@ -86,7 +86,6 @@ export default function LeaguePage() {
   if (!data) return <p className="text-stone-500 text-sm">Loading league…</p>
 
   const { league, viewer } = data
-  const packsLeft = viewer.openPacks.reduce((n, p) => n + p.left, 0)
   const incomingOffers = data.offers.filter(o => o.incoming).length
   const bulkWithCards = data.bulk.filter(b => b.count > 0)
   const canCallBye = !viewer.byeUsed && !league.complete && !league.ended
@@ -109,7 +108,6 @@ export default function LeaguePage() {
         <div id="league-actions" className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto">
           <button onClick={() => setModal('pack')} className={`${actionButton} ${league.ended ? 'col-span-2' : ''}`}>
             Open pack
-            <CountBadge count={packsLeft} label={`${packsLeft} pack${packsLeft === 1 ? '' : 's'} to open`} />
           </button>
           {!league.ended && (
             <button onClick={() => setModal('trade')} className={actionButton}>Trade</button>
@@ -177,7 +175,7 @@ export default function LeaguePage() {
         )}
         <div className={`${card} p-4 flex flex-col gap-2`}>
           <p className={sectionTitle}>Your packs</p>
-          <p className="text-2xl font-bold text-stone-100">{packsLeft} <span className="text-sm font-medium text-stone-400">to open</span></p>
+          <p className="text-2xl font-bold text-stone-100">{viewer.packsOpened} <span className="text-sm font-medium text-stone-400">opened</span></p>
           <p className="text-xs text-stone-400">
             Reserve: {league.reserveLeft} left{league.missedPacks > 0 ? ` · ${league.missedPacks} missed-week pack${league.missedPacks === 1 ? '' : 's'} added to prizes` : ''}
           </p>
@@ -193,7 +191,7 @@ export default function LeaguePage() {
               )}
             </>
           ) : (
-            <p className="text-xs text-stone-400">Opens after the first game</p>
+            <p className="text-xs text-stone-400">Opens after game 2</p>
           )}
         </div>
       </section>
@@ -396,7 +394,7 @@ export default function LeaguePage() {
           onSaved={saved}
         />
       )}
-      {modal === 'pack' && <OpenPackModal openPacks={viewer.openPacks} onClose={() => setModal(null)} onSaved={saved} />}
+      {modal === 'pack' && <OpenPackModal onClose={() => setModal(null)} onSaved={saved} />}
       {modal === 'trade' && <TradeModal onClose={() => setModal(null)} onSaved={saved} />}
       {modal === 'swap' && <UnderdogSwapModal onClose={() => setModal(null)} onSaved={saved} />}
     </div>

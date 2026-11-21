@@ -1,20 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { PackKind, PulledCardInput } from '@/lib/league/types'
-import LeagueModal, { Chip, ModalError, PrimaryButton, RARITY_COLOR, useAction } from './LeagueModal'
+import type { PulledCardInput } from '@/lib/league/types'
+import LeagueModal, { ModalError, PrimaryButton, RARITY_COLOR, useAction } from './LeagueModal'
 
 interface OpenPackModalProps {
-  openPacks: { kind: PackKind; left: number }[]
   onClose: () => void
   onSaved: () => void
-}
-
-const KIND_LABEL: Record<PackKind, string> = {
-  opening: 'Opening night',
-  weekly: 'Weekly',
-  reserve: 'Catch-up reserve',
-  prize: 'Season prize',
 }
 
 const SEARCH_DELAY_MS = 300
@@ -104,8 +96,7 @@ function PrintingPicker({ card, preferId, onAdd, onCancel }: {
   )
 }
 
-export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackModalProps) {
-  const [kind, setKind] = useState<PackKind | null>(openPacks[0]?.kind ?? null)
+export default function OpenPackModal({ onClose, onSaved }: OpenPackModalProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -183,131 +174,114 @@ export default function OpenPackModal({ openPacks, onClose, onSaved }: OpenPackM
     <LeagueModal title="Open a pack" size="lg" busy={busy} onClose={onClose}>
       <ModalError error={error} />
 
-      {openPacks.length === 0 ? (
-        <p className="text-sm text-stone-400">You have no packs left to open right now.</p>
+      <div id="pull-bulk" className="flex flex-col gap-1.5">
+        <label htmlFor="pull-numbers" className="text-xs text-stone-500 uppercase tracking-wider">Add pulled cards by collector number · Star Trek</label>
+        <textarea
+          id="pull-numbers"
+          value={bulkText}
+          onChange={e => setBulkText(e.target.value)}
+          rows={3}
+          placeholder="e.g. 42 105 7 230"
+          className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+        />
+        <p className="text-xs text-stone-500">Type the numbers as printed. Stardates or Commander card? Add sds or trc after the number, like 12sds.</p>
+        {bulkNote && <p className="text-xs text-amber-400">{bulkNote}</p>}
+        <button
+          type="button"
+          onClick={addNumbers}
+          disabled={bulkBusy || !bulkText.trim()}
+          className="w-full sm:w-auto sm:self-end min-h-10 px-4 rounded-lg text-sm font-semibold bg-amber-950/60 border border-amber-700/50 text-amber-200 disabled:opacity-50"
+        >
+          {bulkBusy ? 'Adding…' : 'Add cards'}
+        </button>
+      </div>
+
+      {!nameOpen ? (
+        <button type="button" onClick={() => setNameOpen(true)} className="self-start min-h-9 text-sm text-amber-400 hover:text-amber-300">
+          Add by name ▸
+        </button>
       ) : (
-        <>
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-stone-500 uppercase tracking-wider">Which pack</p>
-            <div className="flex flex-wrap gap-2">
-              {openPacks.map(p => (
-                <Chip key={p.kind} active={kind === p.kind} onClick={() => setKind(p.kind)}>
-                  {KIND_LABEL[p.kind]} · {p.left} left
-                </Chip>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="pull-search" className="text-xs text-stone-500 uppercase tracking-wider">Add by name</label>
+          <input
+            id="pull-search"
+            value={query}
+            onChange={e => search(e.target.value)}
+            placeholder="Card name or collector # (42 or 042)"
+            autoComplete="off"
+            className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
+          />
+          {searching && <p className="text-xs text-stone-500">Searching…</p>}
+          {results.length > 0 && (
+            <div className="bg-stone-950 border border-stone-800 rounded-lg">
+              {results.map((r, i) => (
+                <button
+                  key={`${r.name}-${i}`}
+                  type="button"
+                  onClick={() => choose(r)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-stone-200 text-left border-b border-stone-900 last:border-b-0 hover:bg-stone-900"
+                >
+                  <span className="truncate">{r.displayName ?? r.name}{isCollectorNumber(query.trim()) && <span className="text-stone-400"> · #{r.collectorNumber}</span>}</span>
+                  <span className={`text-xs capitalize shrink-0 ${RARITY_COLOR[r.rarity] ?? 'text-stone-400'}`}>{r.rarity} · Add</span>
+                </button>
               ))}
             </div>
-          </div>
-
-          <div id="pull-bulk" className="flex flex-col gap-1.5">
-            <label htmlFor="pull-numbers" className="text-xs text-stone-500 uppercase tracking-wider">Add pulled cards by collector number · Star Trek</label>
-            <textarea
-              id="pull-numbers"
-              value={bulkText}
-              onChange={e => setBulkText(e.target.value)}
-              rows={3}
-              placeholder="e.g. 42 105 7 230"
-              className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
-            />
-            <p className="text-xs text-stone-500">Type the numbers as printed. Stardates or Commander card? Add sds or trc after the number, like 12sds.</p>
-            {bulkNote && <p className="text-xs text-amber-400">{bulkNote}</p>}
-            <button
-              type="button"
-              onClick={addNumbers}
-              disabled={bulkBusy || !bulkText.trim()}
-              className="w-full sm:w-auto sm:self-end min-h-10 px-4 rounded-lg text-sm font-semibold bg-amber-950/60 border border-amber-700/50 text-amber-200 disabled:opacity-50"
-            >
-              {bulkBusy ? 'Adding…' : 'Add cards'}
-            </button>
-          </div>
-
-          {!nameOpen ? (
-            <button type="button" onClick={() => setNameOpen(true)} className="self-start min-h-9 text-sm text-amber-400 hover:text-amber-300">
-              Add by name ▸
-            </button>
-          ) : (
-            <div className="flex flex-col gap-1">
-              <label htmlFor="pull-search" className="text-xs text-stone-500 uppercase tracking-wider">Add by name</label>
-              <input
-                id="pull-search"
-                value={query}
-                onChange={e => search(e.target.value)}
-                placeholder="Card name or collector # (42 or 042)"
-                autoComplete="off"
-                className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
-              />
-              {searching && <p className="text-xs text-stone-500">Searching…</p>}
-              {results.length > 0 && (
-                <div className="bg-stone-950 border border-stone-800 rounded-lg">
-                  {results.map((r, i) => (
-                    <button
-                      key={`${r.name}-${i}`}
-                      type="button"
-                      onClick={() => choose(r)}
-                      className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-stone-200 text-left border-b border-stone-900 last:border-b-0 hover:bg-stone-900"
-                    >
-                      <span className="truncate">{r.displayName ?? r.name}{isCollectorNumber(query.trim()) && <span className="text-stone-400"> · #{r.collectorNumber}</span>}</span>
-                      <span className={`text-xs capitalize shrink-0 ${RARITY_COLOR[r.rarity] ?? 'text-stone-400'}`}>{r.rarity} · Add</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           )}
-
-          {choosing && <PrintingPicker card={choosing} preferId={preferId} onAdd={add} onCancel={() => setChoosing(null)} />}
-
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-stone-500 uppercase tracking-wider">In this pack · {pulls.length} cards</p>
-            <div id="pack-pulls" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {pulls.map((p, i) => {
-                const finishes = p.finishes ?? []
-                const canFoil = finishes.includes('foil')
-                const foilOnly = canFoil && !finishes.includes('nonfoil')
-                const isFoil = p.printing?.foil ?? false
-                return (
-                  <div key={`${p.name}-${i}`} className="flex flex-col gap-1 min-w-0">
-                    <div className="relative">
-                      {p.imageUrl
-                        // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={p.imageUrl} alt={p.displayName ?? p.name} className="w-full aspect-[5/7] rounded-lg object-cover bg-stone-800" />
-                        : <div className="w-full aspect-[5/7] rounded-lg bg-stone-800" />}
-                      <button
-                        type="button"
-                        onClick={() => setPulls(pulls.filter((_, j) => j !== i))}
-                        aria-label={`Remove ${p.name}`}
-                        className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-stone-950/85 border border-stone-700 text-stone-300 hover:text-stone-100"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <span className="text-xs text-stone-200 truncate">{p.displayName ?? p.name}</span>
-                    <span className="text-[11px] text-stone-400 truncate">
-                      {p.printing ? `#${p.printing.collectorNumber}${p.printing.label !== 'Regular' ? ` · ${p.printing.label}` : ''} · ` : ''}
-                      <span className={`capitalize ${RARITY_COLOR[p.rarity] ?? 'text-stone-400'}`}>{p.rarity}</span>
-                    </span>
-                    {canFoil && p.printing && (
-                      <button
-                        type="button"
-                        aria-pressed={isFoil}
-                        onClick={() => toggleFoil(i)}
-                        disabled={foilOnly}
-                        className={`self-start min-h-8 px-2.5 rounded-full border text-xs ${isFoil ? 'border-amber-600 bg-amber-950/60 text-amber-200' : 'border-stone-700 text-stone-400 hover:text-stone-200'} disabled:cursor-default`}
-                      >
-                        {isFoil ? '★ Foil' : 'Foil'}
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <p className="text-xs text-stone-500">Logging every card is optional. Cards go to your sideboard; swap them into your deck from your deck page.</p>
-          </div>
-
-          <PrimaryButton onClick={() => run({ action: 'openPack', kind, pulls })} disabled={busy || bulkBusy || !kind || !!choosing}>
-            {busy ? 'Saving…' : 'Save pack'}
-          </PrimaryButton>
-        </>
+        </div>
       )}
+
+      {choosing && <PrintingPicker card={choosing} preferId={preferId} onAdd={add} onCancel={() => setChoosing(null)} />}
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-stone-500 uppercase tracking-wider">In this pack · {pulls.length} cards</p>
+        <div id="pack-pulls" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {pulls.map((p, i) => {
+            const finishes = p.finishes ?? []
+            const canFoil = finishes.includes('foil')
+            const foilOnly = canFoil && !finishes.includes('nonfoil')
+            const isFoil = p.printing?.foil ?? false
+            return (
+              <div key={`${p.name}-${i}`} className="flex flex-col gap-1 min-w-0">
+                <div className="relative">
+                  {p.imageUrl
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={p.imageUrl} alt={p.displayName ?? p.name} className="w-full aspect-[5/7] rounded-lg object-cover bg-stone-800" />
+                    : <div className="w-full aspect-[5/7] rounded-lg bg-stone-800" />}
+                  <button
+                    type="button"
+                    onClick={() => setPulls(pulls.filter((_, j) => j !== i))}
+                    aria-label={`Remove ${p.name}`}
+                    className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-stone-950/85 border border-stone-700 text-stone-300 hover:text-stone-100"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <span className="text-xs text-stone-200 truncate">{p.displayName ?? p.name}</span>
+                <span className="text-[11px] text-stone-400 truncate">
+                  {p.printing ? `#${p.printing.collectorNumber}${p.printing.label !== 'Regular' ? ` · ${p.printing.label}` : ''} · ` : ''}
+                  <span className={`capitalize ${RARITY_COLOR[p.rarity] ?? 'text-stone-400'}`}>{p.rarity}</span>
+                </span>
+                {canFoil && p.printing && (
+                  <button
+                    type="button"
+                    aria-pressed={isFoil}
+                    onClick={() => toggleFoil(i)}
+                    disabled={foilOnly}
+                    className={`self-start min-h-8 px-2.5 rounded-full border text-xs ${isFoil ? 'border-amber-600 bg-amber-950/60 text-amber-200' : 'border-stone-700 text-stone-400 hover:text-stone-200'} disabled:cursor-default`}
+                  >
+                    {isFoil ? '★ Foil' : 'Foil'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <p className="text-xs text-stone-500">Logging every card is optional. Cards go to your sideboard; swap them into your deck from your deck page.</p>
+      </div>
+
+      <PrimaryButton onClick={() => run({ action: 'openPack', kind: 'weekly', pulls })} disabled={busy || bulkBusy || !!choosing}>
+        {busy ? 'Saving…' : 'Save pack'}
+      </PrimaryButton>
     </LeagueModal>
   )
 }

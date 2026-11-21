@@ -180,8 +180,11 @@ export function findMember(state: LeagueState, id: string): Member | undefined {
   return state.members.find(m => m.id === id)
 }
 
+// The swap first opens once game 2 is in, so it can be used heading into game 3.
+const UNDERDOG_FROM_GAMES = 2
+
 export function underdogId(state: LeagueState, season: Season) {
-  if (state.games.length === 0 || season.complete) return null
+  if (state.games.length < UNDERDOG_FROM_GAMES || season.complete) return null
   return season.standings[season.standings.length - 1]?.memberId ?? null
 }
 

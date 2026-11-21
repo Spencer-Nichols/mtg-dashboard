@@ -2,6 +2,7 @@ import { computeSeason, findMember, memberName, placesFromOrder, tradesThisWeek,
 import { LeagueError, type DeckCardInput, type LeagueCard, type LeagueSettings, type LeagueState, type PackKind, type PrintingInfo, type PulledCardInput } from './types'
 
 const MAX_PULLS_PER_PACK = 20
+const PACK_KINDS: PackKind[] = ['opening', 'weekly', 'reserve', 'prize']
 const SCRYFALL_IMAGE_HOST = 'https://cards.scryfall.io/'
 
 function nextId(state: LeagueState, prefix: string) {
@@ -92,9 +93,7 @@ export function callBye(state: LeagueState, actorId: string) {
 
 export function openPack(state: LeagueState, actorId: string, kind: PackKind, pulls: PulledCardInput[]) {
   requireMember(state, actorId)
-  const season = computeSeason(state)
-  const s = season.stats.get(actorId)!
-  if (s.packsOpened[kind] >= s.packsOwed[kind]) throw new LeagueError('No pack of that kind left to open')
+  if (!PACK_KINDS.includes(kind)) kind = 'weekly'
   if (pulls.length > MAX_PULLS_PER_PACK) throw new LeagueError(`Up to ${MAX_PULLS_PER_PACK} cards per pack`)
 
   const packId = nextId(state, 'p')
@@ -134,11 +133,14 @@ export function commanderColors(state: LeagueState, memberId: string) {
   return new Set(commanders.flatMap(c => c.colorIdentity!))
 }
 
-function assertLegal(state: LeagueState, memberId: string, c: LeagueCard) {
+export function outsideCommanderColors(state: LeagueState, memberId: string, c: LeagueCard) {
   const colors = commanderColors(state, memberId)
-  if (!colors || !c.colorIdentity) return
-  const outside = c.colorIdentity.filter(x => !colors.has(x))
-  if (outside.length > 0) {
+  if (!colors || !c.colorIdentity) return false
+  return c.colorIdentity.some(x => !colors.has(x))
+}
+
+function assertLegal(state: LeagueState, memberId: string, c: LeagueCard) {
+  if (outsideCommanderColors(state, memberId, c)) {
     throw new LeagueError(`${cardLabel(c)} is outside ${memberName(state, memberId)}'s commander colors`)
   }
 }
@@ -163,6 +165,9 @@ export function swapIntoDeck(state: LeagueState, actorId: string, inId: string, 
   if (cardIn.zone !== 'side' || cardOut.zone !== 'main') throw new LeagueError('Pick a sideboard card to bring in and a main deck card to take out')
   if (cardOut.commander) throw new LeagueError("Your commander can't be swapped out")
   assertLegal(state, actorId, cardIn)
+  const isBasicLand = cardIn.typeLine.includes('Basic') && cardIn.typeLine.includes('Land')
+  const alreadyInDeck = state.cards.some(c => c.ownerId === actorId && c.zone === 'main' && c.id !== cardOut.id && c.name === cardIn.name)
+  if (!isBasicLand && alreadyInDeck) throw new LeagueError(`${cardLabel(cardIn)} is already in your deck`)
 
   cardIn.zone = 'main'
   cardOut.zone = 'side'

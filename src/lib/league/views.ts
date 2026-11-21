@@ -1,5 +1,5 @@
 import { computeSeason, firstOut, memberName, packsToOpen, tradesThisWeek, underdogId, type Season } from './rules'
-import { canUploadDeck, cardLabel, commanderColors, commanderOptions } from './actions'
+import { canUploadDeck, cardLabel, commanderColors, commanderOptions, outsideCommanderColors } from './actions'
 import type { PriceMap } from './prices'
 import type { LeagueCard, LeagueState, PackKind } from './types'
 
@@ -19,6 +19,7 @@ export interface CardView {
   price: number | null
   addedToBinder: boolean
   binderLine: string
+  outsideColors?: boolean
 }
 
 const PACK_SOURCE: Record<PackKind, string> = {
@@ -126,10 +127,6 @@ export function dashboardView(state: LeagueState, viewerId: string, prices: Pric
     })),
   ].sort((a, b) => b.week - a.week || b.at.localeCompare(a.at)).slice(0, 10)
 
-  const openPacks = (Object.keys(viewerStats.packsOwed) as PackKind[])
-    .map(kind => ({ kind, left: Math.max(0, viewerStats.packsOwed[kind] - viewerStats.packsOpened[kind]) }))
-    .filter(p => p.left > 0)
-
   return {
     league: {
       name: state.settings.name,
@@ -161,7 +158,7 @@ export function dashboardView(state: LeagueState, viewerId: string, prices: Pric
       endsEarly: !allGamesPlayed,
       needsDeck: !state.cards.some(c => c.ownerId === viewerId && c.zone === 'main'),
       byeUsed: viewerStats.byeUsed,
-      openPacks,
+      packsOpened: state.packs.filter(p => p.memberId === viewerId).length,
       isUnderdog: underdog === viewerId && !swapUsed,
     },
     members: state.members.map(m => ({ id: m.id, name: m.name, precon: m.precon })),
@@ -225,7 +222,7 @@ export function playerView(state: LeagueState, viewerId: string, memberId: strin
     mainValue: total(cards.filter(c => c.zone === 'main'), prices),
     sideValue: total(cards.filter(c => c.zone === 'side'), prices),
     main: cards.filter(c => c.zone === 'main').map(c => cardView(c, state, prices)),
-    side: cards.filter(c => c.zone === 'side').map(c => cardView(c, state, prices)),
+    side: cards.filter(c => c.zone === 'side').map(c => ({ ...cardView(c, state, prices), outsideColors: outsideCommanderColors(state, memberId, c) })),
     changes: state.changes
       .filter(c => c.memberId === memberId)
       .sort((a, b) => b.at.localeCompare(a.at))
