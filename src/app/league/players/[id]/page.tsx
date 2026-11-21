@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import type { CardView, playerView } from '@/lib/league/views'
 import { RARITY_COLOR } from '@/components/league/LeagueModal'
-import LeagueCardSheet from '@/components/league/LeagueCardSheet'
+import LeagueCardSheet, { type SwapSetup } from '@/components/league/LeagueCardSheet'
 import AddToBinderModal from '@/components/league/AddToBinderModal'
 import DeckUpload from '@/components/league/DeckUpload'
 import TradeModal from '@/components/league/TradeModal'
@@ -101,8 +101,37 @@ export default function LeaguePlayerPage() {
       { title: 'Precon · protected', cards: stack(data.side.filter(c => c.origin === 'precon')) },
     ].filter(g => g.cards.length > 0)
 
-  const canSwap = (c: CardView) => data.isOwner && data.seasonOpen && c.zone === 'side'
-  const swapOptions = stack(data.main.filter(c => !c.commander)).map(o => ({ id: o.card.id, name: o.card.name, qty: o.qty }))
+  const isBasicLand = (c: CardView) => c.typeLine.includes('Basic') && c.typeLine.includes('Land')
+  // Picker sections by card type, like the deck list, with the swapped card's own type first.
+  const byType = (cards: CardView[], type: string, blockedFor: (option: CardView) => string | null) => TYPE_GROUPS
+    .map(g => ({
+      title: g,
+      sameType: g === type,
+      cards: stack(cards.filter(o => !o.commander && typeGroup(o) === g)).map(o => ({ ...o, blocked: blockedFor(o.card) })),
+    }))
+    .filter(g => g.cards.length > 0)
+    .sort((a, b) => Number(b.sameType) - Number(a.sameType))
+
+  // Swap a sideboard card in (pick what comes out) or a main deck card out (pick what comes in).
+  // Options that would break the color or one-copy rules are marked so the picker can grey them out.
+  const swapFor = (c: CardView): SwapSetup | null => {
+    if (!data.isOwner || !data.seasonOpen || c.commander) return null
+    const type = typeGroup(c)
+
+    if (c.zone === 'side') {
+      const isDuplicate = !isBasicLand(c) && data.main.some(m => m.realName === c.realName)
+      const groups = byType(data.main, type, o => isDuplicate && o.realName !== c.realName ? 'Swap out the other copy instead' : null)
+      return { direction: 'in', groups, blockedReason: c.outsideColors ? "Outside your commander's colors" : null }
+    }
+
+    const groups = byType(data.side, type, s => {
+      if (s.outsideColors) return "Outside commander's colors"
+      const isDuplicate = !isBasicLand(s) && data.main.some(m => m.id !== c.id && m.realName === s.realName)
+      return isDuplicate ? 'Already in your deck' : null
+    })
+    return { direction: 'out', groups, blockedReason: null }
+  }
+
   const canTradeWith = !data.isOwner && data.seasonOpen
   const tradeLabel = (c: CardView) => {
     if (!data.seasonOpen || c.commander) return null
@@ -277,7 +306,7 @@ export default function LeaguePlayerPage() {
       {openCard && (
         <LeagueCardSheet
           card={openCard}
-          swapOptions={canSwap(openCard) ? swapOptions : null}
+          swap={swapFor(openCard)}
           tradeLabel={tradeLabel(openCard)}
           onTrade={() => startTrade(openCard)}
           onClose={() => setOpenCard(null)}
