@@ -1,3 +1,4 @@
+import { createServiceClient } from '@/lib/supabase/service'
 import { cacheKey, getCachedMany, setCached, type CacheEntry } from '@/lib/cache'
 import { cardImageUrl, collectInBatches, type DeckScryfallCard, type Identifier } from '@/lib/deck-ideas'
 import type { LeagueCard, LeagueState } from './types'
@@ -75,4 +76,57 @@ export async function priceLeagueCards(state: LeagueState): Promise<PriceMap> {
   }
 
   return new Map(state.cards.map(c => [c.id, pick(entries.get(keyFor(c)), c.printing?.foil ?? false)]))
+}
+
+const HISTORY_TABLE = 'league_card_history'
+
+// Same 'YYYY-MM-DDTHH' 4-hour buckets the wishlist history uses.
+function priceBucket(now = new Date()) {
+  const day = now.toISOString().split('T')[0]
+  const hour = String(Math.floor(now.getUTCHours() / 4) * 4).padStart(2, '0')
+  return `${day}T${hour}`
+}
+
+// Called by the price refresh cron: one row per pulled printing, foil and non-foil price side by side.
+export async function recordPullPrices(state: LeagueState) {
+  const printed = new Map<string, string>()
+  for (const c of state.cards) {
+    if (c.origin === 'pull' && c.printing) printed.set(keyFor(c), c.printing.scryfallId)
+  }
+  if (printed.size === 0) return { recorded: 0 }
+
+  const byId = new Map((await collectInBatches([...printed.values()].map(id => ({ id }) as Identifier))).map(card => [card.id, card]))
+  const date = priceBucket()
+  const num = (v?: string | null) => v ? parseFloat(v) : null
+  const rows = [...printed.entries()].flatMap(([key, id]) => {
+    const card = byId.get(id)
+    return card ? [{ card_key: key, date, price: num(card.prices.usd), foil_price: num(card.prices.usd_foil) }] : []
+  })
+  const { error } = await createServiceClient().from(HISTORY_TABLE).upsert(rows, { onConflict: 'card_key,date' })
+  if (error) throw error
+  return { recorded: rows.length }
+}
+
+export async function pullHistory(cards: LeagueCard[]): Promise<Map<string, number[]>> {
+  const result = new Map<string, number[]>()
+  const keys = [...new Set(cards.map(keyFor))]
+  if (keys.length === 0) return result
+  const { data, error } = await createServiceClient()
+    .from(HISTORY_TABLE)
+    .select('card_key, date, price, foil_price')
+    .in('card_key', keys)
+    .order('date', { ascending: true })
+  if (error) {
+    console.error('League price history read failed:', error)
+    return result
+  }
+  for (const c of cards) {
+    const foil = c.printing?.foil ?? false
+    const points = (data ?? [])
+      .filter(r => r.card_key === keyFor(c))
+      .map(r => Number(foil ? r.foil_price ?? r.price : r.price ?? r.foil_price))
+      .filter(n => Number.isFinite(n) && n > 0)
+    result.set(c.id, points)
+  }
+  return result
 }

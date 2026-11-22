@@ -188,10 +188,11 @@ export function underdogId(state: LeagueState, season: Season) {
   return season.standings[season.standings.length - 1]?.memberId ?? null
 }
 
+// Only accepted trades use up the weekly limit; open offers don't.
 export function tradesThisWeek(state: LeagueState, a: string, b: string) {
   return state.trades.filter(t =>
     t.week === state.week
-    && (t.status === 'pending' || t.status === 'accepted')
+    && t.status === 'accepted'
     && ((t.fromId === a && t.toId === b) || (t.fromId === b && t.toId === a))
   ).length
 }

@@ -69,7 +69,9 @@ export default async function LeagueRulesPage() {
       </Section>
 
       <Section title="Trading">
-        <li>Trades happen before games, and both players must agree.</li>
+        <li>Trades happen before or after games, and both players must agree.</li>
+        <li>You can only receive cards in your own commander&apos;s colors.</li>
+        <li>Mark cards you want as Interested. The owner sees it and can send you an offer. Open offers expire when the next game is logged.</li>
         <li>Each player may make up to {settings.tradesPerPairPerWeek} trades per week with each other player.</li>
         <li>The Underdog Swap doesn&apos;t count toward the trade limit.</li>
       </Section>

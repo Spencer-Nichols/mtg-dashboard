@@ -7,12 +7,28 @@ import LogGameModal from '@/components/league/LogGameModal'
 import OpenPackModal from '@/components/league/OpenPackModal'
 import TradeModal from '@/components/league/TradeModal'
 import UnderdogSwapModal from '@/components/league/UnderdogSwapModal'
-import { leagueAction } from '@/components/league/LeagueModal'
+import LeagueModal, { leagueAction } from '@/components/league/LeagueModal'
 import LeagueEmailSettings from '@/components/league/LeagueEmailSettings'
 import NextGame from '@/components/league/NextGame'
+import PullSheet, { percentChange, Sparkline, type PullDetail } from '@/components/league/PullSheet'
 
-type Dashboard = ReturnType<typeof dashboardView>
-type ModalName = 'game' | 'pack' | 'trade' | 'swap' | null
+type Dashboard = Omit<ReturnType<typeof dashboardView>, 'biggestPulls'> & { biggestPulls: PullDetail[] }
+
+// Localhost only: ?preview=1 shows sample interest and handoff entries so the layout can be checked
+// without writing fake trades into the live league.
+function withPreview(d: Dashboard): Dashboard {
+  const sample = d.biggestPulls[0]
+  if (!sample) return d
+  return {
+    ...d,
+    handoffs: [
+      { id: 'preview-1', otherName: 'Jacob', give: 'Hallowed Fountain', get: 'Khan, Vengeful Heart' },
+      { id: 'preview-2', otherName: 'Brian', give: 'Warp Speed', get: 'Arcane Signet' },
+    ],
+    interestInMine: [{ memberId: 'preview', name: 'Jacob', cards: [{ interestId: 'preview-i1', card: sample }] }],
+  }
+}
+type ModalName = 'game' | 'pack' | 'decks' | 'swap' | null
 
 const BADGES: Record<string, { label: string; className: string }> = {
   bounty: { label: 'Bounty +1', className: 'bg-amber-900/50 text-amber-200' },
@@ -45,13 +61,27 @@ export default function LeaguePage() {
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [busyOffer, setBusyOffer] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [tradeStart, setTradeStart] = useState<{ partnerId: string; giveId: string } | null>(null)
+  const [openPullId, setOpenPullId] = useState<string | null>(null)
+  const [busyInterest, setBusyInterest] = useState(false)
+  const [openInterest, setOpenInterest] = useState<Set<string>>(new Set())
+
+  function toggleInterestGroup(memberId: string) {
+    setOpenInterest(prev => {
+      const next = new Set(prev)
+      if (next.has(memberId)) next.delete(memberId)
+      else next.add(memberId)
+      return next
+    })
+  }
 
   const load = useCallback(() => {
     return fetch('/api/league')
       .then(async r => {
         const d = await r.json()
         if (!r.ok) throw new Error(d.error ?? 'Could not load the league')
-        setData(d)
+        const preview = process.env.NODE_ENV === 'development' && new URLSearchParams(window.location.search).has('preview')
+        setData(preview ? withPreview(d) : d)
       })
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
   }, [])
@@ -63,7 +93,14 @@ export default function LeaguePage() {
 
   function saved() {
     setModal(null)
+    setTradeStart(null)
     load()
+  }
+
+  async function toggleInterest(cardId: string) {
+    setBusyInterest(true)
+    await act({ action: 'toggleInterest', cardId })
+    setBusyInterest(false)
   }
 
   async function act(body: Record<string, unknown>) {
@@ -86,6 +123,8 @@ export default function LeaguePage() {
   if (!data) return <p className="text-stone-500 text-sm">Loading league…</p>
 
   const { league, viewer } = data
+  const openPull = data.biggestPulls.find(p => p.id === openPullId)
+  const interestCount = data.interestInMine.reduce((n, g) => n + g.cards.length, 0)
   const incomingOffers = data.offers.filter(o => o.incoming).length
   const bulkWithCards = data.bulk.filter(b => b.count > 0)
   const canCallBye = !viewer.byeUsed && !league.complete && !league.ended
@@ -110,7 +149,7 @@ export default function LeaguePage() {
             Open pack
           </button>
           {!league.ended && (
-            <button onClick={() => setModal('trade')} className={actionButton}>Trade</button>
+            <button onClick={() => setModal('decks')} className={actionButton}>Browse decks</button>
           )}
           {viewer.canLogGame && (
             <button onClick={() => setModal('game')} className={`${actionButton} col-span-2 sm:col-auto`}>Log game</button>
@@ -209,6 +248,7 @@ export default function LeaguePage() {
                   {o.incoming
                     ? <>{o.otherName} offers <span className="text-green-300">{o.give}</span> for your <span className="text-red-300">{o.get}</span></>
                     : <>You offered <span className="text-red-300">{o.give}</span> to {o.otherName} for <span className="text-green-300">{o.get}</span></>}
+                  <span className="block text-xs text-stone-500">Expires when game {o.expiresAfterGame} is logged</span>
                 </p>
                 {o.incoming ? (
                   <div className="flex gap-2">
@@ -223,6 +263,73 @@ export default function LeaguePage() {
                   <button onClick={() => respond(o.id, 'cancel')} disabled={busyOffer === o.id} className="px-4 py-2 rounded-lg text-xs font-semibold border border-stone-700 text-stone-300 hover:border-stone-500 hover:text-stone-100 active:scale-95 disabled:opacity-50 transition">
                     {busyOffer === o.id ? 'Saving…' : 'Cancel offer'}
                   </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {data.handoffs.length > 0 && (
+        <section id="league-handoffs" className="flex flex-col gap-2">
+          <h2 className={sectionTitle}>Cards to swap at the next game</h2>
+          <div className={card}>
+            {data.handoffs.map(h => (
+              <p key={h.id} className="px-4 py-3 border-b border-stone-800 last:border-b-0 text-sm text-stone-200">
+                Give <span className="text-red-300">{h.give}</span> to {h.otherName}, get <span className="text-green-300">{h.get}</span>
+              </p>
+            ))}
+          </div>
+          <p className="text-xs text-stone-500">These trades are done in the app. Swap the real cards, and this list clears once the next game is logged.</p>
+        </section>
+      )}
+
+      {data.interestInMine.length > 0 && (
+        <section id="league-interest" className="flex flex-col gap-2">
+          <h2 className={`${sectionTitle} flex items-center gap-2`}>
+            Interest in your cards
+            <CountBadge count={interestCount} label={`${interestCount} cards wanted`} />
+          </h2>
+          <div className={card}>
+            {data.interestInMine.map(g => (
+              <div key={g.memberId} className="border-b border-stone-800 last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => toggleInterestGroup(g.memberId)}
+                  aria-expanded={openInterest.has(g.memberId)}
+                  className="w-full min-h-12 px-4 flex items-center justify-between gap-3 text-left text-sm text-stone-200 hover:bg-stone-800/40 transition-colors"
+                >
+                  <span>{g.name} wants {g.cards.length === 1 ? '1 of your cards' : `${g.cards.length} of your cards`}</span>
+                  <span aria-hidden className={`text-stone-500 transition-transform ${openInterest.has(g.memberId) ? 'rotate-180' : ''}`}>▾</span>
+                </button>
+                {openInterest.has(g.memberId) && (
+                <div className="flex flex-col gap-2 px-4 pb-3">
+                <p className="text-xs text-stone-400">Tap a card to make {g.name} an offer, or ✕ to dismiss it.</p>
+                <div className="flex gap-2.5 overflow-x-auto pt-1.5 pb-1">
+                  {g.cards.map(({ interestId, card: c }) => (
+                    <div key={interestId} className="relative w-20 shrink-0 flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setTradeStart({ partnerId: g.memberId, giveId: c.id })}
+                        aria-label={`Make ${g.name} an offer for ${c.name}`}
+                        className="flex flex-col gap-1 text-left"
+                      >
+                        <span className="block w-full aspect-[5/7] bg-stone-800 rounded-md overflow-hidden border border-stone-800 hover:border-amber-700/70 transition-colors">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          {c.imageUrl && <img src={c.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />}
+                        </span>
+                        <span className="text-[11px] text-stone-300 truncate">{c.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => act({ action: 'dismissInterest', interestId })}
+                        aria-label={`Dismiss ${g.name}'s interest in ${c.name}`}
+                        className="absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full bg-stone-950 border border-stone-700 text-xs text-stone-300 hover:text-stone-100"
+                      >✕</button>
+                    </div>
+                  ))}
+                </div>
+                </div>
                 )}
               </div>
             ))}
@@ -254,7 +361,7 @@ export default function LeaguePage() {
                 <tr key={s.memberId} className="border-t border-stone-800">
                   <td className="px-4 py-3 font-mono text-stone-500">{s.rank}</td>
                   <td className="px-2 py-3">
-                    <Link href={`/league/players/${s.memberId}`} className="font-semibold text-stone-100 hover:text-amber-400">{s.name}</Link>
+                    <Link href={`/league/players/${s.memberId}`} className="font-semibold text-amber-400 hover:text-amber-300 underline decoration-amber-700/60 underline-offset-2">{s.name}</Link>
                     <p className="text-xs text-stone-500">{s.precon}</p>
                   </td>
                   <td className="px-2 py-3 text-right font-mono text-base font-bold text-amber-200">{s.points}</td>
@@ -320,11 +427,14 @@ export default function LeaguePage() {
         <section className="flex flex-col gap-2">
           <h2 className={sectionTitle}>Biggest pulls</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {data.biggestPulls.map(p => (
-              <Link
+            {data.biggestPulls.map(p => {
+              const change = percentChange(p.history)
+              return (
+              <button
                 key={p.id}
-                href={`/league/players/${p.ownerId}?tab=${p.zone}`}
-                className={`${card} overflow-hidden flex flex-col hover:border-stone-600 transition-colors`}
+                type="button"
+                onClick={() => setOpenPullId(p.id)}
+                className={`${card} overflow-hidden flex flex-col text-left hover:border-stone-600 transition-colors`}
               >
                 <div className="aspect-[5/7] bg-stone-800">
                   {p.imageUrl && (
@@ -332,12 +442,19 @@ export default function LeaguePage() {
                     <img src={p.imageUrl} alt={p.name} loading="lazy" className="w-full h-full object-cover" />
                   )}
                 </div>
-                <div className="px-3 py-2 flex flex-col">
-                  <span className="text-sm font-mono font-bold text-amber-200">${p.price!.toFixed(2)}</span>
+                <div className="px-3 py-2 flex flex-col gap-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-mono font-bold text-amber-200">${p.price!.toFixed(2)}</span>
+                    {change != null && (
+                      <span className={`text-[11px] font-mono ${change >= 0 ? 'text-green-400' : 'text-red-400'}`}>{change >= 0 ? '+' : ''}{change.toFixed(1)}%</span>
+                    )}
+                  </span>
+                  <Sparkline values={p.history} />
                   <span className="text-xs text-stone-400 truncate">{p.pulledBy}{p.ownerName !== p.pulledBy ? ` · now ${p.ownerName}'s` : ''}</span>
                 </div>
-              </Link>
-            ))}
+              </button>
+              )
+            })}
           </div>
         </section>
       )}
@@ -395,7 +512,42 @@ export default function LeaguePage() {
         />
       )}
       {modal === 'pack' && <OpenPackModal onClose={() => setModal(null)} onSaved={saved} />}
-      {modal === 'trade' && <TradeModal onClose={() => setModal(null)} onSaved={saved} />}
+      {modal === 'decks' && (
+        <LeagueModal title="Browse decks" onClose={() => setModal(null)}>
+          <p className="text-sm text-stone-400">See what everyone is playing and what they have in their sideboard. Tap a card to mark it as Interested or start a trade.</p>
+          <div id="league-browse-decks" className="flex flex-col gap-2">
+            {data.members.filter(m => m.id !== viewer.id).map(m => (
+              <div key={m.id} className="flex flex-col gap-2.5 bg-stone-950 border border-stone-800 rounded-xl px-4 py-3">
+                <p>
+                  <span className="block font-semibold text-stone-100">{m.name}</span>
+                  <span className="block text-xs text-stone-400">{m.precon}</span>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link href={`/league/players/${m.id}`} className="min-h-11 inline-flex items-center justify-center rounded-lg text-sm font-semibold bg-amber-950/60 border border-amber-700/50 text-amber-200 hover:bg-amber-900/60">Deck</Link>
+                  <Link href={`/league/players/${m.id}?tab=side`} className="min-h-11 inline-flex items-center justify-center rounded-lg text-sm font-semibold border border-stone-700 text-stone-200 hover:border-stone-500">Sideboard</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </LeagueModal>
+      )}
+      {tradeStart && (
+        <TradeModal
+          initialPartnerId={tradeStart.partnerId}
+          initialGiveId={tradeStart.giveId}
+          onClose={() => setTradeStart(null)}
+          onSaved={saved}
+        />
+      )}
+      {openPull && (
+        <PullSheet
+          pull={openPull}
+          isMine={openPull.ownerId === viewer.id}
+          busy={busyInterest}
+          onToggleInterest={() => toggleInterest(openPull.id)}
+          onClose={() => setOpenPullId(null)}
+        />
+      )}
       {modal === 'swap' && <UnderdogSwapModal onClose={() => setModal(null)} onSaved={saved} />}
     </div>
   )

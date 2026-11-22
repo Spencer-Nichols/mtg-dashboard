@@ -99,6 +99,16 @@ export interface UnderdogSwap {
   at: string
 }
 
+// One player flagging another player's card they'd like to trade for.
+export interface Interest {
+  id: string
+  memberId: string
+  ownerId: string
+  cardId: string
+  createdAt: string
+  notifiedAt: string | null
+}
+
 export interface DeckChange {
   id: string
   week: number
@@ -134,6 +144,7 @@ export interface LeagueState {
   trades: Trade[]
   swaps: UnderdogSwap[]
   changes: DeckChange[]
+  interests: Interest[]
   seq: number
 }
 
