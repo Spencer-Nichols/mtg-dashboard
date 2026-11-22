@@ -145,15 +145,48 @@ function assertLegal(state: LeagueState, memberId: string, c: LeagueCard) {
   }
 }
 
+// Trades only hand a player cards in their own commander colors, so nobody takes a card just to deny it.
+function assertReceivable(state: LeagueState, memberId: string, c: LeagueCard) {
+  if (outsideCommanderColors(state, memberId, c)) {
+    throw new LeagueError(`${cardLabel(c)} is outside ${memberName(state, memberId)}'s commander colors, so it can't be traded to them`)
+  }
+}
+
+function clearInterests(state: LeagueState, cardIds: string[]) {
+  state.interests = state.interests.filter(i => !cardIds.includes(i.cardId))
+}
+
+export function toggleInterest(state: LeagueState, actorId: string, cardId: string) {
+  requireMember(state, actorId)
+  seasonOpen(state)
+  const c = card(state, cardId)
+  if (c.ownerId === actorId) throw new LeagueError("That's already your card")
+  if (c.commander) throw new LeagueError("Commanders can't be traded")
+  const existing = state.interests.find(i => i.memberId === actorId && i.cardId === cardId)
+  if (existing) {
+    state.interests = state.interests.filter(i => i !== existing)
+    return
+  }
+  state.interests.push({ id: nextId(state, 'i'), memberId: actorId, ownerId: c.ownerId, cardId, createdAt: now(), notifiedAt: null })
+}
+
+export function dismissInterest(state: LeagueState, actorId: string, interestId: string) {
+  const interest = state.interests.find(i => i.id === interestId)
+  if (!interest) return
+  if (interest.ownerId !== actorId && interest.memberId !== actorId) throw new LeagueError('Not your card', 403)
+  state.interests = state.interests.filter(i => i !== interest)
+}
+
 function packLabel(state: LeagueState, c: LeagueCard) {
   const pack = state.packs.find(p => p.id === c.packId)
   if (!pack) return 'From sideboard'
-  return {
-    opening: 'Pulled on opening night',
-    weekly: `Pulled from week ${pack.week} pack`,
-    reserve: 'Pulled from reserve pack',
-    prize: 'Pulled from prize pack',
-  }[pack.kind]
+  return `Pulled ${openedOn(state, pack.openedAt)}`
+}
+
+// The league week moves on when a game is logged, so packs opened later that night carry the next week.
+// The open date is always right.
+export function openedOn(state: LeagueState, openedAt: string) {
+  return new Date(openedAt).toLocaleDateString('en-US', { timeZone: state.settings.timeZone, month: 'short', day: 'numeric' })
 }
 
 export function swapIntoDeck(state: LeagueState, actorId: string, inId: string, outId: string) {
@@ -226,6 +259,8 @@ export function proposeTrade(state: LeagueState, actorId: string, toId: string, 
   const get = card(state, getCardId)
   if (give.ownerId !== actorId || get.ownerId !== toId) throw new LeagueError('Those cards changed hands, refresh and try again', 409)
   if (give.commander || get.commander) throw new LeagueError("Commanders can't be traded")
+  assertReceivable(state, actorId, get)
+  assertReceivable(state, toId, give)
   if (tradesThisWeek(state, actorId, toId) >= state.settings.tradesPerPairPerWeek) {
     throw new LeagueError(`You've hit ${state.settings.tradesPerPairPerWeek} trades with ${memberName(state, toId)} this week`)
   }
@@ -251,7 +286,10 @@ export function respondTrade(state: LeagueState, actorId: string, tradeId: strin
   const trade = state.trades.find(t => t.id === tradeId)
   if (!trade || trade.status !== 'pending') throw new LeagueError('That offer is no longer open', 404)
   if (response === 'cancel' ? trade.fromId !== actorId : trade.toId !== actorId) throw new LeagueError('Not your offer to answer', 403)
-  if (response === 'accept' && trade.week !== state.week) throw new LeagueError('That offer expired when the week ended')
+  if (response === 'accept' && trade.week !== state.week) throw new LeagueError('That offer expired when the last game was logged')
+  if (response === 'accept' && tradesThisWeek(state, trade.fromId, trade.toId) >= state.settings.tradesPerPairPerWeek) {
+    throw new LeagueError(`You've already made ${state.settings.tradesPerPairPerWeek} trades with ${memberName(state, trade.fromId)} this week`)
+  }
 
   trade.resolvedAt = now()
   if (response !== 'accept') {
@@ -267,8 +305,9 @@ export function respondTrade(state: LeagueState, actorId: string, tradeId: strin
 
   const giveZone = give.zone
   const getZone = get.zone
-  if (giveZone === 'main') assertLegal(state, trade.fromId, get)
-  if (getZone === 'main') assertLegal(state, trade.toId, give)
+  assertReceivable(state, trade.fromId, get)
+  assertReceivable(state, trade.toId, give)
+  clearInterests(state, [give.id, get.id])
   give.ownerId = trade.toId
   give.zone = getZone
   get.ownerId = trade.fromId
@@ -320,6 +359,7 @@ export function underdogSwap(state: LeagueState, actorId: string, takes: SwapTak
   for (const { t, taken, offered } of resolved) {
     taken.ownerId = actorId
     offered.ownerId = t.fromId
+    clearInterests(state, [taken.id, offered.id])
   }
   state.swaps.push({
     id: nextId(state, 's'),

@@ -14,7 +14,7 @@ interface Collection<T> {
 }
 
 type Collections = {
-  [K in 'members' | 'cards' | 'games' | 'byes' | 'packs' | 'trades' | 'swaps' | 'changes']: Collection<LeagueState[K][number]>
+  [K in 'members' | 'cards' | 'games' | 'byes' | 'packs' | 'trades' | 'swaps' | 'changes' | 'interests']: Collection<LeagueState[K][number]>
 }
 
 const COLLECTIONS: Collections = {
@@ -103,6 +103,14 @@ const COLLECTIONS: Collections = {
     onConflict: 'season_id,id',
     toRow: c => ({ id: c.id, week: c.week, game_number: c.gameNumber, member_id: c.memberId, added_name: c.addedName, removed_name: c.removedName, source: c.source, at: c.at }),
     fromRow: r => ({ id: r.id as string, week: r.week as number, gameNumber: r.game_number as number, memberId: r.member_id as string, addedName: r.added_name as string, removedName: r.removed_name as string, source: r.source as string, at: r.at as string }),
+  },
+  interests: {
+    table: 'league_interests',
+    keyColumn: 'id',
+    key: i => i.id,
+    onConflict: 'season_id,id',
+    toRow: i => ({ id: i.id, member_id: i.memberId, owner_id: i.ownerId, card_id: i.cardId, created_at: i.createdAt, notified_at: i.notifiedAt }),
+    fromRow: r => ({ id: r.id as string, memberId: r.member_id as string, ownerId: r.owner_id as string, cardId: r.card_id as string, createdAt: r.created_at as string, notifiedAt: r.notified_at as string | null }),
   },
 }
 

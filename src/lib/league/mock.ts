@@ -109,6 +109,7 @@ function seed(): LeagueState {
     trades: [],
     swaps: [],
     changes: [],
+    interests: [],
     seq: 0,
   }
   for (const m of state.members) {
@@ -153,6 +154,7 @@ function emptySeason(): LeagueState {
     trades: [],
     swaps: [],
     changes: [],
+    interests: [],
     seq: 0,
   }
 }

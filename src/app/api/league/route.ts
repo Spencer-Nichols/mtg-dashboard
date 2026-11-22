@@ -1,6 +1,6 @@
 import { after, NextRequest, NextResponse } from 'next/server'
-import { callBye, changeCommander, endSeason, scheduleGame, logGame, markAddedToBinder, openPack, proposeTrade, respondTrade, swapIntoDeck, underdogSwap } from '@/lib/league/actions'
-import { priceLeagueCards } from '@/lib/league/prices'
+import { callBye, changeCommander, dismissInterest, endSeason, scheduleGame, logGame, markAddedToBinder, openPack, proposeTrade, respondTrade, swapIntoDeck, toggleInterest, underdogSwap } from '@/lib/league/actions'
+import { priceLeagueCards, pullHistory } from '@/lib/league/prices'
 import { leagueContext, mutateLeague } from '@/lib/league/store'
 import { LeagueError } from '@/lib/league/types'
 import { dashboardView } from '@/lib/league/views'
@@ -18,7 +18,11 @@ export async function GET() {
   try {
     const { state, viewerId, isAdmin } = await leagueContext()
     const prices = await priceLeagueCards(state)
-    return NextResponse.json({ ...dashboardView(state, viewerId, prices, { isAdmin }) })
+    const view = dashboardView(state, viewerId, prices, { isAdmin })
+    const pullIds = new Set(view.biggestPulls.map(p => p.id))
+    const history = await pullHistory(state.cards.filter(c => pullIds.has(c.id)))
+    const biggestPulls = view.biggestPulls.map(p => ({ ...p, history: history.get(p.id) ?? [] }))
+    return NextResponse.json({ ...view, biggestPulls })
   } catch (err) {
     return fail(err)
   }
@@ -41,6 +45,8 @@ export async function POST(req: NextRequest) {
         case 'scheduleGame': return scheduleGame(state, viewerId, isAdmin, typeof body.at === 'string' ? body.at : null, typeof body.note === 'string' ? body.note : null)
         case 'markAddedToBinder': return markAddedToBinder(state, viewerId, Array.isArray(body.cardIds) ? body.cardIds : [])
         case 'underdogSwap': return underdogSwap(state, viewerId, Array.isArray(body.takes) ? body.takes : [])
+        case 'toggleInterest': return toggleInterest(state, viewerId, body.cardId)
+        case 'dismissInterest': return dismissInterest(state, viewerId, body.interestId)
         default: throw new LeagueError('Unknown action')
       }
     })

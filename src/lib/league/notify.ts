@@ -1,5 +1,6 @@
 import { sendLeagueEmail, type LeagueEmail } from '@/lib/email'
 import { createServiceClient } from '@/lib/supabase/service'
+import { cardLabel } from './actions'
 import { computeSeason, memberName } from './rules'
 import { emailsEnabled, memberEmails } from './store'
 import type { LeagueEmailType } from './email-types'
@@ -56,7 +57,7 @@ function build(state: LeagueState, event: LeagueEvent): Outgoing[] {
         subject: `${memberName(state, t.fromId)} sent you a trade offer`,
         email: {
           heading: `${name(t.fromId)} wants to trade`,
-          lines: [`They offer <strong>${esc(t.giveName)}</strong> for your <strong>${esc(t.getName)}</strong>.`, 'Offers expire when the week ends.'],
+          lines: [`They offer <strong>${esc(t.giveName)}</strong> for your <strong>${esc(t.getName)}</strong>.`, 'Offers expire when the next game is logged.'],
           ctaLabel: 'Answer the offer',
           ctaPath: '/league',
         },
@@ -156,4 +157,42 @@ export async function notifyLeague(state: LeagueState, events: LeagueEvent[]) {
   } catch (err) {
     console.error('League email failed:', err)
   }
+}
+
+// Daily summary of new interest marks: one email per owner, never one per card.
+// Returns the interest ids it covered so the cron can mark them sent, including ones skipped by email settings.
+export async function sendInterestDigest(state: LeagueState): Promise<string[]> {
+  const fresh = state.interests.filter(i => !i.notifiedAt && state.cards.some(c => c.id === i.cardId && c.ownerId === i.ownerId))
+  if (fresh.length === 0) return []
+
+  const ownerIds = [...new Set(fresh.map(i => i.ownerId))]
+  const emails = await memberEmails(state)
+  const prefs = await prefsByMember(state, ownerIds)
+  for (const ownerId of ownerIds) {
+    const mine = fresh.filter(i => i.ownerId === ownerId)
+    const byMember = [...new Set(mine.map(i => i.memberId))].map(memberId => {
+      const names = mine
+        .filter(i => i.memberId === memberId)
+        .map(i => esc(cardLabel(state.cards.find(c => c.id === i.cardId)!)))
+      return `<strong>${esc(memberName(state, memberId))}</strong>: ${names.join(', ')}`
+    })
+    const to = emails.get(ownerId)
+    if (!to || prefs.get(ownerId)?.interest === false) continue
+    const subject = mine.length === 1 ? 'Someone is interested in one of your league cards' : `People are interested in ${mine.length} of your league cards`
+    if (!emailsEnabled()) {
+      console.log(`[league email skipped in mock mode] to=${to} subject="${subject}"`)
+      continue
+    }
+    try {
+      await sendLeagueEmail(to, subject, {
+        heading: 'Interest in your cards',
+        lines: [...byMember, 'Open the league to make an offer, or bring them to the next game.'],
+        ctaLabel: 'See who wants what',
+        ctaPath: '/league',
+      })
+    } catch (err) {
+      console.error('Interest digest email failed:', err)
+    }
+  }
+  return fresh.map(i => i.id)
 }

@@ -8,7 +8,7 @@ interface TradeOptions {
   limit: number
   offColorIds: string[]
   mine: CardView[]
-  partners: { id: string; name: string; used: number; cards: CardView[] }[]
+  partners: { id: string; name: string; used: number; cards: CardView[]; offColorMine: string[] }[]
 }
 
 interface TradeModalProps {
@@ -77,12 +77,16 @@ function CardPicker({ id, label, cards, offColor, selected, onSelect }: {
   const [query, setQuery] = useState('')
   const picked = cards.find(c => c.id === selected)
   const q = query.trim().toLowerCase()
+  // With no search, list everything to browse: sideboard first, in-color before off-color.
   const matches = q
     ? uniqueCards(cards)
       .filter(c => c.name.toLowerCase().includes(q))
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, MAX_RESULTS)
-    : []
+    : uniqueCards(cards).sort((a, b) =>
+      Number(offColor.has(a.id)) - Number(offColor.has(b.id))
+      || Number(a.zone === 'main') - Number(b.zone === 'main')
+      || a.name.localeCompare(b.name))
 
   return (
     <div id={`${id}-picker`} className="flex flex-col gap-1 min-w-0">
@@ -107,32 +111,31 @@ function CardPicker({ id, label, cards, offColor, selected, onSelect }: {
             id={id}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Type a card name"
+            placeholder="Search, or pick from the list"
             autoComplete="off"
             className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-2.5 text-base text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-600"
           />
-          {q && (
-            <div className="bg-stone-950 border border-stone-800 rounded-lg">
-              {matches.length === 0 && <p className="px-3 py-2.5 text-xs text-stone-500">No cards match</p>}
-              {matches.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => onSelect(c.id)}
-                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-left text-stone-200 hover:bg-stone-900 border-b border-stone-900 last:border-b-0"
-                >
-                  <span className="min-w-0 flex flex-col">
-                    <span className="truncate">{c.name}</span>
-                    <CardMeta card={c} offColor={offColor.has(c.id)} />
-                  </span>
-                  <span className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs font-mono text-stone-400">{money(c.price)}</span>
-                    <span className={`text-xs ${c.zone === 'main' ? 'text-amber-200' : 'text-green-300'}`}>{c.zone === 'main' ? 'Main' : 'Side'}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="bg-stone-950 border border-stone-800 rounded-lg max-h-64 overflow-y-auto overscroll-contain">
+            {matches.length === 0 && <p className="px-3 py-2.5 text-xs text-stone-500">No cards match</p>}
+            {matches.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                disabled={offColor.has(c.id)}
+                onClick={() => onSelect(c.id)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-sm text-left text-stone-200 enabled:hover:bg-stone-900 disabled:opacity-60 disabled:cursor-not-allowed border-b border-stone-900 last:border-b-0"
+              >
+                <span className="min-w-0 flex flex-col">
+                  <span className="truncate">{c.name}</span>
+                  <CardMeta card={c} offColor={offColor.has(c.id)} />
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-mono text-stone-400">{money(c.price)}</span>
+                  <span className={`text-xs ${c.zone === 'main' ? 'text-amber-200' : 'text-green-300'}`}>{c.zone === 'main' ? 'Main' : 'Side'}</span>
+                </span>
+              </button>
+            ))}
+          </div>
         </>
       )}
     </div>
@@ -165,8 +168,7 @@ export default function TradeModal({ initialPartnerId, initialGiveId, initialGet
   const initialGetMissing = !!initialGetId && get === initialGetId && !getCard
   const unavailable = !!options && (initialGiveMissing || initialGetMissing)
   const offColor = new Set(options?.offColorIds ?? [])
-  const getIsOffColor = !!getCard && offColor.has(getCard.id)
-  const wouldEnterMainDeck = giveCard?.zone === 'main'
+  const mineOffColor = new Set(partner?.offColorMine ?? [])
 
   return (
     <LeagueModal title="New trade" size="lg" busy={busy} onClose={onClose}>
@@ -202,7 +204,7 @@ export default function TradeModal({ initialPartnerId, initialGiveId, initialGet
 
           {partner && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <CardPicker id="trade-give" label="You give" cards={options.mine} offColor={new Set()} selected={giveCard ? give : null} onSelect={setGive} />
+              <CardPicker key={`give-${partner.id}`} id="trade-give" label="You give" cards={options.mine} offColor={mineOffColor} selected={giveCard && !mineOffColor.has(giveCard.id) ? give : null} onSelect={setGive} />
               <CardPicker key={partner.id} id="trade-get" label={`${partner.name} gives`} cards={partner.cards} offColor={offColor} selected={getCard ? get : null} onSelect={setGet} />
             </div>
           )}
@@ -213,18 +215,14 @@ export default function TradeModal({ initialPartnerId, initialGiveId, initialGet
             </p>
           )}
 
-          {getIsOffColor && (
-            <p id="trade-off-color" className="text-xs text-yellow-300 bg-yellow-950/30 border border-yellow-900/50 rounded-lg px-3 py-2">
-              {getCard.name} is outside your commander&apos;s colors.
-              {giveCard && (wouldEnterMainDeck
-                ? ` It would take ${giveCard.name}'s main deck slot, which the rules don't allow, so accepting will fail. Give a sideboard card instead to keep it as bulk.`
-                : ' It will go to your sideboard.')}
-            </p>
+          {giveCard && mineOffColor.has(giveCard.id) && (
+            <p id="trade-off-color" className="text-xs text-red-400">{giveCard.name} is outside {partner?.name}&apos;s commander colors, so it can&apos;t be traded to them.</p>
           )}
+          <p className="text-xs text-stone-500">Off-color cards can&apos;t be traded: each player only receives cards in their own commander colors.</p>
 
           <PrimaryButton
             onClick={() => run({ action: 'proposeTrade', toId: partnerId, giveCardId: give, getCardId: get })}
-            disabled={busy || !giveCard || !getCard || partnerFull}
+            disabled={busy || !giveCard || !getCard || partnerFull || mineOffColor.has(giveCard.id) || offColor.has(getCard.id)}
           >
             {busy ? 'Sending…' : partner ? `Send offer to ${partner.name}` : 'Send offer'}
           </PrimaryButton>

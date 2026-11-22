@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import type { CardView, playerView } from '@/lib/league/views'
-import { RARITY_COLOR } from '@/components/league/LeagueModal'
+import { leagueAction, RARITY_COLOR } from '@/components/league/LeagueModal'
 import LeagueCardSheet, { type SwapSetup } from '@/components/league/LeagueCardSheet'
 import AddToBinderModal from '@/components/league/AddToBinderModal'
 import DeckUpload from '@/components/league/DeckUpload'
@@ -60,6 +60,19 @@ export default function LeaguePlayerPage() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [trade, setTrade] = useState<TradeStart | null>(null)
   const [offerSent, setOfferSent] = useState(false)
+  const [interestBusy, setInterestBusy] = useState(false)
+
+  async function toggleInterest(cardId: string) {
+    setInterestBusy(true)
+    try {
+      await leagueAction({ action: 'toggleInterest', cardId })
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setInterestBusy(false)
+    }
+  }
 
   function toggleGroup(title: string) {
     setCollapsed(prev => {
@@ -135,7 +148,7 @@ export default function LeaguePlayerPage() {
   const canTradeWith = !data.isOwner && data.seasonOpen
   const tradeLabel = (c: CardView) => {
     if (!data.seasonOpen || c.commander) return null
-    return data.isOwner ? 'Offer this in a trade' : `Ask ${member.name} for this`
+    return data.isOwner ? 'Offer this in a trade' : `Make ${member.name} a trade offer`
   }
   const startTrade = (c: CardView) => {
     setOpenCard(null)
@@ -244,6 +257,7 @@ export default function LeaguePlayerPage() {
                     name: card.name,
                     imageUrl: card.imageUrl,
                     qty,
+                    caption: data.interestedIds.includes(card.id) ? <span className="text-amber-400">★ Interested</span> : undefined,
                     onClick: () => open(card),
                   }))} />
                 ) : (
@@ -255,7 +269,7 @@ export default function LeaguePlayerPage() {
                       className="w-full flex items-center gap-3 px-4 py-2 border-b border-stone-800 last:border-b-0 text-sm text-left hover:bg-stone-800/50 transition-colors"
                     >
                       <span className="w-6 font-mono text-stone-500">{qty}</span>
-                      <span className="flex-1 min-w-0 truncate text-stone-100">{card.name}</span>
+                      <span className="flex-1 min-w-0 truncate text-stone-100">{card.name}{data.interestedIds.includes(card.id) && <span className="text-amber-400"> ★</span>}</span>
                       {card.printing && <span className="hidden sm:inline text-xs text-stone-500 truncate max-w-40">{card.printing}</span>}
                       {tab === 'side' && <span className={`text-xs capitalize ${RARITY_COLOR[card.rarity] ?? 'text-stone-400'}`}>{card.rarity}</span>}
                       {tab === 'main' && card.origin === 'pull' && <span className="text-[11px] font-semibold text-green-300">Pull</span>}
@@ -307,6 +321,9 @@ export default function LeaguePlayerPage() {
         <LeagueCardSheet
           card={openCard}
           swap={swapFor(openCard)}
+          interest={!data.isOwner && data.seasonOpen && !openCard.commander
+            ? { marked: data.interestedIds.includes(openCard.id), busy: interestBusy, onToggle: () => toggleInterest(openCard.id) }
+            : null}
           tradeLabel={tradeLabel(openCard)}
           onTrade={() => startTrade(openCard)}
           onClose={() => setOpenCard(null)}

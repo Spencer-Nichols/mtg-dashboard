@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { refreshAllPrices } from '@/lib/price-refresh'
 import { refreshDeckIdeaPrices } from '@/lib/deck-ideas'
+import { loadLeagueFromDb } from '@/lib/league/db'
+import { recordPullPrices } from '@/lib/league/prices'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -23,8 +25,16 @@ export async function GET(req: NextRequest) {
   }
   const deckIdeasElapsed = ((Date.now() - started) / 1000).toFixed(1)
 
+  let leaguePulls = null
+  try {
+    const league = await loadLeagueFromDb()
+    if (league) leaguePulls = await recordPullPrices(league)
+  } catch (err) {
+    console.error('League pull price history failed:', err)
+  }
+
   const result = await refreshAllPrices()
   const elapsed = ((Date.now() - started) / 1000).toFixed(1)
 
-  return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, deckIdeasElapsed: `${deckIdeasElapsed}s`, ...result, deckIdeas })
+  return NextResponse.json({ ok: true, elapsed: `${elapsed}s`, deckIdeasElapsed: `${deckIdeasElapsed}s`, ...result, deckIdeas, leaguePulls })
 }

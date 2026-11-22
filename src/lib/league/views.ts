@@ -1,5 +1,5 @@
 import { computeSeason, firstOut, memberName, packsToOpen, tradesThisWeek, underdogId, type Season } from './rules'
-import { canUploadDeck, cardLabel, commanderColors, commanderOptions, outsideCommanderColors } from './actions'
+import { canUploadDeck, cardLabel, commanderColors, commanderOptions, openedOn, outsideCommanderColors } from './actions'
 import type { PriceMap } from './prices'
 import type { LeagueCard, LeagueState, PackKind } from './types'
 
@@ -31,7 +31,7 @@ const PACK_SOURCE: Record<PackKind, string> = {
 
 function cardView(c: LeagueCard, state: LeagueState, prices: PriceMap): CardView {
   const pack = c.packId ? state.packs.find(p => p.id === c.packId) : undefined
-  const source = c.origin === 'precon' ? 'Original precon card' : pack ? `${PACK_SOURCE[pack.kind]} · week ${pack.week}` : 'Pulled from a pack'
+  const source = c.origin === 'precon' ? 'Original precon card' : pack ? `${PACK_SOURCE[pack.kind]} · ${openedOn(state, pack.openedAt)}` : 'Pulled from a pack'
   const special = c.printing && (c.printing.label !== 'Regular' || c.printing.foil)
   const label = c.printing ? c.printing.label.charAt(0).toUpperCase() + c.printing.label.slice(1) : ''
   const printing = special ? `${label} · #${c.printing!.collectorNumber}${c.printing!.foil ? ' · Foil' : ''}` : null
@@ -83,6 +83,11 @@ function gameSummary(state: LeagueState, season: Season, gameId: string) {
   return parts.join(' · ')
 }
 
+// Marks on cards that have since changed hands no longer apply.
+function liveInterests(state: LeagueState) {
+  return state.interests.filter(i => state.cards.some(c => c.id === i.cardId && c.ownerId === i.ownerId))
+}
+
 export interface ViewerAccess {
   isAdmin: boolean
 }
@@ -97,6 +102,25 @@ export function dashboardView(state: LeagueState, viewerId: string, prices: Pric
   const ended = state.season?.status === 'ended'
   const isCommissioner = viewer.role === 'commissioner'
   const allGamesPlayed = state.games.length >= state.settings.totalGames
+  const interests = liveInterests(state)
+  const myInterestIds = new Set(interests.filter(i => i.memberId === viewerId).map(i => i.cardId))
+  const interestInMine = state.members
+    .filter(m => m.id !== viewerId)
+    .map(m => ({
+      memberId: m.id,
+      name: m.name,
+      cards: interests
+        .filter(i => i.ownerId === viewerId && i.memberId === m.id)
+        .map(i => ({ interestId: i.id, card: cardView(state.cards.find(c => c.id === i.cardId)!, state, prices) })),
+    }))
+    .filter(g => g.cards.length > 0)
+  // Accepted trades whose cards still need to change hands at the table; they drop off once the next game is logged.
+  const handoffs = state.trades
+    .filter(t => t.status === 'accepted' && t.week === state.week && (t.fromId === viewerId || t.toId === viewerId))
+    .map(t => {
+      const sentByMe = t.fromId === viewerId
+      return { id: t.id, otherName: memberName(state, sentByMe ? t.toId : t.fromId), give: sentByMe ? t.giveName : t.getName, get: sentByMe ? t.getName : t.giveName }
+    })
   const biggestPulls = state.cards
     .filter(c => c.origin === 'pull' && (prices.get(c.id) ?? 0) > 0)
     .sort((a, b) => prices.get(b.id)! - prices.get(a.id)!)
@@ -108,6 +132,7 @@ export function dashboardView(state: LeagueState, viewerId: string, prices: Pric
         pulledBy: memberName(state, pack?.memberId ?? c.ownerId),
         ownerId: c.ownerId,
         ownerName: memberName(state, c.ownerId),
+        interested: myInterestIds.has(c.id),
       }
     })
 
@@ -192,7 +217,10 @@ export function dashboardView(state: LeagueState, viewerId: string, prices: Pric
         otherName: memberName(state, t.toId === viewerId ? t.fromId : t.toId),
         give: t.giveName,
         get: t.getName,
+        expiresAfterGame: state.games.length + 1,
       })),
+    interestInMine,
+    handoffs,
     activity,
     biggestPulls,
     bulk: state.members.map(m => {
@@ -219,6 +247,9 @@ export function playerView(state: LeagueState, viewerId: string, memberId: strin
       : [],
     seasonOpen: state.season?.status !== 'ended',
     seasonEnded: state.season?.status === 'ended',
+    interestedIds: viewerId === memberId
+      ? []
+      : liveInterests(state).filter(i => i.memberId === viewerId && i.ownerId === memberId).map(i => i.cardId),
     mainValue: total(cards.filter(c => c.zone === 'main'), prices),
     sideValue: total(cards.filter(c => c.zone === 'side'), prices),
     main: cards.filter(c => c.zone === 'main').map(c => cardView(c, state, prices)),
@@ -251,6 +282,7 @@ export function tradeView(state: LeagueState, viewerId: string, prices: PriceMap
       name: m.name,
       used: tradesThisWeek(state, viewerId, m.id),
       cards: tradable(m.id),
+      offColorMine: state.cards.filter(c => c.ownerId === viewerId && outsideCommanderColors(state, m.id, c)).map(c => c.id),
     })),
   }
 }

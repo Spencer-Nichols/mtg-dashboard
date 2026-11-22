@@ -22,13 +22,14 @@ export interface SwapSetup {
 interface LeagueCardSheetProps {
   card: CardView
   swap: SwapSetup | null
+  interest: { marked: boolean; busy: boolean; onToggle: () => void } | null
   tradeLabel: string | null
   onTrade: () => void
   onClose: () => void
   onSwapped: () => void
 }
 
-export default function LeagueCardSheet({ card, swap, tradeLabel, onTrade, onClose, onSwapped }: LeagueCardSheetProps) {
+export default function LeagueCardSheet({ card, swap, interest, tradeLabel, onTrade, onClose, onSwapped }: LeagueCardSheetProps) {
   const [picking, setPicking] = useState(false)
   const [pickedId, setPickedId] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
@@ -219,11 +220,17 @@ export default function LeagueCardSheet({ card, swap, tradeLabel, onTrade, onClo
         </div>
       )}
 
+      {interest && (
+        <PrimaryButton onClick={interest.onToggle} disabled={interest.busy}>
+          {interest.busy ? 'Saving…' : interest.marked ? '★ Interested · tap to undo' : `I'm interested in this`}
+        </PrimaryButton>
+      )}
+
       {tradeLabel && (
         <button
           id="league-card-trade"
           onClick={onTrade}
-          className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-amber-950/60 border border-amber-700/50 hover:bg-amber-900/60 text-amber-200 transition-colors"
+          className="w-full px-4 py-3 rounded-xl text-sm font-semibold border border-stone-700 text-stone-200 hover:border-stone-500 hover:text-stone-100 transition-colors"
         >
           {tradeLabel}
         </button>
