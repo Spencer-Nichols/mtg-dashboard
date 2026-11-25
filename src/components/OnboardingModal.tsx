@@ -48,8 +48,8 @@ export const STEPS: Step[] = [
     ],
     callout: {
       label: 'NEW',
-      title: 'Search, rebuilt',
-      body: 'Filters now live as chips inside the search bar, you can search by Scryfall\'s card tags, and "Owned only" shows just the cards in your binder.',
+      title: 'Every Scryfall tag, built in',
+      body: 'Search now includes all of Scryfall\'s 5,000+ card tags, from broad roles like Removal down to specifics like "sac outlet creature". Filters live as chips in the search bar, and "Owned only" shows just the cards in your binder.',
     },
   },
   {
