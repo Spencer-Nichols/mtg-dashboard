@@ -32,6 +32,29 @@ const RARITY_COLOR: Record<string, string> = {
   uncommon: 'text-blue-400', common: 'text-stone-400',
 }
 
+const SORT_OPTIONS = [
+  { value: 'edhrec-desc', label: 'Sort: Popular (EDHREC)' },
+  { value: 'usd-desc', label: 'Price: high to low' },
+  { value: 'usd-asc', label: 'Price: low to high' },
+  { value: 'rarity-desc', label: 'Rarity: high to low' },
+  { value: 'rarity-asc', label: 'Rarity: low to high' },
+  { value: 'name-asc', label: 'Name: A to Z' },
+  { value: 'name-desc', label: 'Name: Z to A' },
+]
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+        active
+          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+          : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400 active:border-amber-700/60 active:text-amber-400'
+      }`}>
+      {children}
+    </button>
+  )
+}
+
 const RARITY_RANK: Record<string, number> = { mythic: 4, rare: 3, uncommon: 2, common: 1 }
 
 const ART_TYPES = [
@@ -338,14 +361,13 @@ export default function SearchPage() {
   const [priceSlider, setPriceSlider] = useState(MAX_PRICE_SLIDER)
   const [keywordsOpen, setKeywordsOpen] = useState(false)
   const [colorsOpen, setColorsOpen] = useState(false)
-  const [typeOpen, setTypeOpen] = useState(false)
-  const [cmcOpen, setCmcOpen] = useState(false)
+  const [typeCmcOpen, setTypeCmcOpen] = useState(false)
   const [priceOpen, setPriceOpen] = useState(false)
+  const [oracleOpen, setOracleOpen] = useState(false)
   const [activeArtTypes, setActiveArtTypes] = useState<Set<string>>(new Set())
   const [activeSet, setActiveSet] = useState<string | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [artOpen, setArtOpen] = useState(false)
-  const [setsOpen, setSetsOpen] = useState(false)
+  const [printingOpen, setPrintingOpen] = useState(false)
   const recentSets = RECENT_SETS
   const getSetCodes = (name: string | null): string[] | null =>
     name ? (RECENT_SETS.find(s => s.name === name)?.codes ?? null) : null
@@ -566,6 +588,112 @@ export default function SearchPage() {
 
   const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim() || oracleText.trim() || activeArtTypes.size > 0 || activeSet !== null
 
+  // ── Filter controls (shared by mobile and desktop layouts) ──
+
+  const colorPicker = (dotSize: string) => (
+    <div className="flex items-center gap-2.5 flex-wrap">
+      <div className="flex gap-1.5">
+        {COLOR_CHIPS.map(c => (
+          <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
+            className={`${dotSize} rounded-full font-bold border-2 transition-all ${
+              activeColors.has(c.symbol)
+                ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
+                : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
+            }`}>
+            {c.symbol}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {(['exact', 'includes', 'commander'] as const).map(mode => (
+          <Chip key={mode} active={colorMode === mode} onClick={() => setColorMode(mode)}>
+            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  )
+
+  const typeChips = (
+    <div className="flex flex-wrap gap-1.5">
+      {CARD_TYPES.map(t => (
+        <Chip key={t} active={activeType === t.toLowerCase()} onClick={() => selectType(t.toLowerCase())}>{t}</Chip>
+      ))}
+    </div>
+  )
+
+  const cmcChips = (
+    <div className="flex flex-wrap gap-1.5">
+      <Chip active={maxCmc === null} onClick={() => setCmcFilter(null)}>Any</Chip>
+      {CMC_PRESETS.map(n => (
+        <Chip key={n} active={maxCmc === n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}>≤{n}</Chip>
+      ))}
+    </div>
+  )
+
+  const priceSliderControl = (
+    <div className="flex items-center gap-3">
+      <input
+        type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
+        value={priceSlider}
+        onChange={e => handlePriceSlider(Number(e.target.value))}
+        className="flex-1 accent-amber-600 cursor-pointer"
+      />
+      <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
+        {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
+      </span>
+    </div>
+  )
+
+  const oracleInput = (
+    <input
+      value={oracleText}
+      onChange={e => setOracleText(e.target.value)}
+      placeholder='e.g. whenever you draw'
+      className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
+    />
+  )
+
+  const printingChips = (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-stone-500 mb-1.5">Art Style</p>
+        <div className="flex flex-wrap gap-1.5">
+          {ART_TYPES.map(a => (
+            <Chip key={a.value} active={activeArtTypes.has(a.value)} onClick={() => toggleArtType(a.value)}>{a.label}</Chip>
+          ))}
+        </div>
+      </div>
+      {recentSets.length > 0 && (
+        <div>
+          <p className="text-xs text-stone-500 mb-1.5">Recent Sets</p>
+          <div className="flex flex-wrap gap-1.5">
+            {recentSets.map(s => (
+              <Chip key={s.name} active={activeSet === s.name} onClick={() => selectSet(s.name)}>{s.name}</Chip>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const sortControls = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <select
+        value={`${sortBy}-${sortDir}`}
+        onChange={e => {
+          const [by, dir] = e.target.value.split('-') as [typeof sortBy, typeof sortDir]
+          setSortBy(by)
+          setSortDir(dir)
+        }}
+        className="text-xs px-2.5 py-1 rounded-full border-2 border-stone-700 bg-stone-800 text-stone-300 focus:outline-none focus:border-amber-600"
+      >
+        {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <Chip active={sortOwnedFirst} onClick={() => setSortOwnedFirst(o => !o)}>Owned first</Chip>
+    </div>
+  )
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-stone-100 mb-6">Card Search</h1>
@@ -615,54 +743,14 @@ export default function SearchPage() {
 
             {/* Mobile accordion — hidden on desktop */}
             <div className="lg:hidden space-y-1">
-              <div className="px-1 py-1">
-                <p className="text-xs text-stone-400 uppercase tracking-widest mb-1.5">Oracle Text</p>
-                <input
-                  value={oracleText}
-                  onChange={e => setOracleText(e.target.value)}
-                  placeholder='e.g. whenever you draw'
-                  className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
-                />
-              </div>
               <AccordionRow title="Colors" count={activeColors.size} open={colorsOpen} onToggle={() => setColorsOpen(o => !o)}>
-                <div className="flex items-center gap-2.5 flex-wrap justify-center">
-                  {COLOR_CHIPS.map(c => (
-                    <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
-                      className={`w-9 h-9 rounded-full text-sm font-bold border-2 transition-all ${
-                        activeColors.has(c.symbol)
-                          ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
-                          : `${c.bg} ${c.text} border-transparent opacity-40`
-                      }`}>
-                      {c.symbol}
-                    </button>
-                  ))}
-                  <div className="flex items-center gap-1.5 ml-1">
-                    {(['exact', 'includes', 'commander'] as const).map(mode => (
-                      <button key={mode} onClick={() => setColorMode(mode)}
-                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                          colorMode === mode
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {mode === 'commander' ? 'Commander' : mode.charAt(0).toUpperCase() + mode.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {colorPicker('w-9 h-9 text-sm')}
               </AccordionRow>
 
-              <AccordionRow title="Type" count={activeType ? 1 : 0} open={typeOpen} onToggle={() => setTypeOpen(o => !o)}>
-                <div className="flex flex-wrap gap-1.5">
-                  {CARD_TYPES.map(t => (
-                    <button key={t} onClick={() => selectType(t.toLowerCase())}
-                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                        activeType === t.toLowerCase()
-                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                          : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                      }`}>
-                      {t}
-                    </button>
-                  ))}
+              <AccordionRow title="Type and CMC" count={(activeType ? 1 : 0) + (maxCmc !== null ? 1 : 0)} open={typeCmcOpen} onToggle={() => setTypeCmcOpen(o => !o)}>
+                <div className="space-y-3">
+                  {typeChips}
+                  {cmcChips}
                 </div>
               </AccordionRow>
 
@@ -670,109 +758,20 @@ export default function SearchPage() {
                 <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
               </AccordionRow>
 
-              <AccordionRow title="CMC" count={maxCmc !== null ? 1 : 0} open={cmcOpen} onToggle={() => setCmcOpen(o => !o)}>
-                <div className="flex flex-wrap gap-1.5">
-                  <button onClick={() => setCmcFilter(null)}
-                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                      maxCmc === null
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400'
-                    }`}>
-                    Any
-                  </button>
-                  {CMC_PRESETS.map(n => (
-                    <button key={n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}
-                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                        maxCmc === n
-                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                          : 'bg-stone-800 border-stone-700 text-stone-400'
-                      }`}>
-                      ≤{n}
-                    </button>
-                  ))}
-                </div>
-              </AccordionRow>
-
               <AccordionRow title="Price" count={maxPrice !== null ? 1 : 0} open={priceOpen} onToggle={() => setPriceOpen(o => !o)}>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
-                    value={priceSlider}
-                    onChange={e => handlePriceSlider(Number(e.target.value))}
-                    className="flex-1 accent-amber-600 cursor-pointer"
-                  />
-                  <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
-                    {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
-                  </span>
-                </div>
+                {priceSliderControl}
               </AccordionRow>
 
-              <AccordionRow title="Art Style" count={activeArtTypes.size} open={artOpen} onToggle={() => setArtOpen(o => !o)}>
-                <div className="flex flex-wrap gap-1.5">
-                  {ART_TYPES.map(a => (
-                    <button key={a.value} onClick={() => toggleArtType(a.value)}
-                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                        activeArtTypes.has(a.value)
-                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                          : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                      }`}>
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
+              <AccordionRow title="Oracle Text" count={oracleText.trim() ? 1 : 0} open={oracleOpen} onToggle={() => setOracleOpen(o => !o)}>
+                {oracleInput}
               </AccordionRow>
 
-              {recentSets.length > 0 && (
-                <AccordionRow title="Recent Sets" count={activeSet ? 1 : 0} open={setsOpen} onToggle={() => setSetsOpen(o => !o)}>
-                  <div className="flex flex-wrap gap-1.5">
-                    {recentSets.map(s => (
-                      <button key={s.name} onClick={() => selectSet(s.name)}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeSet === s.name
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                        }`}>
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
-                </AccordionRow>
-              )}
+              <AccordionRow title="Printing" count={activeArtTypes.size + (activeSet ? 1 : 0)} open={printingOpen} onToggle={() => setPrintingOpen(o => !o)}>
+                {printingChips}
+              </AccordionRow>
 
               <div className="flex items-center justify-between pt-0.5 flex-wrap gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(['rarity', 'usd', 'name'] as const).map(s => {
-                    const isActive = sortBy === s
-                    const label = s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
-                    return (
-                      <button key={s} onClick={() => {
-                        if (isActive) {
-                          setSortDir(sortDir === 'desc' ? 'asc' : 'desc')
-                        } else {
-                          setSortBy(s)
-                          setSortDir('desc')
-                        }
-                      }}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          isActive
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                        }`}>
-                        {isActive ? (sortDir === 'desc' ? '▼ ' : '▲ ') : ''}{label}
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={() => setSortOwnedFirst(o => !o)}
-                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                      sortOwnedFirst
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                    }`}
-                  >
-                    Owned first
-                  </button>
-                </div>
+                {sortControls}
                 <button
                   onClick={clearAllFilters}
                   disabled={!anyBrewFilter}
@@ -813,158 +812,31 @@ export default function SearchPage() {
               {filtersOpen && (
               <div className="px-4 py-3 bg-stone-900/30 border-t-2 border-stone-800 space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-stone-400 shrink-0">Color</span>
-                  <div className="flex gap-1.5">
-                    {COLOR_CHIPS.map(c => (
-                      <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
-                        className={`w-7 h-7 rounded-full text-xs font-bold border-2 transition-all ${
-                          activeColors.has(c.symbol)
-                            ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
-                            : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
-                        }`}>
-                        {c.symbol}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {(['exact', 'includes', 'commander'] as const).map(mode => (
-                      <button key={mode} onClick={() => setColorMode(mode)}
-                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                          colorMode === mode
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {mode === 'commander' ? 'Commander' : mode.charAt(0).toUpperCase() + mode.slice(1)}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Color</span>
+                  {colorPicker('w-7 h-7 text-xs')}
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-stone-400 shrink-0">Type</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CARD_TYPES.map(t => (
-                      <button key={t} onClick={() => selectType(t.toLowerCase())}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeType === t.toLowerCase()
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {t}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Type</span>
+                  {typeChips}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
-                  <input
-                    value={oracleText}
-                    onChange={e => setOracleText(e.target.value)}
-                    placeholder='e.g. whenever you draw'
-                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
-                  />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">CMC</span>
+                  {cmcChips}
                 </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-stone-400 shrink-0">CMC</span>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => setCmcFilter(null)}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          maxCmc === null
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        Any
-                      </button>
-                      {CMC_PRESETS.map(n => (
-                        <button key={n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}
-                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                            maxCmc === n
-                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                          }`}>
-                          ≤{n}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-stone-400 shrink-0">Max Price</span>
-                    <input
-                      type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
-                      value={priceSlider}
-                      onChange={e => handlePriceSlider(Number(e.target.value))}
-                      className="w-28 accent-amber-600 cursor-pointer"
-                    />
-                    <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
-                      {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
-                    </span>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Max Price</span>
+                  <div className="w-72">{priceSliderControl}</div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-stone-400 shrink-0">Art Style</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ART_TYPES.map(a => (
-                      <button key={a.value} onClick={() => toggleArtType(a.value)}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeArtTypes.has(a.value)
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {a.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Oracle Text</span>
+                  <div className="flex-1">{oracleInput}</div>
                 </div>
-                {recentSets.length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-stone-400 shrink-0">Recent Sets</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {recentSets.map(s => (
-                        <button key={s.name} onClick={() => selectSet(s.name)}
-                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                            activeSet === s.name
-                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                          }`}>
-                          {s.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-stone-400 shrink-0">Sort</span>
-                  {(['rarity', 'usd', 'name'] as const).map(s => {
-                    const isActive = sortBy === s
-                    const label = s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
-                    return (
-                      <button key={s} onClick={() => {
-                        if (isActive) {
-                          setSortDir(sortDir === 'desc' ? 'asc' : 'desc')
-                        } else {
-                          setSortBy(s)
-                          setSortDir('desc')
-                        }
-                      }}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          isActive
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {isActive ? (sortDir === 'desc' ? '▼ ' : '▲ ') : ''}{label}
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={() => setSortOwnedFirst(o => !o)}
-                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                      sortOwnedFirst
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                    }`}
-                  >
-                    Owned first
-                  </button>
+                <AccordionRow title="Printing" count={activeArtTypes.size + (activeSet ? 1 : 0)} open={printingOpen} onToggle={() => setPrintingOpen(o => !o)}>
+                  {printingChips}
+                </AccordionRow>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Sort</span>
+                  {sortControls}
                 </div>
               </div>
               )}
