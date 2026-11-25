@@ -296,6 +296,7 @@ function AccordionRow({ title, count, open, onToggle, children }: {
 export default function SearchPage() {
   // ── Brew state ────────────────────────────────────────────
   const [brewRawQuery, setBrewRawQuery] = useState('')
+  const [searchedText, setSearchedText] = useState('')
   const [oracleText, setOracleText] = useState('')
   const [activeKeywords, setActiveKeywords] = useState<string[]>([])
   const [activeTags, setActiveTags] = useState<string[]>([])
@@ -376,14 +377,19 @@ export default function SearchPage() {
   }, [])
 
   const filterQuery = buildBrewQuery(activeKeywords, activeTags, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
-  const fullQuery = [filterQuery, brewRawQuery.trim()].filter(Boolean).join(' ')
+  // Typed text only drives tag suggestions until Enter/Search commits it; chips and filters search right away
+  const pendingQuery = [filterQuery, brewRawQuery.trim()].filter(Boolean).join(' ')
+  const fullQuery = [filterQuery, searchedText].filter(Boolean).join(' ')
+  const searchNowRef = useRef(false)
 
   useEffect(() => {
     if (brewDebounceRef.current) clearTimeout(brewDebounceRef.current)
+    const delay = searchNowRef.current ? 0 : 700
+    searchNowRef.current = false
     brewDebounceRef.current = setTimeout(() => {
       setClientPage(1)
       runBrewFetch(fullQuery, 1, false, ownedOnly)
-    }, 700)
+    }, delay)
   }, [fullQuery, ownedOnly, runBrewFetch])
 
   // ── Brew filter handlers ──────────────────────────────────
@@ -434,6 +440,7 @@ export default function SearchPage() {
     setMaxCmc(null)
     setMaxPrice(null)
     setBrewRawQuery('')
+    setSearchedText('')
     setOracleText('')
     setActiveArtTypes(new Set())
     setActiveSet(null)
@@ -647,8 +654,20 @@ export default function SearchPage() {
   }
 
   function submitSearch() {
-    runBrewFetch(fullQuery, 1, false, ownedOnly)
+    const text = brewRawQuery.trim()
+    if (text !== searchedText) {
+      searchNowRef.current = true
+      setSearchedText(text)
+    } else {
+      runBrewFetch(fullQuery, 1, false, ownedOnly)
+    }
     closeSearch()
+  }
+
+  function handleRawChange(value: string) {
+    setBrewRawQuery(value)
+    setHighlight(-1)
+    if (!value.trim()) setSearchedText('')
   }
 
   useEffect(() => {
@@ -693,8 +712,7 @@ export default function SearchPage() {
   function pickSuggestion(s: Suggestion) {
     if (s.kind === 'keyword') toggleKeyword(s.slug)
     else addTag(s.slug)
-    setBrewRawQuery('')
-    setHighlight(-1)
+    handleRawChange('')
   }
 
   function handleBarKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -810,7 +828,7 @@ export default function SearchPage() {
                   <input
                     ref={inputRef}
                     value={brewRawQuery}
-                    onChange={e => { setBrewRawQuery(e.target.value); setHighlight(-1) }}
+                    onChange={e => handleRawChange(e.target.value)}
                     onFocus={() => setSearchOpen(true)}
                     onBlur={() => { if (isDesktopWidth()) setSearchOpen(false) }}
                     onKeyDown={handleBarKeyDown}
@@ -865,7 +883,7 @@ export default function SearchPage() {
                 <button onClick={() => setShowQuery(s => !s)} className="text-xs text-stone-600 hover:text-stone-400">{showQuery ? 'Hide query' : 'Show query'}</button>
               </div>
               {showQuery && (
-                <p className="text-xs font-mono text-stone-400 bg-stone-900/60 border border-stone-800 rounded-lg px-3 py-2 break-words">{fullQuery || '(empty)'}</p>
+                <p className="text-xs font-mono text-stone-400 bg-stone-900/60 border border-stone-800 rounded-lg px-3 py-2 break-words">{pendingQuery || '(empty)'}</p>
               )}
             </div>
 
