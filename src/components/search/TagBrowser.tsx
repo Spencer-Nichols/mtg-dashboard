@@ -14,8 +14,15 @@ export function TagBrowser({ tags, activeTags, onPick }: {
   activeTags: string[]
   onPick: (slug: string) => void
 }) {
+  const latestTag = activeTags.at(-1) ?? null
   const [filter, setFilter] = useState('')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(latestTag)
+
+  const [prevLatestTag, setPrevLatestTag] = useState(latestTag)
+  if (latestTag !== prevLatestTag) {
+    setPrevLatestTag(latestTag)
+    setExpanded(latestTag)
+  }
 
   const childCounts = useMemo(() => {
     const counts = new Map<string, number>()
@@ -44,8 +51,10 @@ export function TagBrowser({ tags, activeTags, onPick }: {
       .filter(([tag, count]) => count >= FAMILY_MIN_CHILDREN && !hasParent(tag) && !NOISY_FAMILIES.has(tag) && !roleTags.includes(tag))
       .sort((a, b) => b[1] - a[1])
       .map(([tag]) => tag)
-    return [...roleTags, ...families].slice(0, MAX_ROWS)
-  }, [tags, filter, childCounts])
+    const defaultRows = [...roleTags, ...families]
+    const pinned = latestTag && tagSet.has(latestTag) ? [latestTag] : []
+    return [...pinned, ...defaultRows.filter(t => t !== latestTag)].slice(0, MAX_ROWS)
+  }, [tags, filter, childCounts, latestTag])
 
   if (!tags) return <p className="text-xs text-stone-600">Loading tags…</p>
 
