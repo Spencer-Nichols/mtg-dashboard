@@ -2,18 +2,24 @@
 
 import { useState } from 'react'
 
-interface Step {
+export interface Step {
   title: string
   nav: string
+  page: string
+  // Bump to the next number when this step's NEW callout changes. Existing users see just this step
+  // the next time they open `page`. Numbers continue on from ONBOARDING_VERSION in /api/profile.
+  newIn: number
   description: string
   detail: string[]
   callout?: { label: string; title: string; body: string }
 }
 
-const STEPS: Step[] = [
+export const STEPS: Step[] = [
   {
     title: 'Your Binder',
     nav: 'Binder',
+    page: '/binder',
+    newIn: 8,
     description: 'Your personal card collection. Add cards, log what you paid, and track their value over time. Cards are sorted into Gainers, Losers, and Unchanged as prices shift. Tap any card to expand it and see its full price history chart.',
     detail: [
       'Search for a card to add it to your collection',
@@ -31,17 +37,26 @@ const STEPS: Step[] = [
   {
     title: 'Brew & Search',
     nav: 'Search',
-    description: 'Look up any card on Scryfall instantly. The Brew tab lets you build advanced searches using keyword pills and filters.',
+    page: '/search',
+    newIn: 9,
+    description: 'Look up any card on Scryfall. Pick a role, type to find a tag, and stack filters as chips in the search bar.',
     detail: [
-      'Filter by color, type, CMC, price, and oracle text',
-      'Keywords are grouped by category, tap a category to expand it',
-      'Filter by art style: Showcase, Borderless, Extended Art, and more (For you Jacob)',
-      'Filter by recent set to browse what\'s in the latest releases',
+      'Tap the search bar to pick a role (Ramp, Removal, Tutor…) or a price',
+      'Start typing to find any of Scryfall\'s 5,000+ card tags, like "sac outlet" or "reanimate"',
+      'Tap a tag chip to narrow it down, e.g. Removal → Creature',
+      'Filter by color, type, CMC, oracle text, art style, and recent sets',
     ],
+    callout: {
+      label: 'NEW',
+      title: 'Search, rebuilt',
+      body: 'Filters now live as chips inside the search bar, you can search by Scryfall\'s card tags, and "Owned only" shows just the cards in your binder.',
+    },
   },
   {
     title: 'Wishlist',
     nav: 'Wishlist',
+    page: '/wishlist',
+    newIn: 8,
     description: "Cards you want but don't own yet. Add them and TapNTrack will track their price for you. When prices drop they'll appear in Drops.",
     detail: [
       'Add cards you\'re looking to acquire',
@@ -58,6 +73,8 @@ const STEPS: Step[] = [
   {
     title: 'Deck Ideas',
     nav: 'Home',
+    page: '/',
+    newIn: 8,
     description: 'Thinking about building a deck for real? Paste a Moxfield list and TapNTrack prices every card from Scryfall, then keeps the total up to date. Your deck ideas live on the homepage, right under Binder Value.',
     detail: [
       'Paste a list from Moxfield (Export → Copy for Moxfield)',
@@ -74,23 +91,45 @@ const STEPS: Step[] = [
   },
 ]
 
-export default function OnboardingModal({ onDismiss }: { onDismiss: () => void }) {
+export function whatsNewStepFor(pathname: string, onboardingVersion: number, seen: Record<string, number>): Step | null {
+  const step = STEPS.find(s => s.page === pathname)
+  if (!step?.callout) return null
+  // Everything up to the user's onboarding version was already shown in the full tour
+  const seenVersion = Math.max(seen[step.page] ?? 0, onboardingVersion)
+  return step.newIn > seenVersion ? step : null
+}
+
+export default function OnboardingModal({ onDismiss, whatsNewStep }: { onDismiss: () => void; whatsNewStep?: Step }) {
+  const steps = whatsNewStep ? [whatsNewStep] : STEPS
   const [step, setStep] = useState(0)
-  const current = STEPS[step]
-  const isLast = step === STEPS.length - 1
+  const current = steps[step]
+  const isLast = step === steps.length - 1
 
   function handleDismiss() {
-    fetch('/api/profile', { method: 'POST' })
+    if (whatsNewStep) {
+      fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ page: whatsNewStep.page, version: whatsNewStep.newIn }),
+      })
+    } else {
+      const whatsNewSeen = Object.fromEntries(STEPS.map(s => [s.page, s.newIn]))
+      fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ whatsNewSeen }),
+      })
+    }
     onDismiss()
   }
 
   return (
-    <div id="onboarding-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+    <div id="onboarding-overlay" className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
       <div id="onboarding-modal" className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-md flex flex-col overflow-hidden shadow-2xl">
 
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-stone-800">
-          <p className="text-xs text-amber-600 uppercase tracking-widest font-semibold mb-1">Welcome to TapNTrack</p>
+          <p className="text-xs text-amber-600 uppercase tracking-widest font-semibold mb-1">{whatsNewStep ? 'What’s new' : 'Welcome to TapNTrack'}</p>
           <h2 className="text-lg font-bold text-stone-100">{current.title}</h2>
         </div>
 
@@ -119,15 +158,17 @@ export default function OnboardingModal({ onDismiss }: { onDismiss: () => void }
         {/* Footer */}
         <div className="px-6 pb-6 pt-2 flex flex-col gap-4">
           {/* Step dots */}
-          <div className="flex justify-center gap-1.5">
-            {STEPS.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setStep(i)}
-                className={`w-1.5 h-1.5 rounded-full transition-colors ${i === step ? 'bg-amber-500' : 'bg-stone-700 hover:bg-stone-500'}`}
-              />
-            ))}
-          </div>
+          {steps.length > 1 && (
+            <div className="flex justify-center gap-1.5">
+              {steps.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setStep(i)}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === step ? 'bg-amber-500' : 'bg-stone-700 hover:bg-stone-500'}`}
+                />
+              ))}
+            </div>
+          )}
 
           <div className="flex gap-2">
             {step > 0 && (
@@ -143,7 +184,7 @@ export default function OnboardingModal({ onDismiss }: { onDismiss: () => void }
                 onClick={handleDismiss}
                 className="flex-1 bg-amber-600 hover:bg-amber-500 text-stone-950 font-semibold rounded-lg px-4 py-2.5 transition-colors text-sm"
               >
-                Get started
+                {whatsNewStep ? 'Got it' : 'Get started'}
               </button>
             ) : (
               <button
