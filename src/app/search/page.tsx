@@ -49,7 +49,7 @@ const SORT_OPTIONS = [
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button onClick={onClick}
-      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
+      className={`text-sm px-3 py-1.5 sm:text-xs sm:px-2.5 sm:py-1 rounded-full border-2 transition-colors ${
         active
           ? 'bg-amber-900/60 border-amber-600 text-amber-300'
           : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400 active:border-amber-700/60 active:text-amber-400'
@@ -614,7 +614,7 @@ export default function SearchPage() {
           setSortBy(by)
           setSortDir(dir)
         }}
-        className="text-xs px-2.5 py-1 rounded-full border-2 border-stone-700 bg-stone-800 text-stone-300 focus:outline-none focus:border-amber-600"
+        className="text-sm px-3 py-2 sm:text-xs sm:px-2.5 sm:py-1 rounded-full border-2 border-stone-700 bg-stone-800 text-stone-300 focus:outline-none focus:border-amber-600"
       >
         {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -717,7 +717,7 @@ export default function SearchPage() {
       <button
         key={role.tag}
         onClick={() => toggleRole(role.tag)}
-        className={`text-xs py-2 rounded-lg border-2 transition-colors ${
+        className={`text-sm py-3 sm:text-xs sm:py-2 rounded-lg border-2 transition-colors ${
           isActive
             ? 'bg-amber-900/60 border-amber-600 text-amber-300'
             : 'bg-stone-800 border-stone-700 text-stone-300 hover:border-amber-700/60 hover:text-amber-400'
@@ -808,19 +808,19 @@ export default function SearchPage() {
                           key={s.key}
                           onClick={() => pickSuggestion(s)}
                           onMouseEnter={() => setHighlight(i)}
-                          className={`w-full text-left px-3 py-2 text-sm border-b border-stone-800 flex items-center justify-between gap-2 ${i === highlight ? 'bg-amber-900/40 text-amber-300' : 'text-stone-300'}`}
+                          className={`w-full text-left px-4 py-3 text-base sm:px-3 sm:py-2 sm:text-sm border-b border-stone-800 flex items-center justify-between gap-2 ${i === highlight ? 'bg-amber-900/40 text-amber-300' : 'text-stone-300'}`}
                         >
                           <span className="truncate">+ {s.label}</span>
                           <span className="text-xs text-stone-600 shrink-0">{s.kind === 'keyword' ? 'keyword' : 'tag'}</span>
                         </button>
                       ))}
-                      <p className="px-3 py-2 text-xs text-stone-500">Enter searches &ldquo;{brewRawQuery.trim()}&rdquo; as text</p>
+                      <p className="px-4 py-3 text-sm sm:px-3 sm:py-2 sm:text-xs text-stone-500">Enter searches &ldquo;{brewRawQuery.trim()}&rdquo; as text</p>
                     </div>
                   ) : (
                     <div className="p-3 space-y-3">
                       <div className="lg:hidden">
                         <p className="text-xs text-stone-500 mb-1.5">Roles</p>
-                        <div className="grid grid-cols-4 gap-1.5">{roleButtons}</div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-1.5">{roleButtons}</div>
                       </div>
                       <div>
                         <p className="text-xs text-stone-500 mb-1.5">Price</p>

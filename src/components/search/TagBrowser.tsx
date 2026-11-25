@@ -76,7 +76,7 @@ export function TagBrowser({ tags, activeTags, onPick }: {
                 </button>
                 <button
                   onClick={() => onPick(tag)}
-                  className={`flex-1 text-left text-sm truncate transition-colors ${isActive ? 'text-amber-300' : 'text-stone-400 hover:text-amber-400'}`}
+                  className={`flex-1 text-left text-base py-1.5 sm:text-sm sm:py-0 truncate transition-colors ${isActive ? 'text-amber-300' : 'text-stone-400 hover:text-amber-400'}`}
                 >
                   {formatTag(tag)}
                 </button>
@@ -88,7 +88,7 @@ export function TagBrowser({ tags, activeTags, onPick }: {
                     <button
                       key={child}
                       onClick={() => onPick(child)}
-                      className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                      className={`text-sm px-3 py-1.5 sm:text-xs sm:px-2 sm:py-0.5 rounded-full border transition-colors ${
                         activeTags.includes(child)
                           ? 'bg-amber-900/60 border-amber-600 text-amber-300'
                           : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
