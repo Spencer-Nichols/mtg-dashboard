@@ -396,95 +396,77 @@ export default function SearchPage() {
     setBrewLoading(false)
   }, [])
 
-  function scheduleFetch(q: string) {
-    if (brewDebounceRef.current) clearTimeout(brewDebounceRef.current)
-    setClientPage(1)
-    setAllFetchedCards([])
-    setScryfallPage(1)
-    brewDebounceRef.current = setTimeout(() => runBrewFetch(q, 1, false), 700)
-  }
-
-  // Sync displayedQuery when filters change (not when user types — that's handleBrewRawInput)
-  const brewRawQueryRef = useRef(brewRawQuery)
-  useEffect(() => { brewRawQueryRef.current = brewRawQuery }, [brewRawQuery])
-
   useEffect(() => {
     fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'search' }) })
   }, [])
 
+  const filterQuery = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
+  const fullQuery = [filterQuery, brewRawQuery.trim()].filter(Boolean).join(' ')
+
+  // Sync the input text when filters change (not when user types — that's handleBrewRawInput)
+  const brewRawQueryRef = useRef(brewRawQuery)
+  useEffect(() => { brewRawQueryRef.current = brewRawQuery }, [brewRawQuery])
+
   useEffect(() => {
-    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
     const raw = brewRawQueryRef.current
-    setDisplayedQuery(
-      filterPart
-        ? raw.trim() ? `${filterPart} ${raw.trim()}` : filterPart
-        : raw
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKeywords, activeColors, activeType, maxCmc, maxPrice, oracleText, activeArtTypes, activeSet])
+    setDisplayedQuery(filterQuery ? [filterQuery, raw.trim()].filter(Boolean).join(' ') : raw)
+  }, [filterQuery])
+
+  useEffect(() => {
+    if (brewDebounceRef.current) clearTimeout(brewDebounceRef.current)
+    brewDebounceRef.current = setTimeout(() => {
+      setClientPage(1)
+      runBrewFetch(fullQuery, 1, false)
+    }, 700)
+  }, [fullQuery, runBrewFetch])
 
   // ── Brew filter handlers ──────────────────────────────────
 
   function toggleKeyword(slug: string) {
-    const next = activeKeywords.includes(slug)
-      ? activeKeywords.filter(k => k !== slug)
-      : [...activeKeywords, slug]
-    setActiveKeywords(next)
-    scheduleFetch(buildBrewQuery(next, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
+    setActiveKeywords(prev => prev.includes(slug) ? prev.filter(k => k !== slug) : [...prev, slug])
   }
 
   function toggleColor(symbol: string) {
-    const next = new Set(activeColors)
-    next.has(symbol) ? next.delete(symbol) : next.add(symbol)
-    setActiveColors(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, next, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
+    setActiveColors(prev => {
+      const next = new Set(prev)
+      if (next.has(symbol)) next.delete(symbol)
+      else next.add(symbol)
+      return next
+    })
   }
 
   function selectType(type: string) {
-    const next = activeType === type ? null : type
-    setActiveType(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, next, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
+    setActiveType(prev => prev === type ? null : type)
   }
 
   function setCmcFilter(val: number | null) {
     setMaxCmc(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, val, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
   }
 
   function handlePriceSlider(val: number) {
     setPriceSlider(val)
-    const price = val < MAX_PRICE_SLIDER ? val : null
-    setMaxPrice(price)
-    if (brewDebounceRef.current) clearTimeout(brewDebounceRef.current)
-    setClientPage(1)
-    setAllFetchedCards([])
-    setScryfallPage(1)
-    brewDebounceRef.current = setTimeout(() => {
-      runBrewFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, price, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode), 1, false)
-    }, 500)
+    setMaxPrice(val < MAX_PRICE_SLIDER ? val : null)
   }
 
   function handleBrewRawInput(val: string) {
-    const filterPart = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
-    const extraTerms = filterPart && val.startsWith(filterPart)
-      ? val.slice(filterPart.length).trimStart()
+    const extraTerms = filterQuery && val.startsWith(filterQuery)
+      ? val.slice(filterQuery.length).trimStart()
       : val
     setBrewRawQuery(extraTerms)
     setDisplayedQuery(val)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, extraTerms, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode))
   }
 
   function toggleArtType(value: string) {
-    const next = new Set(activeArtTypes)
-    next.has(value) ? next.delete(value) : next.add(value)
-    setActiveArtTypes(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, next, getSetCodes(activeSet), colorMode))
+    setActiveArtTypes(prev => {
+      const next = new Set(prev)
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      return next
+    })
   }
 
   function selectSet(name: string) {
-    const next = activeSet === name ? null : name
-    setActiveSet(next)
-    scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(next)))
+    setActiveSet(prev => prev === name ? null : name)
   }
 
   function clearAllFilters() {
@@ -530,7 +512,7 @@ export default function SearchPage() {
     if ((nextPage - 1) * CLIENT_PAGE_SIZE < allFetchedCards.length) {
       setClientPage(nextPage)
     } else if (hasMoreScryfall && !brewLoading) {
-      await runBrewFetch(displayedQuery, scryfallPage + 1, true)
+      await runBrewFetch(fullQuery, scryfallPage + 1, true)
       setClientPage(nextPage)
     }
     document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -572,7 +554,7 @@ export default function SearchPage() {
     ...(activeType ? [{ label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
     ...(maxCmc !== null ? [{ label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
     ...(maxPrice !== null ? [{ label: `≤ $${maxPrice}`, onRemove: () => { handlePriceSlider(MAX_PRICE_SLIDER) } }] : []),
-    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => { setOracleText(''); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)) } }] : []),
+    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => setOracleText('') }] : []),
     ...[...activeArtTypes].map(v => ({
       label: ART_TYPES.find(a => a.value === v)?.label ?? v,
       onRemove: () => toggleArtType(v),
@@ -618,12 +600,12 @@ export default function SearchPage() {
               <input
                 value={displayedQuery}
                 onChange={e => handleBrewRawInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runBrewFetch(displayedQuery, 1, false)}
+                onKeyDown={e => e.key === 'Enter' && runBrewFetch(fullQuery, 1, false)}
                 placeholder="Scryfall syntax or use filters"
                 className="flex-1 bg-stone-900 border-2 border-stone-700 rounded-lg px-4 py-3 text-stone-100 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors font-mono text-base sm:text-sm"
               />
               <button
-                onClick={() => runBrewFetch(displayedQuery, 1, false)}
+                onClick={() => runBrewFetch(fullQuery, 1, false)}
                 disabled={brewLoading}
                 className="px-6 py-3 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg font-medium transition-colors whitespace-nowrap"
               >
@@ -637,7 +619,7 @@ export default function SearchPage() {
                 <p className="text-xs text-stone-400 uppercase tracking-widest mb-1.5">Oracle Text</p>
                 <input
                   value={oracleText}
-                  onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)) }}
+                  onChange={e => setOracleText(e.target.value)}
                   placeholder='e.g. whenever you draw'
                   className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                 />
@@ -656,7 +638,7 @@ export default function SearchPage() {
                   ))}
                   <div className="flex items-center gap-1.5 ml-1">
                     {(['exact', 'includes', 'commander'] as const).map(mode => (
-                      <button key={mode} onClick={() => { setColorMode(mode); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), mode)) }}
+                      <button key={mode} onClick={() => setColorMode(mode)}
                         className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                           colorMode === mode
                             ? 'bg-amber-900/60 border-amber-600 text-amber-300'
@@ -846,7 +828,7 @@ export default function SearchPage() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {(['exact', 'includes', 'commander'] as const).map(mode => (
-                      <button key={mode} onClick={() => { setColorMode(mode); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), mode)) }}
+                      <button key={mode} onClick={() => setColorMode(mode)}
                         className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                           colorMode === mode
                             ? 'bg-amber-900/60 border-amber-600 text-amber-300'
@@ -876,7 +858,7 @@ export default function SearchPage() {
                   <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
                   <input
                     value={oracleText}
-                    onChange={e => { setOracleText(e.target.value); scheduleFetch(buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, brewRawQuery, oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)) }}
+                    onChange={e => setOracleText(e.target.value)}
                     placeholder='e.g. whenever you draw'
                     className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
                   />
