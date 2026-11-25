@@ -1,11 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { childTags, formatTag, matchTags } from '@/lib/tag-search'
+import { ROLES, childTags, formatTag, matchTags } from '@/lib/tag-search'
 
 const FAMILY_MIN_CHILDREN = 3
 const MAX_ROWS = 60
 const MAX_CHILDREN_SHOWN = 40
+// Big tag families that aren't useful for deckbuilding (card cycles, creature-type lists, digital-only mechanics)
+const NOISY_FAMILIES = new Set(['cycle', 'typal', 'tribal', 'hate', 'type-errata', 'conjure', 'seek'])
 
 export function TagBrowser({ tags, activeTags, onPick }: {
   tags: string[] | null
@@ -32,11 +34,17 @@ export function TagBrowser({ tags, activeTags, onPick }: {
   const rows = useMemo(() => {
     if (!tags) return []
     if (filter.trim()) return matchTags(tags, filter, MAX_ROWS)
-    return [...childCounts.entries()]
-      .filter(([, count]) => count >= FAMILY_MIN_CHILDREN)
+    const tagSet = new Set(tags)
+    const roleTags = ROLES.map(r => r.tag).filter(t => tagSet.has(t))
+    const hasParent = (tag: string) => {
+      const parts = tag.split('-')
+      return parts.some((_, i) => i > 0 && tagSet.has(parts.slice(0, i).join('-')))
+    }
+    const families = [...childCounts.entries()]
+      .filter(([tag, count]) => count >= FAMILY_MIN_CHILDREN && !hasParent(tag) && !NOISY_FAMILIES.has(tag) && !roleTags.includes(tag))
       .sort((a, b) => b[1] - a[1])
-      .slice(0, MAX_ROWS)
       .map(([tag]) => tag)
+    return [...roleTags, ...families].slice(0, MAX_ROWS)
   }, [tags, filter, childCounts])
 
   if (!tags) return <p className="text-xs text-stone-600">Loading tags…</p>
@@ -49,7 +57,7 @@ export function TagBrowser({ tags, activeTags, onPick }: {
         placeholder={`Filter ${tags.length.toLocaleString()} tags`}
         className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-600 transition-colors"
       />
-      {!filter.trim() && <p className="text-xs text-stone-600 px-1">Biggest tag families</p>}
+      {!filter.trim() && <p className="text-xs text-stone-600 px-1">Roles, then the biggest tag families</p>}
       <div className="max-h-[60vh] overflow-y-auto space-y-0.5 pr-1">
         {rows.map(tag => {
           const count = childCounts.get(tag) ?? 0

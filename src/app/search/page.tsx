@@ -507,7 +507,7 @@ export default function SearchPage() {
     ...[...activeColors].map(c => ({ key: `color:${c}`, label: c, onRemove: () => toggleColor(c) })),
     ...(activeType ? [{ key: 'type', label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
     ...(maxCmc !== null ? [{ key: 'cmc', label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
-    ...(maxPrice !== null ? [{ key: 'price', label: `< $${maxPrice}`, onRemove: () => setMaxPrice(null) }] : []),
+    ...(maxPrice !== null ? [{ key: 'price', label: `Under $${maxPrice}`, onRemove: () => setMaxPrice(null) }] : []),
     ...(oracleText.trim() ? [{ key: 'oracle', label: `o: "${oracleText.trim()}"`, onRemove: () => setOracleText('') }] : []),
     ...[...activeArtTypes].map(v => ({
       key: `art:${v}`,
@@ -658,14 +658,16 @@ export default function SearchPage() {
   const suggestions: Suggestion[] = useMemo(() => {
     const text = brewRawQuery.trim()
     if (!text) return []
-    const keywordMatches = matchKeywords(text, 3)
-      .filter(k => !activeKeywords.includes(k.slug))
-      .map(k => ({ key: `kw:${k.slug}`, kind: 'keyword' as const, slug: k.slug, label: k.label }))
     const tagMatches = allTags
       ? matchTags(allTags, text, SUGGESTION_LIMIT)
           .filter(t => !activeTags.includes(t))
           .map(t => ({ key: `tag:${t}`, kind: 'tag' as const, slug: t, label: formatTag(t) }))
       : []
+    const matchedTagSlugs = new Set(tagMatches.map(t => t.slug))
+    const keywordMatches = matchKeywords(text, 3)
+      .filter(k => !activeKeywords.includes(k.slug))
+      .filter(k => !matchedTagSlugs.has((k.query ?? `function:${k.slug}`).replace(/^function:/, '')))
+      .map(k => ({ key: `kw:${k.slug}`, kind: 'keyword' as const, slug: k.slug, label: k.label }))
     return [...keywordMatches, ...tagMatches].slice(0, SUGGESTION_LIMIT)
   }, [brewRawQuery, allTags, activeTags, activeKeywords])
 
@@ -978,7 +980,7 @@ export default function SearchPage() {
             {!brewLoading && allFetchedCards.length === 0 && !brewError && !anyBrewFilter && (
               <div className="text-center py-16 text-stone-600">
                 <p className="text-3xl mb-3">🍺</p>
-                <p className="text-sm">Click keywords or type a query to start brewing.</p>
+                <p className="text-sm">Pick a role or type to start brewing.</p>
               </div>
             )}
 
