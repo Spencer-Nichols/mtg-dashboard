@@ -67,7 +67,7 @@ export const KEYWORDS: Keyword[] = [
   { label: 'Poison / Infect', slug: 'infect', aliases: ['infect', 'poison', 'poison counter', 'proliferate poison'], category: 'Counters', query: 'keyword:infect' },
 
   // ── Strategies ───────────────────────────────────────────
-  { label: 'Spellslinger', slug: 'spellslinger', aliases: ['spellslinger', 'spell slinger', 'instants and sorceries matter', 'cast spells matter'], category: 'Strategies' },
+  { label: 'Spellslinger', slug: 'spellslinger', aliases: ['spellslinger', 'spell slinger', 'instants and sorceries matter', 'cast spells matter'], category: 'Strategies', query: '(otag:synergy-instant or otag:synergy-sorcery)' },
   { label: 'Landfall', slug: 'landfall', aliases: ['landfall', 'land enters', 'land drop', 'when land enters'], category: 'Strategies' },
   { label: 'Enchantress', slug: 'enchantress', aliases: ['enchantress', 'enchantment payoff', 'enchantments matter', 'when enchantment enters'], category: 'Strategies' },
   { label: 'Equipment', slug: 'equipment', aliases: ['equipment', 'equipment matters', 'equip', 'equipment payoff'], category: 'Strategies', query: 't:equipment' },
