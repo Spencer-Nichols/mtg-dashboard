@@ -122,11 +122,12 @@ export async function refreshAllPrices(): Promise<RefreshResult> {
     userCounts.set(row.user_id, (userCounts.get(row.user_id) ?? 0) + 1)
     const key = cacheKey(row.base_name, row.scryfall_id ?? row.set_code ?? '')
     const cached = await getCached(key)
-    if (!cached) continue
-    const price = getCachedPriceByFoilType(cached, row.foil_type ?? 'none')
-    if (price == null) continue
+    const cachedPrice = cached ? getCachedPriceByFoilType(cached, row.foil_type ?? 'none') : null
+    const price = cachedPrice ?? row.snapshot_price ?? 0
     userTotals.set(row.user_id, (userTotals.get(row.user_id) ?? 0) + price)
-    binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: today, price: parseFloat(price.toFixed(2)) })
+    if (cachedPrice != null) {
+      binderCardHistory.push({ user_id: row.user_id, display_name: row.display_name, date: today, price: parseFloat(cachedPrice.toFixed(2)) })
+    }
   }
 
   const HISTORY_MIN_DELTA = 0.25
