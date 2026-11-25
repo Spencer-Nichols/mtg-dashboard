@@ -3,6 +3,7 @@ import { Geist, Cinzel, Lora } from 'next/font/google'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { VersionBadge } from '@/components/VersionBadge'
+import { WhatsNewForPage } from '@/components/WhatsNewForPage'
 import SiteNav from '@/components/SiteNav'
 import { leagueNavInfo } from '@/lib/league/store'
 import { hasProxyAccess } from '@/lib/proxy-access'
@@ -69,6 +70,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </a>
           </div>
         </footer>
+        <WhatsNewForPage />
       </body>
     </html>
   )

@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, type ReactNode } from 'react'
-import { KEYWORDS, KEYWORD_CATEGORIES } from '@/lib/keywords'
+import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode, type KeyboardEvent } from 'react'
+import { KEYWORDS } from '@/lib/keywords'
+import { ROLES, childTags, formatTag, loadTags, matchKeywords, matchTags, relatedKeywords } from '@/lib/tag-search'
+import { TagBrowser } from '@/components/search/TagBrowser'
 import { RECENT_SETS } from '@/lib/sets'
 import type { BrewCard } from '@/app/api/search/brew/route'
 
@@ -24,12 +26,37 @@ const COLOR_CHIPS = [
 
 const CARD_TYPES = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land']
 const CMC_PRESETS = [1, 2, 3, 4, 5, 7]
-const MAX_PRICE_SLIDER = 50
+const PRICE_PRESETS = [1, 5, 10]
+const SUGGESTION_LIMIT = 8
+const NARROW_PREVIEW = 12
 const CLIENT_PAGE_SIZE = 24
 
 const RARITY_COLOR: Record<string, string> = {
   mythic: 'text-orange-400', rare: 'text-yellow-400',
   uncommon: 'text-blue-400', common: 'text-stone-400',
+}
+
+const SORT_OPTIONS = [
+  { value: 'edhrec-desc', label: 'Sort: Popular (EDHREC)' },
+  { value: 'usd-desc', label: 'Price: high to low' },
+  { value: 'usd-asc', label: 'Price: low to high' },
+  { value: 'rarity-desc', label: 'Rarity: high to low' },
+  { value: 'rarity-asc', label: 'Rarity: low to high' },
+  { value: 'name-asc', label: 'Name: A to Z' },
+  { value: 'name-desc', label: 'Name: Z to A' },
+]
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={`text-sm px-3 py-1.5 sm:text-xs sm:px-2.5 sm:py-1 rounded-full border-2 transition-colors ${
+        active
+          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+          : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400 active:border-amber-700/60 active:text-amber-400'
+      }`}>
+      {children}
+    </button>
+  )
 }
 
 const RARITY_RANK: Record<string, number> = { mythic: 4, rare: 3, uncommon: 2, common: 1 }
@@ -48,7 +75,7 @@ const ART_TYPES = [
 const KEYWORD_QUERY_MAP = new Map(KEYWORDS.map(k => [k.slug, k.query ?? `function:${k.slug}`]))
 
 function buildBrewQuery(
-  keywords: string[], colors: Set<string>, activeType: string | null,
+  keywords: string[], tags: string[], colors: Set<string>, activeType: string | null,
   maxCmc: number | null, maxPrice: number | null, raw: string,
   oracleText?: string,
   artTypes?: Set<string>,
@@ -57,6 +84,7 @@ function buildBrewQuery(
 ): string {
   const parts: string[] = []
   for (const slug of keywords) parts.push(KEYWORD_QUERY_MAP.get(slug) ?? `function:${slug}`)
+  for (const tag of tags) parts.push(`otag:${tag}`)
   if (raw.trim()) parts.push(raw.trim())
   if (oracleText?.trim()) parts.push(`o:"${oracleText.trim().replace(/"/g, '')}"`)
   if (colors.size > 0) {
@@ -76,65 +104,6 @@ function buildBrewQuery(
     parts.push(setCodes.length === 1 ? `e:${setCodes[0]}` : `(${setCodes.map(c => `e:${c}`).join(' or ')})`)
   }
   return parts.join(' ')
-}
-
-function KeywordLegend({ onInsert, activeKeywords }: {
-  onInsert: (slug: string) => void
-  activeKeywords: string[]
-}) {
-  const [openCats, setOpenCats] = useState<Set<string>>(new Set())
-
-  function toggleCat(cat: string) {
-    setOpenCats(prev => {
-      const next = new Set(prev)
-      next.has(cat) ? next.delete(cat) : next.add(cat)
-      return next
-    })
-  }
-
-  return (
-    <div className="space-y-1">
-      {KEYWORD_CATEGORIES.map(cat => {
-        const catKws = KEYWORDS.filter(k => k.category === cat)
-        const activeCount = catKws.filter(k => activeKeywords.includes(k.slug)).length
-        const isOpen = openCats.has(cat)
-        return (
-          <div key={cat} className="border border-stone-800 rounded-lg overflow-hidden">
-            <button
-              onClick={() => toggleCat(cat)}
-              className="w-full flex items-center justify-between px-3 py-2 bg-stone-900/50 text-xs text-stone-400 hover:text-stone-200 transition-colors"
-            >
-              <span className="flex items-center gap-1.5">
-                {cat}
-                {activeCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-900/60 border border-amber-700 text-amber-300">{activeCount}</span>
-                )}
-              </span>
-              <span className="text-stone-600 text-lg">{isOpen ? '▾' : '▸'}</span>
-            </button>
-            {isOpen && (
-              <div className="px-3 py-2.5 bg-stone-900/30 border-t border-stone-800 flex flex-wrap gap-1.5">
-                {catKws.map(kw => (
-                  <button
-                    key={kw.slug}
-                    onClick={() => onInsert(kw.slug)}
-                    className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-                      activeKeywords.includes(kw.slug)
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                    }`}
-                  >
-                    {kw.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )
-      })}
-      <p className="text-xs text-stone-600 pt-1 px-1">Combine multiple to narrow results.</p>
-    </div>
-  )
 }
 
 function BrewResultCard({ card, onAddToWishlist, isAdding, isAdded, onPreview }: {
@@ -327,25 +296,31 @@ function AccordionRow({ title, count, open, onToggle, children }: {
 export default function SearchPage() {
   // ── Brew state ────────────────────────────────────────────
   const [brewRawQuery, setBrewRawQuery] = useState('')
-  const [displayedQuery, setDisplayedQuery] = useState('')
+  const [searchedText, setSearchedText] = useState('')
   const [oracleText, setOracleText] = useState('')
   const [activeKeywords, setActiveKeywords] = useState<string[]>([])
+  const [activeTags, setActiveTags] = useState<string[]>([])
+  const [allTags, setAllTags] = useState<string[] | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [highlight, setHighlight] = useState(-1)
+  const [narrowTag, setNarrowTag] = useState<string | null>(null)
+  const [showAllNarrow, setShowAllNarrow] = useState(false)
+  const [showQuery, setShowQuery] = useState(false)
+  const [ownedOnly, setOwnedOnly] = useState(false)
   const [activeColors, setActiveColors] = useState<Set<string>>(new Set())
   const [colorMode, setColorMode] = useState<'exact' | 'includes' | 'commander'>('exact')
   const [activeType, setActiveType] = useState<string | null>(null)
   const [maxCmc, setMaxCmc] = useState<number | null>(null)
   const [maxPrice, setMaxPrice] = useState<number | null>(null)
-  const [priceSlider, setPriceSlider] = useState(MAX_PRICE_SLIDER)
-  const [keywordsOpen, setKeywordsOpen] = useState(false)
+  const [browseOpen, setBrowseOpen] = useState(false)
   const [colorsOpen, setColorsOpen] = useState(false)
-  const [typeOpen, setTypeOpen] = useState(false)
-  const [cmcOpen, setCmcOpen] = useState(false)
+  const [typeCmcOpen, setTypeCmcOpen] = useState(false)
   const [priceOpen, setPriceOpen] = useState(false)
+  const [oracleOpen, setOracleOpen] = useState(false)
   const [activeArtTypes, setActiveArtTypes] = useState<Set<string>>(new Set())
   const [activeSet, setActiveSet] = useState<string | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [artOpen, setArtOpen] = useState(false)
-  const [setsOpen, setSetsOpen] = useState(false)
+  const [printingOpen, setPrintingOpen] = useState(false)
   const recentSets = RECENT_SETS
   const getSetCodes = (name: string | null): string[] | null =>
     name ? (RECENT_SETS.find(s => s.name === name)?.codes ?? null) : null
@@ -368,10 +343,11 @@ export default function SearchPage() {
   const [previewCard, setPreviewCard] = useState<BrewCard | null>(null)
 
   const brewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // ── Brew core fetch ───────────────────────────────────────
 
-  const runBrewFetch = useCallback(async (q: string, page: number, append: boolean) => {
+  const runBrewFetch = useCallback(async (q: string, page: number, append: boolean, owned: boolean) => {
     if (!q.trim()) {
       setAllFetchedCards([])
       setBrewTotal(0)
@@ -380,7 +356,7 @@ export default function SearchPage() {
     }
     setBrewLoading(true)
     setBrewError(null)
-    const res = await fetch(`/api/search/brew?q=${encodeURIComponent(q)}&page=${page}`)
+    const res = await fetch(`/api/search/brew?q=${encodeURIComponent(q)}&page=${page}${owned ? '&owned=true' : ''}`)
     const data = await res.json()
     if (!res.ok) {
       setBrewError(data.error ?? 'No results found')
@@ -400,25 +376,21 @@ export default function SearchPage() {
     fetch('/api/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: 'search' }) })
   }, [])
 
-  const filterQuery = buildBrewQuery(activeKeywords, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
-  const fullQuery = [filterQuery, brewRawQuery.trim()].filter(Boolean).join(' ')
-
-  // Sync the input text when filters change (not when user types — that's handleBrewRawInput)
-  const brewRawQueryRef = useRef(brewRawQuery)
-  useEffect(() => { brewRawQueryRef.current = brewRawQuery }, [brewRawQuery])
-
-  useEffect(() => {
-    const raw = brewRawQueryRef.current
-    setDisplayedQuery(filterQuery ? [filterQuery, raw.trim()].filter(Boolean).join(' ') : raw)
-  }, [filterQuery])
+  const filterQuery = buildBrewQuery(activeKeywords, activeTags, activeColors, activeType, maxCmc, maxPrice, '', oracleText, activeArtTypes, getSetCodes(activeSet), colorMode)
+  // Typed text only drives tag suggestions until Enter/Search commits it; chips and filters search right away
+  const pendingQuery = [filterQuery, brewRawQuery.trim()].filter(Boolean).join(' ')
+  const fullQuery = [filterQuery, searchedText].filter(Boolean).join(' ')
+  const searchNowRef = useRef(false)
 
   useEffect(() => {
     if (brewDebounceRef.current) clearTimeout(brewDebounceRef.current)
+    const delay = searchNowRef.current ? 0 : 700
+    searchNowRef.current = false
     brewDebounceRef.current = setTimeout(() => {
       setClientPage(1)
-      runBrewFetch(fullQuery, 1, false)
-    }, 700)
-  }, [fullQuery, runBrewFetch])
+      runBrewFetch(fullQuery, 1, false, ownedOnly)
+    }, delay)
+  }, [fullQuery, ownedOnly, runBrewFetch])
 
   // ── Brew filter handlers ──────────────────────────────────
 
@@ -443,18 +415,6 @@ export default function SearchPage() {
     setMaxCmc(val)
   }
 
-  function handlePriceSlider(val: number) {
-    setPriceSlider(val)
-    setMaxPrice(val < MAX_PRICE_SLIDER ? val : null)
-  }
-
-  function handleBrewRawInput(val: string) {
-    const extraTerms = filterQuery && val.startsWith(filterQuery)
-      ? val.slice(filterQuery.length).trimStart()
-      : val
-    setBrewRawQuery(extraTerms)
-    setDisplayedQuery(val)
-  }
 
   function toggleArtType(value: string) {
     setActiveArtTypes(prev => {
@@ -471,14 +431,16 @@ export default function SearchPage() {
 
   function clearAllFilters() {
     setActiveKeywords([])
+    setActiveTags([])
+    setNarrowTag(null)
+    setOwnedOnly(false)
     setActiveColors(new Set())
     setColorMode('exact')
     setActiveType(null)
     setMaxCmc(null)
     setMaxPrice(null)
-    setPriceSlider(MAX_PRICE_SLIDER)
     setBrewRawQuery('')
-    setDisplayedQuery('')
+    setSearchedText('')
     setOracleText('')
     setActiveArtTypes(new Set())
     setActiveSet(null)
@@ -512,7 +474,7 @@ export default function SearchPage() {
     if ((nextPage - 1) * CLIENT_PAGE_SIZE < allFetchedCards.length) {
       setClientPage(nextPage)
     } else if (hasMoreScryfall && !brewLoading) {
-      await runBrewFetch(fullQuery, scryfallPage + 1, true)
+      await runBrewFetch(fullQuery, scryfallPage + 1, true, ownedOnly)
       setClientPage(nextPage)
     }
     document.getElementById('search-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -542,29 +504,266 @@ export default function SearchPage() {
 
   // ── Active filters ────────────────────────────────────────
 
-  const activeFilters = [
+  const activeFilters: { key: string; label: string; onRemove: () => void; tag?: string }[] = [
+    ...activeTags.map(tag => ({ key: `tag:${tag}`, label: formatTag(tag), tag, onRemove: () => { removeTag(tag); if (narrowTag === tag) setNarrowTag(null) } })),
     ...activeKeywords.map(slug => ({
+      key: `kw:${slug}`,
       label: KEYWORDS.find(k => k.slug === slug)?.label ?? slug,
       onRemove: () => toggleKeyword(slug),
     })),
-    ...[...activeColors].map(c => ({
-      label: c,
-      onRemove: () => toggleColor(c),
-    })),
-    ...(activeType ? [{ label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
-    ...(maxCmc !== null ? [{ label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
-    ...(maxPrice !== null ? [{ label: `≤ $${maxPrice}`, onRemove: () => { handlePriceSlider(MAX_PRICE_SLIDER) } }] : []),
-    ...(oracleText.trim() ? [{ label: `o: "${oracleText.trim()}"`, onRemove: () => setOracleText('') }] : []),
+    ...[...activeColors].map(c => ({ key: `color:${c}`, label: c, onRemove: () => toggleColor(c) })),
+    ...(activeType ? [{ key: 'type', label: activeType.charAt(0).toUpperCase() + activeType.slice(1), onRemove: () => selectType(activeType) }] : []),
+    ...(maxCmc !== null ? [{ key: 'cmc', label: `CMC ≤ ${maxCmc}`, onRemove: () => setCmcFilter(null) }] : []),
+    ...(maxPrice !== null ? [{ key: 'price', label: `Under $${maxPrice}`, onRemove: () => setMaxPrice(null) }] : []),
+    ...(oracleText.trim() ? [{ key: 'oracle', label: `o: "${oracleText.trim()}"`, onRemove: () => setOracleText('') }] : []),
     ...[...activeArtTypes].map(v => ({
+      key: `art:${v}`,
       label: ART_TYPES.find(a => a.value === v)?.label ?? v,
       onRemove: () => toggleArtType(v),
     })),
-    ...(activeSet ? [{ label: activeSet, onRemove: () => selectSet(activeSet) }] : []),
+    ...(activeSet ? [{ key: 'set', label: activeSet, onRemove: () => selectSet(activeSet) }] : []),
   ]
 
   // ── Card search handlers ──────────────────────────────────
 
-  const anyBrewFilter = activeKeywords.length > 0 || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim() || oracleText.trim() || activeArtTypes.size > 0 || activeSet !== null
+  const anyBrewFilter = activeKeywords.length > 0 || activeTags.length > 0 || ownedOnly || activeColors.size > 0 || activeType !== null || maxCmc !== null || maxPrice !== null || brewRawQuery.trim() || oracleText.trim() || activeArtTypes.size > 0 || activeSet !== null
+
+  // ── Filter controls (shared by mobile and desktop layouts) ──
+
+  const colorPicker = (dotSize: string) => (
+    <div className="flex items-center gap-2.5 flex-wrap">
+      <div className="flex gap-1.5">
+        {COLOR_CHIPS.map(c => (
+          <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
+            className={`${dotSize} rounded-full font-bold border-2 transition-all ${
+              activeColors.has(c.symbol)
+                ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
+                : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
+            }`}>
+            {c.symbol}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {(['exact', 'includes', 'commander'] as const).map(mode => (
+          <Chip key={mode} active={colorMode === mode} onClick={() => setColorMode(mode)}>
+            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  )
+
+  const typeChips = (
+    <div className="flex flex-wrap gap-1.5">
+      {CARD_TYPES.map(t => (
+        <Chip key={t} active={activeType === t.toLowerCase()} onClick={() => selectType(t.toLowerCase())}>{t}</Chip>
+      ))}
+    </div>
+  )
+
+  const cmcChips = (
+    <div className="flex flex-wrap gap-1.5">
+      <Chip active={maxCmc === null} onClick={() => setCmcFilter(null)}>Any</Chip>
+      {CMC_PRESETS.map(n => (
+        <Chip key={n} active={maxCmc === n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}>≤{n}</Chip>
+      ))}
+    </div>
+  )
+
+  const priceChips = (
+    <div className="flex flex-wrap gap-1.5">
+      {PRICE_PRESETS.map(n => (
+        <Chip key={n} active={maxPrice === n} onClick={() => setMaxPrice(maxPrice === n ? null : n)}>Under ${n}</Chip>
+      ))}
+      <Chip active={maxPrice === null} onClick={() => setMaxPrice(null)}>Any</Chip>
+    </div>
+  )
+
+  const oracleInput = (
+    <input
+      value={oracleText}
+      onChange={e => setOracleText(e.target.value)}
+      placeholder='e.g. whenever you draw'
+      className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
+    />
+  )
+
+  const printingChips = (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs text-stone-500 mb-1.5">Art Style</p>
+        <div className="flex flex-wrap gap-1.5">
+          {ART_TYPES.map(a => (
+            <Chip key={a.value} active={activeArtTypes.has(a.value)} onClick={() => toggleArtType(a.value)}>{a.label}</Chip>
+          ))}
+        </div>
+      </div>
+      {recentSets.length > 0 && (
+        <div>
+          <p className="text-xs text-stone-500 mb-1.5">Recent Sets</p>
+          <div className="flex flex-wrap gap-1.5">
+            {recentSets.map(s => (
+              <Chip key={s.name} active={activeSet === s.name} onClick={() => selectSet(s.name)}>{s.name}</Chip>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const sortControls = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <select
+        value={`${sortBy}-${sortDir}`}
+        onChange={e => {
+          const [by, dir] = e.target.value.split('-') as [typeof sortBy, typeof sortDir]
+          setSortBy(by)
+          setSortDir(dir)
+        }}
+        className="text-sm px-3 py-2 sm:text-xs sm:px-2.5 sm:py-1 rounded-full border-2 border-stone-700 bg-stone-800 text-stone-300 focus:outline-none focus:border-amber-600"
+      >
+        {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <Chip active={ownedOnly} onClick={() => setOwnedOnly(o => !o)}>Owned only</Chip>
+      <Chip active={sortOwnedFirst} onClick={() => setSortOwnedFirst(o => !o)}>Owned first</Chip>
+    </div>
+  )
+
+
+  // ── Chip search bar ───────────────────────────────────────
+
+  useEffect(() => {
+    loadTags().then(setAllTags)
+  }, [])
+
+  function addTag(slug: string) {
+    setActiveTags(prev => prev.includes(slug) ? prev : [...prev, slug])
+  }
+
+  function removeTag(slug: string) {
+    setActiveTags(prev => prev.filter(t => t !== slug))
+  }
+
+  // Phones get a full-screen search that stays open until "Show results"; desktop uses a dropdown that closes on blur
+  const isDesktopWidth = () => window.matchMedia('(min-width: 1024px)').matches
+
+  function closeSearch() {
+    setSearchOpen(false)
+    inputRef.current?.blur()
+  }
+
+  function submitSearch() {
+    const text = brewRawQuery.trim()
+    if (text !== searchedText) {
+      searchNowRef.current = true
+      setSearchedText(text)
+    } else {
+      runBrewFetch(fullQuery, 1, false, ownedOnly)
+    }
+    closeSearch()
+  }
+
+  function handleRawChange(value: string) {
+    setBrewRawQuery(value)
+    setHighlight(-1)
+    if (!value.trim()) setSearchedText('')
+  }
+
+  useEffect(() => {
+    if (!searchOpen || isDesktopWidth()) return
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [searchOpen])
+
+  function replaceTag(from: string, to: string) {
+    setActiveTags(prev => prev.includes(to) ? prev.filter(t => t !== from) : prev.map(t => t === from ? to : t))
+  }
+
+  function toggleRole(tag: string) {
+    const isActive = activeTags.some(t => t === tag || t.startsWith(`${tag}-`))
+    if (isActive) setActiveTags(prev => prev.filter(t => t !== tag && !t.startsWith(`${tag}-`)))
+    else addTag(tag)
+  }
+
+  function openNarrow(slug: string) {
+    setShowAllNarrow(false)
+    setNarrowTag(prev => prev === slug ? null : slug)
+  }
+
+  type Suggestion = { key: string; kind: 'tag' | 'keyword'; slug: string; label: string }
+
+  const suggestions: Suggestion[] = useMemo(() => {
+    const text = brewRawQuery.trim()
+    if (!text) return []
+    const tagMatches = allTags
+      ? matchTags(allTags, text, SUGGESTION_LIMIT)
+          .filter(t => !activeTags.includes(t))
+          .map(t => ({ key: `tag:${t}`, kind: 'tag' as const, slug: t, label: formatTag(t) }))
+      : []
+    const matchedTagSlugs = new Set(tagMatches.map(t => t.slug))
+    const keywordMatches = matchKeywords(text, 3)
+      .filter(k => !activeKeywords.includes(k.slug))
+      .filter(k => !matchedTagSlugs.has((k.query ?? `function:${k.slug}`).replace(/^function:/, '')))
+      .map(k => ({ key: `kw:${k.slug}`, kind: 'keyword' as const, slug: k.slug, label: k.label }))
+    return [...keywordMatches, ...tagMatches].slice(0, SUGGESTION_LIMIT)
+  }, [brewRawQuery, allTags, activeTags, activeKeywords])
+
+  function pickSuggestion(s: Suggestion) {
+    if (s.kind === 'keyword') toggleKeyword(s.slug)
+    else addTag(s.slug)
+    handleRawChange('')
+  }
+
+  function handleBarKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown' && suggestions.length > 0) {
+      e.preventDefault()
+      setHighlight(h => Math.min(h + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+      e.preventDefault()
+      setHighlight(h => Math.max(h - 1, -1))
+    } else if (e.key === 'Enter') {
+      if (highlight >= 0 && suggestions[highlight]) pickSuggestion(suggestions[highlight])
+      else submitSearch()
+    } else if (e.key === 'Escape') {
+      closeSearch()
+    } else if (e.key === 'Backspace' && brewRawQuery === '' && activeFilters.length > 0) {
+      activeFilters[activeFilters.length - 1].onRemove()
+    }
+  }
+
+  const narrowOptions = useMemo(() => {
+    if (!narrowTag) return []
+    const tag = narrowTag
+    const children = (allTags ? childTags(allTags, tag) : []).map(child => ({
+      key: `tag:${child}`,
+      label: formatTag(child.slice(tag.length + 1)),
+      onPick: () => { replaceTag(tag, child); setNarrowTag(child) },
+    }))
+    const related = relatedKeywords(tag).map(k => ({
+      key: `kw:${k.slug}`,
+      label: k.label,
+      onPick: () => { removeTag(tag); if (!activeKeywords.includes(k.slug)) toggleKeyword(k.slug); setNarrowTag(null) },
+    }))
+    return [...children, ...related]
+  }, [narrowTag, allTags, activeKeywords])
+
+  const roleButtons = ROLES.map(role => {
+    const isActive = activeTags.some(t => t === role.tag || t.startsWith(`${role.tag}-`))
+    return (
+      <button
+        key={role.tag}
+        onClick={() => toggleRole(role.tag)}
+        className={`text-sm py-3 sm:text-xs sm:py-2 rounded-lg border-2 transition-colors ${
+          isActive
+            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
+            : 'bg-stone-800 border-stone-700 text-stone-300 hover:border-amber-700/60 hover:text-amber-400'
+        }`}
+      >
+        {role.label}
+      </button>
+    )
+  })
 
   return (
     <div>
@@ -595,184 +794,160 @@ export default function SearchPage() {
           {/* Main column */}
           <div className="flex-1 min-w-0 space-y-4">
 
-            {/* Raw query input */}
-            <div className="flex gap-3">
-              <input
-                value={displayedQuery}
-                onChange={e => handleBrewRawInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runBrewFetch(fullQuery, 1, false)}
-                placeholder="Scryfall syntax or use filters"
-                className="flex-1 bg-stone-900 border-2 border-stone-700 rounded-lg px-4 py-3 text-stone-100 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors font-mono text-base sm:text-sm"
-              />
-              <button
-                onClick={() => runBrewFetch(fullQuery, 1, false)}
-                disabled={brewLoading}
-                className="px-6 py-3 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-2 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg font-medium transition-colors whitespace-nowrap"
-              >
-                {brewLoading ? 'Searching…' : 'Search'}
-              </button>
+            {/* Chip search bar */}
+            <div className={searchOpen
+              ? 'fixed inset-0 z-[60] mb-0 lg:mb-4 bg-stone-950 p-4 overflow-y-auto lg:relative lg:inset-auto lg:z-auto lg:bg-transparent lg:p-0 lg:overflow-visible'
+              : 'relative'}>
+              {searchOpen && (
+                <div className="flex items-center justify-between mb-3 lg:hidden">
+                  <p className="text-lg font-bold text-stone-100">Search</p>
+                  <button onClick={closeSearch} className="text-sm px-4 py-2 rounded-lg bg-amber-950/60 border-2 border-amber-700/60 text-amber-200">
+                    {brewLoading ? 'Searching…' : allFetchedCards.length > 0 ? `Show ${brewTotal.toLocaleString()} results` : 'Done'}
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <div
+                  onClick={() => inputRef.current?.focus()}
+                  className={`flex-1 min-w-0 flex flex-wrap items-center gap-1.5 bg-stone-900 border-2 rounded-lg px-2.5 py-2 cursor-text transition-colors ${searchOpen ? 'border-amber-600' : 'border-stone-700'}`}
+                >
+                  {activeFilters.map(f => (
+                    <span key={f.key} className={`flex items-center text-xs rounded-full border-2 transition-colors ${
+                      f.tag && narrowTag === f.tag
+                        ? 'bg-amber-800/70 border-amber-400 text-amber-200'
+                        : 'bg-amber-900/40 border-amber-700/60 text-amber-300'
+                    }`}>
+                      {f.tag ? (
+                        <button onClick={e => { e.stopPropagation(); openNarrow(f.tag!) }} className="pl-2.5 pr-1 py-0.5 hover:text-amber-100">{f.label}</button>
+                      ) : (
+                        <span className="pl-2.5 pr-1 py-0.5">{f.label}</span>
+                      )}
+                      <button onClick={e => { e.stopPropagation(); f.onRemove() }} aria-label={`Remove ${f.label}`} className="pr-2 pl-0.5 py-0.5 text-amber-500 hover:text-amber-200">×</button>
+                    </span>
+                  ))}
+                  <input
+                    ref={inputRef}
+                    value={brewRawQuery}
+                    onChange={e => handleRawChange(e.target.value)}
+                    onFocus={() => setSearchOpen(true)}
+                    onBlur={() => { if (isDesktopWidth()) setSearchOpen(false) }}
+                    onKeyDown={handleBarKeyDown}
+                    placeholder={activeFilters.length > 0 ? 'Add more…' : 'Search cards or pick a role…'}
+                    className="flex-1 min-w-[8rem] bg-transparent py-1 text-stone-100 placeholder-stone-500 focus:outline-none text-base sm:text-sm"
+                  />
+                </div>
+                <button
+                  onClick={submitSearch}
+                  disabled={brewLoading}
+                  className="px-4 sm:px-6 py-3 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg font-medium transition-colors whitespace-nowrap self-start"
+                >
+                  {brewLoading ? '…' : 'Search'}
+                </button>
+              </div>
+
+              {/* Dropdown: quick picks when empty, tag matches while typing */}
+              {searchOpen && (brewRawQuery.trim() ? suggestions.length > 0 : true) && (
+                <div onMouseDown={e => e.preventDefault()} className="mt-3 lg:absolute lg:left-0 lg:right-24 lg:top-full lg:mt-1 lg:z-30 lg:shadow-xl bg-stone-900 border-2 border-stone-700 rounded-lg overflow-hidden">
+                  {brewRawQuery.trim() ? (
+                    <div className="lg:max-h-72 lg:overflow-y-auto">
+                      {suggestions.map((s, i) => (
+                        <button
+                          key={s.key}
+                          onClick={() => pickSuggestion(s)}
+                          onMouseEnter={() => setHighlight(i)}
+                          className={`w-full text-left px-4 py-3 text-base sm:px-3 sm:py-2 sm:text-sm border-b border-stone-800 flex items-center justify-between gap-2 ${i === highlight ? 'bg-amber-900/40 text-amber-300' : 'text-stone-300'}`}
+                        >
+                          <span className="truncate">+ {s.label}</span>
+                          <span className="text-xs text-stone-600 shrink-0">{s.kind === 'keyword' ? 'keyword' : 'tag'}</span>
+                        </button>
+                      ))}
+                      <p className="px-4 py-3 text-sm sm:px-3 sm:py-2 sm:text-xs text-stone-500">Enter searches &ldquo;{brewRawQuery.trim()}&rdquo; as text</p>
+                    </div>
+                  ) : (
+                    <div className="p-3 space-y-3">
+                      <div className="lg:hidden">
+                        <p className="text-xs text-stone-500 mb-1.5">Roles</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-1.5">{roleButtons}</div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-stone-500 mb-1.5">Price</p>
+                        {priceChips}
+                      </div>
+                      <button onClick={() => { setBrowseOpen(true); closeSearch() }} className="lg:hidden text-xs text-amber-500 hover:text-amber-400">Browse all tags ▸</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end mt-1">
+                <button onClick={() => setShowQuery(s => !s)} className="text-xs text-stone-600 hover:text-stone-400">{showQuery ? 'Hide query' : 'Show query'}</button>
+              </div>
+              {showQuery && (
+                <p className="text-xs font-mono text-stone-400 bg-stone-900/60 border border-stone-800 rounded-lg px-3 py-2 break-words">{pendingQuery || '(empty)'}</p>
+              )}
             </div>
+
+            {/* Desktop role row */}
+            <div className="hidden lg:grid grid-cols-8 gap-2">{roleButtons}</div>
+
+            {/* Narrow panel: bottom sheet on mobile, inline on desktop */}
+            {narrowTag && (
+              <>
+                <div className="fixed inset-0 mb-0 bg-black/60 z-[70] lg:hidden" onClick={() => setNarrowTag(null)} />
+                <div className="fixed inset-x-0 bottom-0 z-[80] mb-0 lg:mb-4 max-h-[70vh] overflow-y-auto bg-stone-900 border-t-2 border-stone-700 rounded-t-2xl p-4 lg:static lg:z-auto lg:max-h-none lg:border-2 lg:border-dashed lg:border-stone-700 lg:rounded-xl lg:p-3">
+                  <div className="w-10 h-1 bg-stone-600 rounded-full mx-auto mb-3 lg:hidden" />
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-stone-200">Narrow {formatTag(narrowTag).toLowerCase()}</p>
+                    <button onClick={() => setNarrowTag(null)} className="text-stone-500 hover:text-stone-200 text-lg leading-none" aria-label="Close">×</button>
+                  </div>
+                  {narrowOptions.length === 0 ? (
+                    <p className="text-xs text-stone-600">No narrower tags for this one.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(showAllNarrow ? narrowOptions : narrowOptions.slice(0, NARROW_PREVIEW)).map(o => (
+                        <Chip key={o.key} active={false} onClick={o.onPick}>{o.label}</Chip>
+                      ))}
+                      {!showAllNarrow && narrowOptions.length > NARROW_PREVIEW && (
+                        <button onClick={() => setShowAllNarrow(true)} className="text-xs text-amber-500 hover:text-amber-400 px-1">+{narrowOptions.length - NARROW_PREVIEW} more</button>
+                      )}
+                    </div>
+                  )}
+                  <button onClick={() => { removeTag(narrowTag); setNarrowTag(null) }} className="mt-3 text-xs text-red-400 hover:text-red-300">Remove {formatTag(narrowTag).toLowerCase()}</button>
+                </div>
+              </>
+            )}
 
             {/* Mobile accordion — hidden on desktop */}
             <div className="lg:hidden space-y-1">
-              <div className="px-1 py-1">
-                <p className="text-xs text-stone-400 uppercase tracking-widest mb-1.5">Oracle Text</p>
-                <input
-                  value={oracleText}
-                  onChange={e => setOracleText(e.target.value)}
-                  placeholder='e.g. whenever you draw'
-                  className="w-full bg-stone-800 border-2 border-stone-700 rounded-lg px-3 py-2 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
-                />
-              </div>
               <AccordionRow title="Colors" count={activeColors.size} open={colorsOpen} onToggle={() => setColorsOpen(o => !o)}>
-                <div className="flex items-center gap-2.5 flex-wrap justify-center">
-                  {COLOR_CHIPS.map(c => (
-                    <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
-                      className={`w-9 h-9 rounded-full text-sm font-bold border-2 transition-all ${
-                        activeColors.has(c.symbol)
-                          ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
-                          : `${c.bg} ${c.text} border-transparent opacity-40`
-                      }`}>
-                      {c.symbol}
-                    </button>
-                  ))}
-                  <div className="flex items-center gap-1.5 ml-1">
-                    {(['exact', 'includes', 'commander'] as const).map(mode => (
-                      <button key={mode} onClick={() => setColorMode(mode)}
-                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                          colorMode === mode
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {mode === 'commander' ? 'Commander' : mode.charAt(0).toUpperCase() + mode.slice(1)}
-                      </button>
-                    ))}
-                  </div>
+                {colorPicker('w-9 h-9 text-sm')}
+              </AccordionRow>
+
+              <AccordionRow title="Type and CMC" count={(activeType ? 1 : 0) + (maxCmc !== null ? 1 : 0)} open={typeCmcOpen} onToggle={() => setTypeCmcOpen(o => !o)}>
+                <div className="space-y-3">
+                  {typeChips}
+                  {cmcChips}
                 </div>
               </AccordionRow>
 
-              <AccordionRow title="Type" count={activeType ? 1 : 0} open={typeOpen} onToggle={() => setTypeOpen(o => !o)}>
-                <div className="flex flex-wrap gap-1.5">
-                  {CARD_TYPES.map(t => (
-                    <button key={t} onClick={() => selectType(t.toLowerCase())}
-                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                        activeType === t.toLowerCase()
-                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                          : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                      }`}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </AccordionRow>
-
-              <AccordionRow title="Keywords" count={activeKeywords.length} open={keywordsOpen} onToggle={() => setKeywordsOpen(o => !o)}>
-                <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
-              </AccordionRow>
-
-              <AccordionRow title="CMC" count={maxCmc !== null ? 1 : 0} open={cmcOpen} onToggle={() => setCmcOpen(o => !o)}>
-                <div className="flex flex-wrap gap-1.5">
-                  <button onClick={() => setCmcFilter(null)}
-                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                      maxCmc === null
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400'
-                    }`}>
-                    Any
-                  </button>
-                  {CMC_PRESETS.map(n => (
-                    <button key={n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}
-                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                        maxCmc === n
-                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                          : 'bg-stone-800 border-stone-700 text-stone-400'
-                      }`}>
-                      ≤{n}
-                    </button>
-                  ))}
-                </div>
+              <AccordionRow title="Browse all tags" count={activeTags.length} open={browseOpen} onToggle={() => setBrowseOpen(o => !o)}>
+                <TagBrowser tags={allTags} activeTags={activeTags} onPick={addTag} />
               </AccordionRow>
 
               <AccordionRow title="Price" count={maxPrice !== null ? 1 : 0} open={priceOpen} onToggle={() => setPriceOpen(o => !o)}>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
-                    value={priceSlider}
-                    onChange={e => handlePriceSlider(Number(e.target.value))}
-                    className="flex-1 accent-amber-600 cursor-pointer"
-                  />
-                  <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
-                    {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
-                  </span>
-                </div>
+                {priceChips}
               </AccordionRow>
 
-              <AccordionRow title="Art Style" count={activeArtTypes.size} open={artOpen} onToggle={() => setArtOpen(o => !o)}>
-                <div className="flex flex-wrap gap-1.5">
-                  {ART_TYPES.map(a => (
-                    <button key={a.value} onClick={() => toggleArtType(a.value)}
-                      className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                        activeArtTypes.has(a.value)
-                          ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                          : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                      }`}>
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
+              <AccordionRow title="Oracle Text" count={oracleText.trim() ? 1 : 0} open={oracleOpen} onToggle={() => setOracleOpen(o => !o)}>
+                {oracleInput}
               </AccordionRow>
 
-              {recentSets.length > 0 && (
-                <AccordionRow title="Recent Sets" count={activeSet ? 1 : 0} open={setsOpen} onToggle={() => setSetsOpen(o => !o)}>
-                  <div className="flex flex-wrap gap-1.5">
-                    {recentSets.map(s => (
-                      <button key={s.name} onClick={() => selectSet(s.name)}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeSet === s.name
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                        }`}>
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
-                </AccordionRow>
-              )}
+              <AccordionRow title="Printing" count={activeArtTypes.size + (activeSet ? 1 : 0)} open={printingOpen} onToggle={() => setPrintingOpen(o => !o)}>
+                {printingChips}
+              </AccordionRow>
 
               <div className="flex items-center justify-between pt-0.5 flex-wrap gap-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(['rarity', 'usd', 'name'] as const).map(s => {
-                    const isActive = sortBy === s
-                    const label = s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
-                    return (
-                      <button key={s} onClick={() => {
-                        if (isActive) {
-                          setSortDir(sortDir === 'desc' ? 'asc' : 'desc')
-                        } else {
-                          setSortBy(s)
-                          setSortDir('desc')
-                        }
-                      }}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          isActive
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                        }`}>
-                        {isActive ? (sortDir === 'desc' ? '▼ ' : '▲ ') : ''}{label}
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={() => setSortOwnedFirst(o => !o)}
-                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                      sortOwnedFirst
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400 active:border-amber-700/60 active:text-amber-400'
-                    }`}
-                  >
-                    Owned first
-                  </button>
-                </div>
+                {sortControls}
                 <button
                   onClick={clearAllFilters}
                   disabled={!anyBrewFilter}
@@ -813,175 +988,35 @@ export default function SearchPage() {
               {filtersOpen && (
               <div className="px-4 py-3 bg-stone-900/30 border-t-2 border-stone-800 space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-stone-400 shrink-0">Color</span>
-                  <div className="flex gap-1.5">
-                    {COLOR_CHIPS.map(c => (
-                      <button key={c.symbol} onClick={() => toggleColor(c.symbol)} title={c.label}
-                        className={`w-7 h-7 rounded-full text-xs font-bold border-2 transition-all ${
-                          activeColors.has(c.symbol)
-                            ? `${c.activeBg} ${c.text} ${c.border} scale-110 shadow-md`
-                            : `${c.bg} ${c.text} border-transparent opacity-40 hover:opacity-70`
-                        }`}>
-                        {c.symbol}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {(['exact', 'includes', 'commander'] as const).map(mode => (
-                      <button key={mode} onClick={() => setColorMode(mode)}
-                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                          colorMode === mode
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {mode === 'commander' ? 'Commander' : mode.charAt(0).toUpperCase() + mode.slice(1)}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Color</span>
+                  {colorPicker('w-7 h-7 text-xs')}
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-stone-400 shrink-0">Type</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CARD_TYPES.map(t => (
-                      <button key={t} onClick={() => selectType(t.toLowerCase())}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeType === t.toLowerCase()
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {t}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Type</span>
+                  {typeChips}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-stone-400 shrink-0">Oracle Text</span>
-                  <input
-                    value={oracleText}
-                    onChange={e => setOracleText(e.target.value)}
-                    placeholder='e.g. whenever you draw'
-                    className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-base sm:text-sm text-stone-200 placeholder-stone-400 focus:outline-none focus:border-amber-600 transition-colors"
-                  />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">CMC</span>
+                  {cmcChips}
                 </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-stone-400 shrink-0">CMC</span>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => setCmcFilter(null)}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          maxCmc === null
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        Any
-                      </button>
-                      {CMC_PRESETS.map(n => (
-                        <button key={n} onClick={() => setCmcFilter(maxCmc === n ? null : n)}
-                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                            maxCmc === n
-                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                          }`}>
-                          ≤{n}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-stone-400 shrink-0">Max Price</span>
-                    <input
-                      type="range" min={1} max={MAX_PRICE_SLIDER} step={1}
-                      value={priceSlider}
-                      onChange={e => handlePriceSlider(Number(e.target.value))}
-                      className="w-28 accent-amber-600 cursor-pointer"
-                    />
-                    <span className={`text-xs font-mono w-14 ${maxPrice !== null ? 'text-amber-400' : 'text-stone-600'}`}>
-                      {maxPrice !== null ? `≤ $${maxPrice}` : 'Any'}
-                    </span>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Price</span>
+                  {priceChips}
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-stone-400 shrink-0">Art Style</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ART_TYPES.map(a => (
-                      <button key={a.value} onClick={() => toggleArtType(a.value)}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          activeArtTypes.has(a.value)
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {a.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Oracle Text</span>
+                  <div className="flex-1">{oracleInput}</div>
                 </div>
-                {recentSets.length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-stone-400 shrink-0">Recent Sets</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {recentSets.map(s => (
-                        <button key={s.name} onClick={() => selectSet(s.name)}
-                          className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                            activeSet === s.name
-                              ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                              : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                          }`}>
-                          {s.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-stone-400 shrink-0">Sort</span>
-                  {(['rarity', 'usd', 'name'] as const).map(s => {
-                    const isActive = sortBy === s
-                    const label = s === 'usd' ? 'Price' : s.charAt(0).toUpperCase() + s.slice(1)
-                    return (
-                      <button key={s} onClick={() => {
-                        if (isActive) {
-                          setSortDir(sortDir === 'desc' ? 'asc' : 'desc')
-                        } else {
-                          setSortBy(s)
-                          setSortDir('desc')
-                        }
-                      }}
-                        className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                          isActive
-                            ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                            : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                        }`}>
-                        {isActive ? (sortDir === 'desc' ? '▼ ' : '▲ ') : ''}{label}
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={() => setSortOwnedFirst(o => !o)}
-                    className={`text-xs px-2.5 py-1 rounded-full border-2 transition-colors ${
-                      sortOwnedFirst
-                        ? 'bg-amber-900/60 border-amber-600 text-amber-300'
-                        : 'bg-stone-800 border-stone-700 text-stone-400 hover:border-amber-700/60 hover:text-amber-400'
-                    }`}
-                  >
-                    Owned first
-                  </button>
+                <AccordionRow title="Printing" count={activeArtTypes.size + (activeSet ? 1 : 0)} open={printingOpen} onToggle={() => setPrintingOpen(o => !o)}>
+                  {printingChips}
+                </AccordionRow>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-stone-400 shrink-0 w-20">Sort</span>
+                  {sortControls}
                 </div>
               </div>
               )}
             </div>
-
-            {/* Active filters strip */}
-            {activeFilters.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-stone-600">Active:</span>
-                {activeFilters.map(f => (
-                  <button key={f.label} onClick={f.onRemove}
-                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-900/40 border-2 border-amber-700/60 text-amber-300 hover:bg-amber-900/70 transition-colors">
-                    {f.label} <span className="text-amber-500 ml-0.5">×</span>
-                  </button>
-                ))}
-              </div>
-            )}
 
             {/* Error */}
             {brewError && (
@@ -992,7 +1027,7 @@ export default function SearchPage() {
             {!brewLoading && allFetchedCards.length === 0 && !brewError && !anyBrewFilter && (
               <div className="text-center py-16 text-stone-600">
                 <p className="text-3xl mb-3">🍺</p>
-                <p className="text-sm">Click keywords or type a query to start brewing.</p>
+                <p className="text-sm">Pick a role or type to start brewing.</p>
               </div>
             )}
 
@@ -1066,10 +1101,10 @@ export default function SearchPage() {
 
           </div>
 
-          {/* Desktop keyword sidebar */}
-          <div className="hidden lg:block w-52 shrink-0">
-            <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">Keywords</p>
-            <KeywordLegend onInsert={toggleKeyword} activeKeywords={activeKeywords} />
+          {/* Desktop tag sidebar */}
+          <div className="hidden lg:block w-64 shrink-0">
+            <p className="text-xs text-stone-400 uppercase tracking-widest mb-3">Browse tags</p>
+            <TagBrowser tags={allTags} activeTags={activeTags} onPick={addTag} />
           </div>
 
         </div>
