@@ -300,7 +300,7 @@ export default function SearchPage() {
   const [activeKeywords, setActiveKeywords] = useState<string[]>([])
   const [activeTags, setActiveTags] = useState<string[]>([])
   const [allTags, setAllTags] = useState<string[] | null>(null)
-  const [barFocused, setBarFocused] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [highlight, setHighlight] = useState(-1)
   const [narrowTag, setNarrowTag] = useState<string | null>(null)
   const [showAllNarrow, setShowAllNarrow] = useState(false)
@@ -638,6 +638,25 @@ export default function SearchPage() {
     setActiveTags(prev => prev.filter(t => t !== slug))
   }
 
+  // Phones get a full-screen search that stays open until "Show results"; desktop uses a dropdown that closes on blur
+  const isDesktopWidth = () => window.matchMedia('(min-width: 1024px)').matches
+
+  function closeSearch() {
+    setSearchOpen(false)
+    inputRef.current?.blur()
+  }
+
+  function submitSearch() {
+    runBrewFetch(fullQuery, 1, false, ownedOnly)
+    closeSearch()
+  }
+
+  useEffect(() => {
+    if (!searchOpen || isDesktopWidth()) return
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [searchOpen])
+
   function replaceTag(from: string, to: string) {
     setActiveTags(prev => prev.includes(to) ? prev.filter(t => t !== from) : prev.map(t => t === from ? to : t))
   }
@@ -687,9 +706,9 @@ export default function SearchPage() {
       setHighlight(h => Math.max(h - 1, -1))
     } else if (e.key === 'Enter') {
       if (highlight >= 0 && suggestions[highlight]) pickSuggestion(suggestions[highlight])
-      else runBrewFetch(fullQuery, 1, false, ownedOnly)
+      else submitSearch()
     } else if (e.key === 'Escape') {
-      inputRef.current?.blur()
+      closeSearch()
     } else if (e.key === 'Backspace' && brewRawQuery === '' && activeFilters.length > 0) {
       activeFilters[activeFilters.length - 1].onRemove()
     }
@@ -758,11 +777,21 @@ export default function SearchPage() {
           <div className="flex-1 min-w-0 space-y-4">
 
             {/* Chip search bar */}
-            <div className="relative">
+            <div className={searchOpen
+              ? 'fixed inset-0 z-[60] mb-0 lg:mb-4 bg-stone-950 p-4 overflow-y-auto lg:relative lg:inset-auto lg:z-auto lg:bg-transparent lg:p-0 lg:overflow-visible'
+              : 'relative'}>
+              {searchOpen && (
+                <div className="flex items-center justify-between mb-3 lg:hidden">
+                  <p className="text-lg font-bold text-stone-100">Search</p>
+                  <button onClick={closeSearch} className="text-sm px-4 py-2 rounded-lg bg-amber-950/60 border-2 border-amber-700/60 text-amber-200">
+                    {brewLoading ? 'Searching…' : allFetchedCards.length > 0 ? `Show ${brewTotal.toLocaleString()} results` : 'Done'}
+                  </button>
+                </div>
+              )}
               <div className="flex gap-3">
                 <div
                   onClick={() => inputRef.current?.focus()}
-                  className={`flex-1 min-w-0 flex flex-wrap items-center gap-1.5 bg-stone-900 border-2 rounded-lg px-2.5 py-2 cursor-text transition-colors ${barFocused ? 'border-amber-600' : 'border-stone-700'}`}
+                  className={`flex-1 min-w-0 flex flex-wrap items-center gap-1.5 bg-stone-900 border-2 rounded-lg px-2.5 py-2 cursor-text transition-colors ${searchOpen ? 'border-amber-600' : 'border-stone-700'}`}
                 >
                   {activeFilters.map(f => (
                     <span key={f.key} className={`flex items-center text-xs rounded-full border-2 transition-colors ${
@@ -782,15 +811,15 @@ export default function SearchPage() {
                     ref={inputRef}
                     value={brewRawQuery}
                     onChange={e => { setBrewRawQuery(e.target.value); setHighlight(-1) }}
-                    onFocus={() => setBarFocused(true)}
-                    onBlur={() => setBarFocused(false)}
+                    onFocus={() => setSearchOpen(true)}
+                    onBlur={() => { if (isDesktopWidth()) setSearchOpen(false) }}
                     onKeyDown={handleBarKeyDown}
                     placeholder={activeFilters.length > 0 ? 'Add more…' : 'Search cards or pick a role…'}
                     className="flex-1 min-w-[8rem] bg-transparent py-1 text-stone-100 placeholder-stone-500 focus:outline-none text-base sm:text-sm"
                   />
                 </div>
                 <button
-                  onClick={() => runBrewFetch(fullQuery, 1, false, ownedOnly)}
+                  onClick={submitSearch}
                   disabled={brewLoading}
                   className="px-4 sm:px-6 py-3 bg-amber-950/60 border-2 border-amber-700/50 hover:bg-amber-900/60 hover:border-amber-600 text-amber-200 disabled:opacity-50 rounded-lg font-medium transition-colors whitespace-nowrap self-start"
                 >
@@ -799,10 +828,10 @@ export default function SearchPage() {
               </div>
 
               {/* Dropdown: quick picks when empty, tag matches while typing */}
-              {barFocused && (brewRawQuery.trim() ? suggestions.length > 0 : true) && (
-                <div onMouseDown={e => e.preventDefault()} className="absolute left-0 right-0 sm:right-24 top-full mt-1 z-30 bg-stone-900 border-2 border-stone-700 rounded-lg shadow-xl overflow-hidden">
+              {searchOpen && (brewRawQuery.trim() ? suggestions.length > 0 : true) && (
+                <div onMouseDown={e => e.preventDefault()} className="mt-3 lg:absolute lg:left-0 lg:right-24 lg:top-full lg:mt-1 lg:z-30 lg:shadow-xl bg-stone-900 border-2 border-stone-700 rounded-lg overflow-hidden">
                   {brewRawQuery.trim() ? (
-                    <div className="max-h-72 overflow-y-auto">
+                    <div className="lg:max-h-72 lg:overflow-y-auto">
                       {suggestions.map((s, i) => (
                         <button
                           key={s.key}
@@ -826,7 +855,7 @@ export default function SearchPage() {
                         <p className="text-xs text-stone-500 mb-1.5">Price</p>
                         {priceChips}
                       </div>
-                      <button onClick={() => { setBrowseOpen(true); inputRef.current?.blur() }} className="lg:hidden text-xs text-amber-500 hover:text-amber-400">Browse all tags ▸</button>
+                      <button onClick={() => { setBrowseOpen(true); closeSearch() }} className="lg:hidden text-xs text-amber-500 hover:text-amber-400">Browse all tags ▸</button>
                     </div>
                   )}
                 </div>
@@ -846,8 +875,8 @@ export default function SearchPage() {
             {/* Narrow panel: bottom sheet on mobile, inline on desktop */}
             {narrowTag && (
               <>
-                <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setNarrowTag(null)} />
-                <div className="fixed inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto bg-stone-900 border-t-2 border-stone-700 rounded-t-2xl p-4 lg:static lg:z-auto lg:max-h-none lg:border-2 lg:border-dashed lg:border-stone-700 lg:rounded-xl lg:p-3">
+                <div className="fixed inset-0 mb-0 bg-black/60 z-[70] lg:hidden" onClick={() => setNarrowTag(null)} />
+                <div className="fixed inset-x-0 bottom-0 z-[80] mb-0 lg:mb-4 max-h-[70vh] overflow-y-auto bg-stone-900 border-t-2 border-stone-700 rounded-t-2xl p-4 lg:static lg:z-auto lg:max-h-none lg:border-2 lg:border-dashed lg:border-stone-700 lg:rounded-xl lg:p-3">
                   <div className="w-10 h-1 bg-stone-600 rounded-full mx-auto mb-3 lg:hidden" />
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-sm text-stone-200">Narrow {formatTag(narrowTag).toLowerCase()}</p>
