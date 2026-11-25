@@ -877,6 +877,8 @@ export default function BinderPage() {
       .then(r => r.json())
       .then(data => {
         setEntries(data.entries)
+        const liveKeys = new Set((data.entries as BinderEntry[]).map(e => makeRowKey(e.displayName, e.setCode, e.foilType)))
+        setResults(prev => new Map([...prev].filter(([key]) => liveKeys.has(key))))
         setUnlimitedBinder(data.unlimitedBinder ?? false)
         localStorage.setItem(LS_BINDER_ENTRIES, JSON.stringify(data.entries))
         if (expandParamRef.current) {
